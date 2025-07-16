@@ -1,12 +1,12 @@
 // server/index.ts
-import dotenv from 'dotenv';
-dotenv.config();
 
+// --- BLOCO DE IMPORTAÇÕES ---
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url'; // Importação necessária para a correção
 import express from 'express';
 import mongoose from 'mongoose';
 import cors, { CorsOptions } from 'cors';
-
-// Importação dos roteadores corretos
 import authRoutes from './src/routes/auth';
 import convitePublicRoutes from './src/routes/convitePublicRoutes';
 import conviteAlunoPublicRoutes from './src/routes/conviteAlunoPublicRoutes';
@@ -15,13 +15,22 @@ import treinoRoutes from './src/routes/treinos';
 import exercicioRoutes from './src/routes/exercicios';
 import sessionsRoutes from './src/routes/sessionsRoutes';
 import pastaRoutes from './src/routes/pastasTreinos';
-import alunoApiRoutes from './src/routes/alunoApiRoutes'; // ÚNICA FONTE PARA ROTAS DE ALUNO
+import alunoApiRoutes from './src/routes/alunoApiRoutes';
 import adminRoutes from './src/routes/adminRoutes';
-
-// Importação dos middlewares
 import { authenticateToken } from './middlewares/authenticateToken';
 import { authorizeAdmin } from './middlewares/authorizeAdmin';
 import { errorHandler } from './middlewares/errorHandler';
+
+// --- CORREÇÃO DEFINITIVA PARA ES MODULES ---
+// No sistema de módulos "import/export", __dirname não existe.
+// Este bloco de código recria essa funcionalidade de forma segura.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Agora que temos o __dirname, podemos carregar o .env corretamente.
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+// --- FIM DA CORREÇÃO ---
+
 
 const app = express();
 
@@ -57,8 +66,8 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Conectado ao MongoDB com sucesso!'))
   .catch(err => console.error('Falha ao conectar com o MongoDB:', err));
 
-// --- ESTRUTURA DE ROTAS FINAL ---
-app.use('/api/public/convites', convitePublicRoutes); 
+// --- ESTRUTURA DE ROTAS FINAL (INTOCADA) ---
+app.use('/api/public/convites', convitePublicRoutes);
 app.use('/api/public/convite-aluno', conviteAlunoPublicRoutes);
 app.use('/api/auth', authRoutes);
 
@@ -70,7 +79,7 @@ app.use('/api/treinos', treinoRoutes);
 app.use('/api/exercicios', exercicioRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/pastas/treinos', pastaRoutes);
-app.use('/api/aluno', alunoApiRoutes); // Registra TODAS as rotas de aluno/gerenciar
+app.use('/api/aluno', alunoApiRoutes);
 
 app.use(errorHandler);
 
