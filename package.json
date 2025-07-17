@@ -7,9 +7,12 @@
     "dev": "concurrently -k --kill-others-on-fail --name \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "NODE_ENV=development tsx server/index.ts",
     "dev:client": "vite --config client/vite.config.ts --host",
+    
+    "build:shared": "tsc -p shared/tsconfig.json",
     "build:client": "vite build --config client/vite.config.ts",
     "build:server": "tsc -p server/tsconfig.json",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:shared && npm run build:client && npm run build:server",
+
     "start": "node dist/index.js"
   },
   "dependencies": {
