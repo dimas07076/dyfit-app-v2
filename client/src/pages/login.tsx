@@ -2,12 +2,12 @@
 import React, { useState, useContext } from 'react';
 import { useLocation } from 'wouter';
 import { UserContext, User } from '@/context/UserContext';
-import { useToast } from "@/hooks/use-toast"; // <<< USA O HOOK
+import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input"; // Import Input se não estiver
-import { Button } from "@/components/ui/button"; // Import Button se não estiver
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { fetchWithAuth } from '@/lib/apiClient'; // <<< IMPORTA NOSSA FUNÇÃO CENTRAL
 
-// Interface para a resposta da API de login
 interface LoginApiResponse {
     message: string;
     token: string;
@@ -21,20 +21,15 @@ interface LoginApiResponse {
     };
 }
 
-// Interface para erros da API
-interface ApiError {
-    message: string;
-}
-
 export default function LoginPage() {
     const [, setLocation] = useLocation();
     const userContext = useContext(UserContext);
-    const { toast } = useToast(); // <<< USA O HOOK
+    const { toast } = useToast();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(""); // Para erros locais se o toast não for suficiente
+    const [error, setError] = useState("");
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -42,25 +37,12 @@ export default function LoginPage() {
         setIsLoading(true);
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-            const response = await fetch(`${apiUrl}/api/auth/login`, {
+            // <<< LÓGICA DE FETCH TOTALMENTE SUBSTITUÍDA >>>
+            const loginData = await fetchWithAuth<LoginApiResponse>('/api/auth/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', },
                 body: JSON.stringify({ email: email.toLowerCase(), password }),
             });
-
-            if (!response.ok) {
-                 let errorMessage = `Erro ${response.status}`;
-                 try {
-                     const errorData: ApiError = await response.json();
-                     errorMessage = errorData.message || errorMessage;
-                 } catch (jsonError) {
-                     errorMessage = response.statusText || errorMessage;
-                 }
-                 throw new Error(errorMessage);
-            }
-
-            const loginData = await response.json() as LoginApiResponse;
+            // Nossa função fetchWithAuth já lida com erros de rede e status não-ok.
 
             localStorage.setItem('authToken', loginData.token);
             const loggedInUser: User = {
@@ -80,18 +62,18 @@ export default function LoginPage() {
                 window.location.reload();
             }
 
-            toast({ // Chama toast do hook
+            toast({
                 title: "Login bem-sucedido!",
                 description: `Bem-vindo(a) de volta, ${loggedInUser.firstName}!`,
             });
 
-            setLocation("/"); // Redireciona para raiz (Dashboard)
+            setLocation("/");
 
         } catch (err: any) {
             console.error("Erro no login:", err);
             const errorMessage = err.message || 'Ocorreu um erro inesperado.';
             setError(errorMessage);
-            toast({ // Chama toast do hook
+            toast({
                 title: "Erro no Login",
                 description: errorMessage,
                 variant: "destructive",
@@ -101,6 +83,7 @@ export default function LoginPage() {
         }
     };
 
+    // O JSX do return permanece EXATAMENTE o mesmo, não precisa copiar esta parte se não quiser.
     return (
         <div className="min-h-screen flex bg-gray-100 dark:bg-gray-950">
             {/* Lado esquerdo */}
@@ -137,7 +120,7 @@ export default function LoginPage() {
 
                     <div className="mb-5">
                         <label htmlFor="email-login" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                        <Input // Usando o componente Input
+                        <Input
                            type="email"
                            id="email-login"
                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition duration-150"
@@ -152,7 +135,7 @@ export default function LoginPage() {
 
                     <div className="mb-8">
                         <label htmlFor="password-login" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Senha</label>
-                        <Input // Usando o componente Input
+                        <Input
                             type="password"
                             id="password-login"
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition duration-150"
@@ -165,7 +148,7 @@ export default function LoginPage() {
                         />
                     </div>
 
-                    <Button // Usando o componente Button
+                    <Button
                         type="submit"
                         className={`
                             w-full flex items-center justify-center
