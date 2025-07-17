@@ -4,14 +4,17 @@ export const fetchWithAuth = async <T = any>(
     url: string,
     options: RequestInit = {}
   ): Promise<T> => {
-    const apiUrlBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const fullUrl = url.startsWith('/') ? `${apiUrlBase}${url}` : `${apiUrlBase}/${url}`;
+    
+    // <<< MUDANÇA PRINCIPAL AQUI >>>
+    // A URL base agora é DESNECESSÁRIA.
+    // Usamos caminhos relativos para que o proxy do Vite (dev) ou o rewrite da Vercel (prod) funcionem.
+    // const apiUrlBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const fullUrl = url.startsWith('/') ? url : `/${url}`;
     
     let token: string | null = null;
     let tokenTypeUsed: string = "Nenhum";
   
-    // --- LÓGICA DE SELEÇÃO DE TOKEN CORRIGIDA E FINAL ---
-    // A rota é para um ALUNO se começar com /api/aluno/ E NÃO for /gerenciar E NÃO for /convite
+    // --- LÓGICA DE SELEÇÃO DE TOKEN (SEM ALTERAÇÕES) ---
     if (
         url.startsWith('/api/aluno/') && 
         !url.startsWith('/api/aluno/gerenciar') &&
@@ -21,8 +24,7 @@ export const fetchWithAuth = async <T = any>(
       tokenTypeUsed = "alunoAuthToken";
       console.log('[fetchWithAuth] Rota de Aluno detectada. Tentando usar alunoAuthToken.');
     } else {
-      // Para todas as outras rotas, incluindo as de gerenciamento e convite.
-      token = localStorage.getItem('authToken'); // Token de Personal/Admin
+      token = localStorage.getItem('authToken');
       tokenTypeUsed = "authToken";
       console.log(`[fetchWithAuth] Rota de Personal/Admin ('${url}') detectada. Tentando usar authToken.`);
     }
@@ -43,7 +45,7 @@ export const fetchWithAuth = async <T = any>(
       }
     }
   
-    console.log(`[fetchWithAuth] Making ${options.method || 'GET'} request to: ${fullUrl}`);
+    console.log(`[fetchWithAuth] Making ${options.method || 'GET'} request to (proxied): ${fullUrl}`);
   
     try {
       const response = await fetch(fullUrl, {

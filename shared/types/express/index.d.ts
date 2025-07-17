@@ -1,25 +1,28 @@
 // shared/types/express/index.d.ts
+// Este arquivo estende os tipos globais do Express para o projeto inteiro.
 
-// Define a estrutura do payload para o token de Personal/Admin
+// Payload para Personal e Admin, com todas as propriedades usadas no middleware
 interface UserPayload {
-  id: string;
-  role: string;
+    id: string;
+    role: 'personal' | 'admin';
+    firstName: string; 
+    lastName: string;  
+    email: string;     
 }
 
-// <<< ADICIONADO: Define a estrutura do payload para o token do Aluno >>>
+// Payload para Aluno, com todas as propriedades usadas no middleware
 interface AlunoPayload {
     id: string;
-    role: 'aluno'; // O role aqui é sempre 'aluno'
-    // Adicione outras propriedades se o token do aluno contiver mais dados
+    role: 'aluno';
+    nome: string;
+    email: string; // <<< ADICIONE ESTA LINHA
+    personalId?: string;
 }
 
-
-// Sobrescreve o namespace 'Express' para adicionar os nossos tipos customizados
+// Sobrescreve o namespace 'Express' para adicionar nossos tipos customizados ao objeto Request
 declare namespace Express {
   export interface Request {
-    // A propriedade 'user' pode existir em requisições de Personal/Admin
     user?: UserPayload;
-    // <<< ADICIONADO: A propriedade 'aluno' pode existir em requisições de Aluno >>>
     aluno?: AlunoPayload;
   }
 }

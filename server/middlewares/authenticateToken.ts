@@ -1,8 +1,9 @@
 // server/middlewares/authenticateToken.ts
-
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
 
+// Este middleware autentica TANTO personal/admin QUANTO aluno
+// e os adiciona a req.user ou req.aluno, respectivamente.
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
@@ -24,7 +25,9 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
             req.aluno = {
                 id: decoded.id,
                 role: 'aluno',
-                nome: decoded.nome
+                nome: decoded.nome,
+                email: decoded.email, // <<< LINHA CORRIGIDA/ADICIONADA
+                personalId: decoded.personalId,
             };
             return next();
         }
