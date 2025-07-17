@@ -9,15 +9,15 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "buildCommand": "npm run build:client",
+        "buildCommand": "npm run build",
         "outputDirectory": "client/dist"
       }
     }
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "/server/index.ts"
     },
     {
       "source": "/((?!api/|images/|favicon.ico).*)",
