@@ -1,6 +1,6 @@
 // server/models/Treino.ts
 import mongoose, { Schema, Document, Types } from "mongoose";
-import { IExercicio } from './Exercicio';
+import { IExercicio } from './Exercicio.js';
 
 export const TIPOS_ORGANIZACAO_ROTINA = ['diasDaSemana', 'numerico', 'livre'] as const;
 export type TipoOrganizacaoRotina = typeof TIPOS_ORGANIZACAO_ROTINA[number];

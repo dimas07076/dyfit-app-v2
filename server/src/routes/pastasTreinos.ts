@@ -1,9 +1,9 @@
 // server/src/routes/pastasTreinos.ts
 import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
 import mongoose from 'mongoose';
-import PastaTreino from '../../models/Pasta';
-import Treino from '../../models/Treino';
-import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
+import PastaTreino from '../../models/Pasta.js';
+import Treino from '../../models/Treino.js';
+import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
 
 const router = express.Router();
 

@@ -1,8 +1,8 @@
 // server/src/routes/convitePublicRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import PersonalTrainer from '../../models/PersonalTrainer'; // Presumindo que IPersonalTrainer está aqui ou é importado por ele
-import ConvitePersonal, { IConvitePersonal } from '../../models/ConvitePersonal';
+import PersonalTrainer from '../../models/PersonalTrainer.js'; // Presumindo que IPersonalTrainer está aqui ou é importado por ele
+import ConvitePersonal, { IConvitePersonal } from '../../models/ConvitePersonal.js';
 
 const router = express.Router();
 

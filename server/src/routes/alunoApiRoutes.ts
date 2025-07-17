@@ -1,10 +1,10 @@
 // server/src/routes/alunoApiRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
-import Treino, { ITreinoPopuladoLean, IDiaDeTreino } from '../../models/Treino';
-import Sessao, { ISessaoDocument, OpcaoPSE, OPCOES_PSE, ISessaoLean } from '../../models/Sessao';
-import Aluno from '../../models/Aluno';
-import ConviteAluno from '../../models/ConviteAluno';
+import Treino, { ITreinoPopuladoLean, IDiaDeTreino } from '../../models/Treino.js';
+import Sessao, { ISessaoDocument, OpcaoPSE, OPCOES_PSE, ISessaoLean } from '../../models/Sessao.js';
+import Aluno from '../../models/Aluno.js';
+import ConviteAluno from '../../models/ConviteAluno.js';
 import { startOfWeek, endOfWeek } from 'date-fns';
 
 const router = express.Router();

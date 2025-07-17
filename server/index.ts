@@ -1,35 +1,34 @@
 // server/index.ts
 
-// --- BLOCO DE IMPORTAÇÕES (sem alterações) ---
+// --- BLOCO DE IMPORTAÇÕES CORRIGIDO ---
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import express, { Router } from 'express'; // Router foi importado
+import express, { Router } from 'express';
 import mongoose from 'mongoose';
 import cors, { CorsOptions } from 'cors';
-import authRoutes from './src/routes/auth';
-import convitePublicRoutes from './src/routes/convitePublicRoutes';
-import conviteAlunoPublicRoutes from './src/routes/conviteAlunoPublicRoutes';
-import dashboardRoutes from './src/routes/dashboardGeralRoutes';
-import treinoRoutes from './src/routes/treinos';
-import exercicioRoutes from './src/routes/exercicios';
-import sessionsRoutes from './src/routes/sessionsRoutes';
-import pastaRoutes from './src/routes/pastasTreinos';
-import alunoApiRoutes from './src/routes/alunoApiRoutes';
-import adminRoutes from './src/routes/adminRoutes';
-import { authenticateToken } from './middlewares/authenticateToken';
-import { authorizeAdmin } from './middlewares/authorizeAdmin';
-import { errorHandler } from './middlewares/errorHandler';
+import authRoutes from './src/routes/auth.js';
+import convitePublicRoutes from './src/routes/convitePublicRoutes.js';
+import conviteAlunoPublicRoutes from './src/routes/conviteAlunoPublicRoutes.js';
+import dashboardRoutes from './src/routes/dashboardGeralRoutes.js';
+import treinoRoutes from './src/routes/treinos.js';
+import exercicioRoutes from './src/routes/exercicios.js';
+import sessionsRoutes from './src/routes/sessionsRoutes.js';
+import pastaRoutes from './src/routes/pastasTreinos.js';
+import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
+import adminRoutes from './src/routes/adminRoutes.js';
+import { authenticateToken } from './middlewares/authenticateToken.js';
+import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
-// --- CONFIGURAÇÃO DE AMBIENTE (sem alterações) ---
+// --- O RESTO DO ARQUIVO PERMANECE IGUAL ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
-const apiRouter = Router(); // <<< NOVO ROTEADOR-PAI PARA A API
+const apiRouter = Router();
 
-// --- CONFIGURAÇÃO DE CORS (sem alterações) ---
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
@@ -54,7 +53,6 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- CONEXÃO COM O BANCO (sem alterações) ---
 const MONGO_URI = process.env.MONGODB_URI;
 if (!MONGO_URI) {
   console.error('FATAL_ERROR: MONGODB_URI não está definida.');
@@ -64,15 +62,12 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Conectado ao MongoDB com sucesso!'))
   .catch(err => console.error('Falha ao conectar com o MongoDB:', err));
 
-// --- ESTRUTURA DE ROTAS CORRIGIDA ---
-// 1. Registramos o roteador-pai no prefixo /api
 app.use('/api', apiRouter);
 
-// 2. Registramos TODAS as sub-rotas dentro do roteador-pai, SEM o prefixo /api
 apiRouter.use('/public/convites', convitePublicRoutes);
 apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
-apiRouter.use(authenticateToken); // Middleware de autenticação se aplica a todas as rotas abaixo
+apiRouter.use(authenticateToken);
 apiRouter.use('/admin', authorizeAdmin, adminRoutes);
 apiRouter.use('/dashboard/geral', dashboardRoutes);
 apiRouter.use('/treinos', treinoRoutes);
@@ -81,10 +76,8 @@ apiRouter.use('/sessions', sessionsRoutes);
 apiRouter.use('/pastas/treinos', pastaRoutes);
 apiRouter.use('/aluno', alunoApiRoutes);
 
-// 3. O errorHandler continua no app principal
 app.use(errorHandler);
 
-// --- EXPORTAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 export default app;
 
 if (process.env.NODE_ENV === 'development') {

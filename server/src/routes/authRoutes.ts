@@ -1,7 +1,7 @@
 // server/src/routes/authRoutes.ts
 import { Router, Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer';
+import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js';
 import jwt from 'jsonwebtoken';
 import ms from 'ms';
 

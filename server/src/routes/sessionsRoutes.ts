@@ -1,10 +1,10 @@
 // server/src/routes/sessionsRoutes.ts
 import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado aqui
 import mongoose, { Types } from 'mongoose';
-import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
-import Sessao, { ISessaoLean, ISessaoDocument, TipoCompromisso, TIPOS_COMPROMISSO, OpcaoPSE } from '../../models/Sessao';
-import Aluno from '../../models/Aluno';
-import Treino, { ITreino } from '../../models/Treino';
+import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
+import Sessao, { ISessaoLean, ISessaoDocument, TipoCompromisso, TIPOS_COMPROMISSO, OpcaoPSE } from '../../models/Sessao.js';
+import Aluno from '../../models/Aluno.js';
+import Treino, { ITreino } from '../../models/Treino.js';
 
 const router = express.Router();
 

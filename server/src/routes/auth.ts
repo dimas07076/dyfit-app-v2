@@ -1,8 +1,8 @@
 // server/src/routes/auth.ts
 import { Router, Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer';
-import Aluno, { IAluno } from '../../models/Aluno';
+import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js';
+import Aluno, { IAluno } from '../../models/Aluno.js';
 import jwt, { Secret } from 'jsonwebtoken';
 import ms from 'ms';
 

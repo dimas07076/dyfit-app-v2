@@ -1,10 +1,10 @@
 // server/src/routes/dashboardGeralRoutes.ts
 import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
 import mongoose from 'mongoose';
-import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
-import Aluno from '../../models/Aluno';
-import Treino from '../../models/Treino';
-import Sessao from '../../models/Sessao';
+import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
+import Aluno from '../../models/Aluno.js';
+import Treino from '../../models/Treino.js';
+import Sessao from '../../models/Sessao.js';
 
 const router = express.Router();
 

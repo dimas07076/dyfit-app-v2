@@ -1,8 +1,8 @@
 // server/src/routes/exercicios.ts
 import express, { Request, Response, Router, NextFunction } from "express";
 import mongoose from "mongoose";
-import Exercicio, { IExercicio } from "../../models/Exercicio";
-import { authenticateToken } from '../../middlewares/authenticateToken';
+import Exercicio, { IExercicio } from "../../models/Exercicio.js";
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 
 const router: Router = express.Router();
 

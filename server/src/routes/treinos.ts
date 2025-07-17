@@ -6,9 +6,9 @@ import Treino, {
     IExercicioEmDiaDeTreino,
     IDiaDeTreinoPlain,
     IExercicioEmDiaDeTreinoPlain
-} from "../../models/Treino";
-import PastaTreino from '../../models/Pasta';
-import { authenticateToken } from '../../middlewares/authenticateToken';
+} from "../../models/Treino.js";
+import PastaTreino from '../../models/Pasta.js';
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 
 const router = express.Router();
 

@@ -1,8 +1,8 @@
 // server/scripts/createPersonal.ts
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import PersonalTrainer, { IPersonalTrainer } from '../models/PersonalTrainer'; // Ajuste o caminho se necessário
-import { connectToDatabase, disconnectFromDatabase } from '../database'; // Ajuste o caminho se necessário
+import PersonalTrainer, { IPersonalTrainer } from '../models/PersonalTrainer.js'; // Ajuste o caminho se necessário
+import { connectToDatabase, disconnectFromDatabase } from '../database.js'; // Ajuste o caminho se necessário
 
 dotenv.config({ path: '../../.env' }); // Carrega variáveis de ambiente do .env na raiz do projeto
 

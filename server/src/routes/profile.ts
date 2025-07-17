@@ -1,7 +1,7 @@
 // server/src/routes/profile.ts
 import { Router, Request, Response, NextFunction } from 'express';
-import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer';
-import { authenticateToken } from '../../middlewares/authenticateToken';
+import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js';
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 
 const router = Router();
 

@@ -1,8 +1,8 @@
 // server/src/routes/publicContatosRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import Contato, { IContato } from '../../models/Contato';
-import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer'; // Importe seu modelo PersonalTrainer
+import Contato, { IContato } from '../../models/Contato.js';
+import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js'; // Importe seu modelo PersonalTrainer
 
 const router = express.Router();
 

@@ -2,8 +2,8 @@
 import express, { Response, NextFunction, Request } from 'express';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
-import PersonalTrainer from '../../models/PersonalTrainer';
-import ConvitePersonal from '../../models/ConvitePersonal';
+import PersonalTrainer from '../../models/PersonalTrainer.js';
+import ConvitePersonal from '../../models/ConvitePersonal.js';
 
 const router = express.Router();
 

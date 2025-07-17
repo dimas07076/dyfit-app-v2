@@ -1,7 +1,7 @@
 // server/src/routes/conviteAlunoPublicRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
-import ConviteAluno from '../../models/ConviteAluno';
-import Aluno from '../../models/Aluno';
+import ConviteAluno from '../../models/ConviteAluno.js';
+import Aluno from '../../models/Aluno.js';
 import mongoose from 'mongoose';
 
 const router = express.Router();

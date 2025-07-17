@@ -1,6 +1,6 @@
 // server/src/routes/activityLogsRoutes.ts
 import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
-import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
+import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
 
 const router = express.Router();
 
