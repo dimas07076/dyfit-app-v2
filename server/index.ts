@@ -83,7 +83,14 @@ app.use('/api/aluno', alunoApiRoutes);
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Servidor Express rodando na porta ${PORT}`);
-});
+// --- ALTERAÇÃO PARA VERCEL ---
+// O bloco 'app.listen' foi removido para implantação na Vercel.
+// A Vercel gerencia o servidor e o ciclo de vida das requisições.
+// const PORT = process.env.PORT || 5000;
+// app.listen(PORT, () => {
+//   console.log(`Servidor Express rodando na porta ${PORT}`);
+// });
+
+// Em vez de 'escutar' em uma porta, exportamos a instância 'app' do Express
+// para que a Vercel possa usá-la como uma função serverless.
+export default app;

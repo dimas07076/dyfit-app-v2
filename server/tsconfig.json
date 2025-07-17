@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",                     // ALTERADO: Mais flexível para ambientes modernos
+    "moduleResolution": "node",                // ALTERADO: Resolve o problema da extensão de arquivo
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["../shared/*"]
