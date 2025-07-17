@@ -1,20 +1,20 @@
 // client/src/lib/apiClient.ts
 
 export const fetchWithAuth = async <T = any>(
-    url: string,
+    url: string, // A URL recebida já deve ser o caminho da API, ex: '/api/auth/login'
     options: RequestInit = {}
   ): Promise<T> => {
     
-    // <<< MUDANÇA PRINCIPAL AQUI >>>
-    // A URL base agora é DESNECESSÁRIA.
-    // Usamos caminhos relativos para que o proxy do Vite (dev) ou o rewrite da Vercel (prod) funcionem.
-    // const apiUrlBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const fullUrl = url.startsWith('/') ? url : `/${url}`;
+    // --- LÓGICA DE URL COMPLETAMENTE REMOVIDA ---
+    // A função 'fetch' usará o caminho relativo 'url' diretamente.
+    // Isso força o navegador a fazer a requisição para o mesmo domínio do site,
+    // o que é o comportamento correto para o proxy (dev) e para a Vercel (prod).
+    // A variável 'fullUrl' foi removida.
     
     let token: string | null = null;
     let tokenTypeUsed: string = "Nenhum";
   
-    // --- LÓGICA DE SELEÇÃO DE TOKEN (SEM ALTERAÇÕES) ---
+    // --- LÓGICA DE SELEÇÃO DE TOKEN (sem alterações) ---
     if (
         url.startsWith('/api/aluno/') && 
         !url.startsWith('/api/aluno/gerenciar') &&
@@ -22,11 +22,9 @@ export const fetchWithAuth = async <T = any>(
     ) {
       token = localStorage.getItem('alunoAuthToken');
       tokenTypeUsed = "alunoAuthToken";
-      console.log('[fetchWithAuth] Rota de Aluno detectada. Tentando usar alunoAuthToken.');
     } else {
       token = localStorage.getItem('authToken');
       tokenTypeUsed = "authToken";
-      console.log(`[fetchWithAuth] Rota de Personal/Admin ('${url}') detectada. Tentando usar authToken.`);
     }
   
     const headers = new Headers(options.headers || {});
@@ -34,9 +32,6 @@ export const fetchWithAuth = async <T = any>(
   
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
-      console.log(`[fetchWithAuth] Token ${tokenTypeUsed} ('${token.substring(0,10)}...') adicionado ao header para ${url}.`);
-    } else {
-      console.log(`[fetchWithAuth] Nenhum token ${tokenTypeUsed} encontrado no localStorage para a rota: ${url}`);
     }
   
     if (options.body && typeof options.body === 'string') {
@@ -45,10 +40,11 @@ export const fetchWithAuth = async <T = any>(
       }
     }
   
-    console.log(`[fetchWithAuth] Making ${options.method || 'GET'} request to (proxied): ${fullUrl}`);
+    // O console.log foi removido para não poluir o console de produção.
   
     try {
-      const response = await fetch(fullUrl, {
+      // A chamada 'fetch' agora usa 'url' diretamente.
+      const response = await fetch(url, {
         ...options,
         headers,
       });
@@ -65,11 +61,7 @@ export const fetchWithAuth = async <T = any>(
         throw new Error(`Erro ${response.status}: Resposta inválida do servidor (não é JSON).`);
       }
       
-      console.log(`[fetchWithAuth] Response from ${fullUrl} (Status: ${response.status}):`, data);
-  
       if (!response.ok) {
-        console.error(`[fetchWithAuth] API Error [${response.status} - ${response.statusText}] for ${fullUrl}:`, data);
-  
         if (response.status === 401) {
           window.dispatchEvent(new CustomEvent('auth-failed', { 
             detail: { 
@@ -86,8 +78,13 @@ export const fetchWithAuth = async <T = any>(
       return data as T;
   
     } catch (error) {
-      console.error(`[fetchWithAuth] Network or other error for ${fullUrl}:`, error);
+      // O erro 'Failed to fetch' (net::ERR_CONNECTION_REFUSED) acontece aqui.
+      console.error(`[fetchWithAuth] Erro de rede para a rota '${url}':`, error);
       if (error instanceof Error) {
+        // Para dar uma mensagem mais clara ao usuário em caso de falha de conexão.
+        if (error.message.includes('Failed to fetch')) {
+            throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão com a internet.');
+        }
         throw error; 
       } else {
         throw new Error('Erro desconhecido durante a requisição.');
