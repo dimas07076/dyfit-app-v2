@@ -1,12 +1,12 @@
+// server/src/routes/profile.ts
 import { Router, Request, Response, NextFunction } from 'express';
 import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer';
-import { authenticateToken, AuthenticatedRequest } from '../../middlewares/authenticateToken'; // Importe o tipo
+import { authenticateToken } from '../../middlewares/authenticateToken';
 
 const router = Router();
 
-// Rota para ATUALIZAR o perfil do personal trainer logado
-// PATCH /api/profile/me
-router.patch('/me', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.patch('/me', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    // O resto do arquivo permanece EXATAMENTE igual
     const userId = req.user?.id;
     const { firstName, lastName } = req.body;
 
@@ -23,25 +23,19 @@ router.patch('/me', authenticateToken, async (req: AuthenticatedRequest, res: Re
 
     try {
         const nomeCompleto = `${firstName.trim()} ${lastName.trim()}`.trim();
-
-        // Força a tipagem do resultado para IPersonalTrainer | null
         const updatedUser = await PersonalTrainer.findByIdAndUpdate(
             userId,
             { nome: nomeCompleto },
             { new: true, runValidators: true, select: '-passwordHash' }
-        ).exec() as IPersonalTrainer | null; // Adiciona .exec() e tipagem explícita
+        ).exec() as IPersonalTrainer | null; 
 
-        // <<< CORREÇÃO: Verifica se updatedUser e seu _id existem >>>
         if (!updatedUser || !updatedUser._id) {
-            // Se findByIdAndUpdate não encontrar o usuário, retorna null
             console.warn(`[SERVER] Usuário ${userId} não encontrado para atualização de perfil.`);
             return res.status(404).json({ message: 'Personal Trainer não encontrado.' });
         }
-        // <<< FIM DA CORREÇÃO >>>
 
-        // Agora é seguro acessar updatedUser._id e outras propriedades
         const responseUser = {
-            id: updatedUser._id.toString(), // Agora TypeScript confia
+            id: updatedUser._id.toString(),
             username: updatedUser.email,
             firstName: updatedUser.nome.split(' ')[0] || '',
             lastName: updatedUser.nome.split(' ').slice(1).join(' ') || '',

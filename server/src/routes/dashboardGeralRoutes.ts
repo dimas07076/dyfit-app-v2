@@ -1,16 +1,16 @@
 // server/src/routes/dashboardGeralRoutes.ts
-import express, { Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
 import mongoose from 'mongoose';
-import { authenticateToken, AuthenticatedRequest } from '../../middlewares/authenticateToken';
+import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
 import Aluno from '../../models/Aluno';
 import Treino from '../../models/Treino';
-import Sessao from '../../models/Sessao'; // <<<< IMPORTAR O MODELO SESSAO
+import Sessao from '../../models/Sessao';
 
 const router = express.Router();
 
 console.log("--- [server/src/routes/dashboardGeralRoutes.ts] Ficheiro carregado e rota GET / definida ---");
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const trainerId = req.user?.id;
 
     if (!trainerId) {
@@ -41,25 +41,24 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
         hojeFim.setHours(23, 59, 59, 999); // Fim do dia
 
         const sessoesHojeCount = await Sessao.countDocuments({
-            trainerId: trainerObjectId,
+            personalId: trainerObjectId, // Corrigido de trainerId para personalId
             sessionDate: {
                 $gte: hojeInicio,
                 $lte: hojeFim
             },
-            // Poderíamos adicionar filtro por status aqui se necessário, ex: status: { $in: ['pending', 'confirmed'] }
         });
         console.log(`[GET /api/dashboard/geral] Sessões hoje: ${sessoesHojeCount}`);
 
         // 4. Taxa de Conclusão Geral (últimos 30 dias)
         const trintaDiasAtras = new Date();
         trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-        trintaDiasAtras.setHours(0,0,0,0); // Para pegar desde o início do dia 30 dias atrás
+        trintaDiasAtras.setHours(0,0,0,0);
 
         const agora = new Date();
 
         const sessoesUltimos30Dias = await Sessao.find({
-            trainerId: trainerObjectId,
-            sessionDate: { $gte: trintaDiasAtras, $lte: agora } // Sessões que ocorreram ou deveriam ter ocorrido até agora
+            personalId: trainerObjectId, // Corrigido de trainerId para personalId
+            sessionDate: { $gte: trintaDiasAtras, $lte: agora }
         }).select('status sessionDate').lean();
 
         let sessoesConcluidas = 0;
@@ -69,7 +68,6 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
             if (sessao.status === 'completed') {
                 sessoesConcluidas++;
             } else if (sessao.status === 'cancelled' && new Date(sessao.sessionDate) < agora) {
-                // Considera cancelada apenas se a data da sessão já passou
                 sessoesCanceladasPassadas++;
             }
         });
@@ -82,12 +80,11 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
         console.log(`[GET /api/dashboard/geral] Denominador taxa: ${denominadorTaxa}`);
         console.log(`[GET /api/dashboard/geral] Taxa de conclusão (0-1): ${taxaConclusaoGeral}`);
 
-
         res.json({
             totalAlunos,
             treinosAtivos,
             sessoesHojeCount,
-            taxaConclusaoGeral, // Será um valor entre 0 e 1
+            taxaConclusaoGeral,
         });
 
     } catch (error) {

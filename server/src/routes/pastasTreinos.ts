@@ -1,18 +1,15 @@
 // server/src/routes/pastasTreinos.ts
-import express, { Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
 import mongoose from 'mongoose';
-import PastaTreino, { IPasta } from '../../models/Pasta';
+import PastaTreino from '../../models/Pasta';
 import Treino from '../../models/Treino';
-import { authenticateToken, AuthenticatedRequest } from '../../middlewares/authenticateToken';
+import { authenticateToken } from '../../middlewares/authenticateToken'; // Importação corrigida
 
 const router = express.Router();
 
 console.log("--- [server/src/routes/pastasTreinos.ts] Ficheiro carregado (DEBUG transação para reordenar - Correção TS) ---");
 
-// ... (outras rotas como POST, GET, PUT/:pastaId permanecem como estão) ...
-
-// PUT /api/pastas/treinos/reordenar - Reordenar pastas COM TRANSAÇÃO (VERSÃO DE DEBUG)
-router.put('/reordenar', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.put('/reordenar', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const criadorId = req.user?.id;
     const { novaOrdemIds } = req.body;
 
@@ -30,9 +27,8 @@ router.put('/reordenar', authenticateToken, async (req: AuthenticatedRequest, re
     }
 
     const session = await mongoose.startSession();
-    let sessionIdForLogging = "N/A_SESSAO_INIT"; // Valor padrão
+    let sessionIdForLogging = "N/A_SESSAO_INIT";
     try {
-        // Correção para obter o ID da sessão como string hexadecimal
         if (session.id && session.id.id && typeof session.id.id.toString === 'function') {
             sessionIdForLogging = session.id.id.toString('hex');
         } else {
@@ -82,9 +78,7 @@ router.put('/reordenar', authenticateToken, async (req: AuthenticatedRequest, re
     }
 });
 
-
-// POST /api/pastas/treinos - Criar uma nova pasta de treino
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   const criadorId = req.user?.id;
   const { nome } = req.body;
 
@@ -130,8 +124,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-// GET /api/pastas/treinos - Listar todas as pastas de treino do usuário logado
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   const criadorId = req.user?.id;
   console.log(`[GET /api/pastas/treinos] Buscando pastas para o criador ID: ${criadorId}`);
 
@@ -153,8 +146,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// PUT /api/pastas/treinos/:pastaId - Editar nome da pasta
-router.put('/:pastaId', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.put('/:pastaId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const { pastaId } = req.params;
     const criadorId = req.user?.id;
     const { nome } = req.body;
@@ -207,9 +199,7 @@ router.put('/:pastaId', authenticateToken, async (req: AuthenticatedRequest, res
     }
 });
 
-
-// DELETE /api/pastas/treinos/:pastaId - Excluir uma pasta de treino
-router.delete('/:pastaId', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.delete('/:pastaId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const { pastaId } = req.params;
     const criadorId = req.user?.id;
 
@@ -285,6 +275,5 @@ router.delete('/:pastaId', authenticateToken, async (req: AuthenticatedRequest, 
         await session.endSession();
     }
 });
-
 
 export default router;
