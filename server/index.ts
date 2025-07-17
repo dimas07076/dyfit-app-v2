@@ -4,7 +4,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import express from 'express';
+import express, { Router } from 'express'; // Router foi importado
 import mongoose from 'mongoose';
 import cors, { CorsOptions } from 'cors';
 import authRoutes from './src/routes/auth';
@@ -27,6 +27,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
+const apiRouter = Router(); // <<< NOVO ROTEADOR-PAI PARA A API
 
 // --- CONFIGURAÇÃO DE CORS (sem alterações) ---
 const allowedOrigins = [
@@ -37,9 +38,7 @@ const allowedOrigins = [
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
+    if (!origin) { return callback(null, true); }
     if (allowedOrigins.includes(origin) || origin.endsWith('.gitpod.io')) {
       callback(null, true);
     } else {
@@ -65,26 +64,29 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Conectado ao MongoDB com sucesso!'))
   .catch(err => console.error('Falha ao conectar com o MongoDB:', err));
 
-// --- ROTAS (sem alterações) ---
-app.use('/api/public/convites', convitePublicRoutes);
-app.use('/api/public/convite-aluno', conviteAlunoPublicRoutes);
-app.use('/api/auth', authRoutes);
-app.use(authenticateToken);
-app.use('/api/admin', authorizeAdmin, adminRoutes);
-app.use('/api/dashboard/geral', dashboardRoutes);
-app.use('/api/treinos', treinoRoutes);
-app.use('/api/exercicios', exercicioRoutes);
-app.use('/api/sessions', sessionsRoutes);
-app.use('/api/pastas/treinos', pastaRoutes);
-app.use('/api/aluno', alunoApiRoutes);
+// --- ESTRUTURA DE ROTAS CORRIGIDA ---
+// 1. Registramos o roteador-pai no prefixo /api
+app.use('/api', apiRouter);
+
+// 2. Registramos TODAS as sub-rotas dentro do roteador-pai, SEM o prefixo /api
+apiRouter.use('/public/convites', convitePublicRoutes);
+apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
+apiRouter.use('/auth', authRoutes);
+apiRouter.use(authenticateToken); // Middleware de autenticação se aplica a todas as rotas abaixo
+apiRouter.use('/admin', authorizeAdmin, adminRoutes);
+apiRouter.use('/dashboard/geral', dashboardRoutes);
+apiRouter.use('/treinos', treinoRoutes);
+apiRouter.use('/exercicios', exercicioRoutes);
+apiRouter.use('/sessions', sessionsRoutes);
+apiRouter.use('/pastas/treinos', pastaRoutes);
+apiRouter.use('/aluno', alunoApiRoutes);
+
+// 3. O errorHandler continua no app principal
 app.use(errorHandler);
 
-// --- EXPORTAÇÃO PARA VERCEL (PRODUÇÃO) ---
+// --- EXPORTAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 export default app;
 
-// --- INICIALIZAÇÃO PARA GITPOD (DESENVOLVIMENTO) ---
-// Este bloco só será executado se a variável de ambiente NODE_ENV for 'development'.
-// O build da Vercel não define essa variável, então este código não rodará em produção.
 if (process.env.NODE_ENV === 'development') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
