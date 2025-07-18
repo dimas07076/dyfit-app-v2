@@ -18,11 +18,7 @@ interface AdminDashboardData {
   totalExercicios: number;
 }
 
-// <<< REMOÇÃO: A função de dados mocados não é mais necessária >>>
-// const fetchAdminDashboardData = async (): Promise<AdminDashboardData> => { ... };
-
 export default function AdminDashboardPage() {
-  // <<< ALTERAÇÃO: A função 'queryFn' agora usa 'apiRequest' para buscar dados reais >>>
   const { data, isLoading, error } = useQuery<AdminDashboardData>({
     queryKey: ['adminDashboardStats'],
     queryFn: () => apiRequest('GET', '/api/admin/dashboard/stats'),
@@ -33,11 +29,10 @@ export default function AdminDashboardPage() {
       queryFn: () => apiRequest('GET', '/api/admin/personal-trainers?limit=5&sort=createdAt:desc'),
   });
 
-  // O estado de carregamento principal agora considera ambas as queries
   const isPageLoading = isLoading || isLoadingPersonais;
 
   if (isPageLoading) {
-    return <LoadingSpinner text="Carregando dashboard..." />;
+    return <LoadingSpinner text="Carregando painel..." />;
   }
 
   if (error) {
@@ -46,8 +41,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+      {/* <<< ALTERAÇÃO APLICADA AQUI >>> */}
       <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">
-        Dashboard do Administrador
+        Painel de Controle
       </h1>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -98,7 +94,6 @@ export default function AdminDashboardPage() {
             <h2 className="text-xl font-semibold">Ações Rápidas</h2>
             <Link href="/admin/criar-personal"><Button className="w-full justify-start"><UserPlus className="mr-2 h-4 w-4"/>Criar Novo Personal</Button></Link>
             <Link href="/admin/convites"><Button className="w-full justify-start"><Mail className="mr-2 h-4 w-4"/>Gerenciar Convites</Button></Link>
-            {/* <<< CORREÇÃO DE ROTA: Link para Gerenciar Exercícios deve apontar para a rota do personal >>> */}
             <Link href="/exercises"><Button className="w-full justify-start"><List className="mr-2 h-4 w-4"/>Gerenciar Exercícios</Button></Link>
         </div>
         <div className="md:col-span-2">
@@ -114,13 +109,11 @@ export default function AdminDashboardPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {/* <<< MELHORIA: Adicionado tratamento para lista vazia >>> */}
                             {personaisRecentes && personaisRecentes.length > 0 ? (
                                 personaisRecentes.map(p => (
                                     <TableRow key={p._id}>
                                         <TableCell className="font-medium">{p.nome}</TableCell>
                                         <TableCell>{p.email}</TableCell>
-                                        {/* A lógica de status pode ser aprimorada no futuro */}
                                         <TableCell><Badge variant="outline">Ativo</Badge></TableCell>
                                     </TableRow>
                                 ))
