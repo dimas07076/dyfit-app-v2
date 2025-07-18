@@ -17,7 +17,8 @@ import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
-import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js';
+// authenticateAlunoToken não está sendo usado globalmente, pode ser removido se não for usado em outro lugar
+// import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js'; 
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -40,11 +41,10 @@ const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     if (!origin) { return callback(null, true); }
     
-    // <<< CORREÇÃO: Adicionado suporte para URLs de Preview da Vercel >>>
     if (
         allowedOrigins.includes(origin) || 
         origin.endsWith('.gitpod.io') ||
-        origin.endsWith('.vercel.app') // Permite qualquer subdomínio de preview da Vercel
+        origin.endsWith('.vercel.app')
     ) {
       callback(null, true);
     } else {
@@ -63,24 +63,22 @@ app.use(express.json());
 // --- ESTRUTURA DE ROTAS REESTRUTURADA ---
 app.use('/api', apiRouter);
 
-// --- Rotas Públicas (sem autenticação) ---
+// --- 1. Rotas Públicas (sem autenticação) ---
 apiRouter.use('/public/convites', convitePublicRoutes);
 apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
 
-// --- Rotas Protegidas para Personal e Admin ---
-const personalAdminRouter = Router();
-personalAdminRouter.use(authenticateToken);
-personalAdminRouter.use('/admin', authorizeAdmin, adminRoutes);
-personalAdminRouter.use('/dashboard/geral', dashboardRoutes);
-personalAdminRouter.use('/treinos', treinoRoutes);
-personalAdminRouter.use('/exercicios', exercicioRoutes);
-personalAdminRouter.use('/sessions', sessionsRoutes);
-personalAdminRouter.use('/pastas/treinos', pastaRoutes);
-personalAdminRouter.use('/aluno', alunoApiRoutes);
-apiRouter.use(personalAdminRouter);
+// --- 2. Rotas Protegidas (requerem token de Personal ou Admin) ---
+// <<< CORREÇÃO: Aplicando o middleware de autenticação a cada rota protegida individualmente para clareza >>>
+apiRouter.use('/admin', authenticateToken, authorizeAdmin, adminRoutes);
+apiRouter.use('/dashboard/geral', authenticateToken, dashboardRoutes);
+apiRouter.use('/treinos', authenticateToken, treinoRoutes);
+apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
+apiRouter.use('/sessions', authenticateToken, sessionsRoutes);
+apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
+apiRouter.use('/aluno', authenticateToken, alunoApiRoutes); // Agora explicitamente protegido
 
-// --- Tratamento de Erros ---
+// --- 3. Tratamento de Erros ---
 app.use(errorHandler);
 
 // --- EXPORTAÇÃO E INICIALIZAÇÃO ---
