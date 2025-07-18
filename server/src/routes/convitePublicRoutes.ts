@@ -1,16 +1,17 @@
 // server/src/routes/convitePublicRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import PersonalTrainer from '../../models/PersonalTrainer.js'; // Presumindo que IPersonalTrainer está aqui ou é importado por ele
-import ConvitePersonal, { IConvitePersonal } from '../../models/ConvitePersonal.js';
+import PersonalTrainer from '../../models/PersonalTrainer.js';
+import ConvitePersonal from '../../models/ConvitePersonal.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
 console.log("--- [server/src/routes/convitePublicRoutes.ts] Ficheiro carregado ---");
 
 // Rota: GET /api/convites/validar/:tokenDeConvite
-// Usada pelo frontend quando o personal acessa o link de convite para verificar a validade do token.
 router.get('/validar/:tokenDeConvite', async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const { tokenDeConvite } = req.params;
   console.log(`[GET /api/convites/validar/${tokenDeConvite}] Tentativa de validar token.`);
 
@@ -54,8 +55,8 @@ router.get('/validar/:tokenDeConvite', async (req: Request, res: Response, next:
 });
 
 // Rota: POST /api/convites/registrar/:tokenDeConvite
-// Usada pelo formulário de cadastro do personal quando ele submete os dados.
 router.post('/registrar/:tokenDeConvite', async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const { tokenDeConvite } = req.params;
   const { nome, email, password } = req.body;
 
@@ -120,7 +121,6 @@ router.post('/registrar/:tokenDeConvite', async (req: Request, res: Response, ne
     console.log(`[POST /api/convites/registrar/${tokenDeConvite}] Novo personal ID: ${novoPersonal._id} (${novoPersonal.email}) criado.`);
 
     convite.status = 'utilizado';
-    // CORREÇÃO APLICADA AQUI: Coerção de tipo para mongoose.Types.ObjectId
     convite.usadoPor = novoPersonal._id as mongoose.Types.ObjectId;
     convite.dataUtilizacao = new Date();
     await convite.save({ session });

@@ -1,11 +1,11 @@
 // server/index.ts
 
-// --- BLOCO DE IMPORTAÇÕES CORRIGIDO ---
+// --- BLOCO DE IMPORTAÇÕES ---
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express, { Router } from 'express';
-import mongoose from 'mongoose';
+// mongoose é importado nos próprios modelos agora, não é mais necessário aqui.
 import cors, { CorsOptions } from 'cors';
 import authRoutes from './src/routes/auth.js';
 import convitePublicRoutes from './src/routes/convitePublicRoutes.js';
@@ -21,7 +21,7 @@ import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
-// --- O RESTO DO ARQUIVO PERMANECE IGUAL ---
+// --- CONFIGURAÇÃO DE AMBIENTE ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -29,6 +29,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const app = express();
 const apiRouter = Router();
 
+// --- CONFIGURAÇÃO DE CORS ---
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
@@ -53,17 +54,10 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-const MONGO_URI = process.env.MONGODB_URI;
-if (!MONGO_URI) {
-  console.error('FATAL_ERROR: MONGODB_URI não está definida.');
-  process.exit(1);
-}
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('Conectado ao MongoDB com sucesso!'))
-  .catch(err => console.error('Falha ao conectar com o MongoDB:', err));
+// --- BLOCO DE CONEXÃO COM O BANCO REMOVIDO DAQUI ---
 
+// --- ESTRUTURA DE ROTAS ---
 app.use('/api', apiRouter);
-
 apiRouter.use('/public/convites', convitePublicRoutes);
 apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
@@ -75,9 +69,9 @@ apiRouter.use('/exercicios', exercicioRoutes);
 apiRouter.use('/sessions', sessionsRoutes);
 apiRouter.use('/pastas/treinos', pastaRoutes);
 apiRouter.use('/aluno', alunoApiRoutes);
-
 app.use(errorHandler);
 
+// --- EXPORTAÇÃO E INICIALIZAÇÃO ---
 export default app;
 
 if (process.env.NODE_ENV === 'development') {

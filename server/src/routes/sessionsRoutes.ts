@@ -1,17 +1,17 @@
 // server/src/routes/sessionsRoutes.ts
-import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado aqui
+import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
-import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import Sessao, { ISessaoLean, ISessaoDocument, TipoCompromisso, TIPOS_COMPROMISSO, OpcaoPSE } from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import Treino, { ITreino } from '../../models/Treino.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
-// A partir daqui, você só precisa remover a tipagem ': AuthenticatedRequest' de todos os (req)
 // GET /api/sessions - Listar sessões com filtros
 router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    // O resto do arquivo permanece EXATAMENTE igual
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const personalIdFromToken = req.user?.id;
     const { alunoId: alunoIdParam, date, populateStudent, limit, tipoCompromisso: tipoCompromissoQuery } = req.query;
 
@@ -52,16 +52,164 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
         next(error);
     }
 });
-// ... e assim por diante para TODAS as outras rotas no arquivo ...
-// (O restante do seu código aqui)
-router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { /* ... seu código ... */ });
-router.put('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { /* ... seu código ... */ });
-router.delete('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { /* ... seu código ... */ });
 
+// POST /api/sessions - Criar uma nova sessão
+router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
+    const personalIdFromToken = req.user?.id;
+    const { alunoId, sessionDate, tipoCompromisso, notes, status, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador } = req.body; 
+
+    if (!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if (!alunoId || !sessionDate || !status || !tipoCompromisso) {
+        return res.status(400).json({ mensagem: "Campos alunoId, sessionDate, status e tipoCompromisso são obrigatórios." });
+    }
+    if (!Types.ObjectId.isValid(alunoId)) return res.status(400).json({ mensagem: "ID do aluno inválido." });
+    if (!TIPOS_COMPROMISSO.includes(tipoCompromisso as TipoCompromisso)) return res.status(400).json({ mensagem: `Tipo de compromisso inválido.` });
+    if (rotinaId && !Types.ObjectId.isValid(rotinaId)) return res.status(400).json({ mensagem: "ID da rotina inválido." });
+    if (diaDeTreinoId && typeof diaDeTreinoId === 'string' && !Types.ObjectId.isValid(diaDeTreinoId)) {
+        // Lógica de validação...
+    }
+    
+    const validDate = new Date(sessionDate);
+    if (isNaN(validDate.getTime())) return res.status(400).json({ mensagem: "Formato de sessionDate inválido." });
+
+    try {
+        const personalObjectId = new Types.ObjectId(personalIdFromToken);
+        const alunoObjectId = new Types.ObjectId(alunoId);
+        const aluno = await Aluno.findOne({ _id: alunoObjectId, trainerId: personalObjectId }); 
+        if (!aluno) return res.status(403).json({ mensagem: "Este aluno não pertence a você ou não foi encontrado." });
+
+        const novaSessaoDoc = new Sessao({
+            personalId: personalObjectId,
+            alunoId: alunoObjectId,      
+            sessionDate: validDate,
+            tipoCompromisso,
+            notes,
+            status,
+            rotinaId: rotinaId ? new Types.ObjectId(rotinaId) : null,
+            diaDeTreinoId: diaDeTreinoId ? new Types.ObjectId(diaDeTreinoId) : null, 
+            diaDeTreinoIdentificador: diaDeTreinoIdentificador || null,
+        });
+
+        await novaSessaoDoc.save();
+        
+        const sessaoPopulada = await Sessao.findById(novaSessaoDoc._id)
+                                        .populate('alunoId', 'nome _id') 
+                                        .populate('rotinaId', 'titulo _id') 
+                                        .lean<ISessaoLean>(); 
+        res.status(201).json(sessaoPopulada);
+    } catch (error: any) {
+        if (error.name === 'ValidationError') return res.status(400).json({ mensagem: "Erro de validação", detalhes: error.errors });
+        next(error);
+    }
+});
+
+// PUT /api/sessions/:sessionId - Atualizar uma sessão
+router.put('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
+    const personalIdFromToken = req.user?.id;
+    const { sessionId } = req.params;
+    const { status, notes, sessionDate, tipoCompromisso, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador, alunoId: alunoIdBody, pseAluno, comentarioAluno } = req.body;
+
+    if (!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if (!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." });
+
+    const updateData: Partial<ISessaoDocument> = {};
+    if (status && ['pending', 'confirmed', 'completed', 'cancelled', 'skipped'].includes(status)) {
+        updateData.status = status as ISessaoDocument['status'];
+    }
+    if (notes !== undefined) updateData.notes = notes;
+    if (sessionDate) {
+        const validDate = new Date(sessionDate);
+        if (isNaN(validDate.getTime())) return res.status(400).json({ mensagem: "Formato de sessionDate inválido." });
+        updateData.sessionDate = validDate;
+    }
+    if (tipoCompromisso && TIPOS_COMPROMISSO.includes(tipoCompromisso as TipoCompromisso)) {
+        updateData.tipoCompromisso = tipoCompromisso;
+    } else if (tipoCompromisso) {
+        return res.status(400).json({ mensagem: `Tipo de compromisso inválido.` });
+    }
+    if (rotinaId !== undefined) {
+        updateData.rotinaId = rotinaId && Types.ObjectId.isValid(rotinaId) ? new Types.ObjectId(rotinaId) : null;
+    }
+    if (diaDeTreinoId !== undefined) {
+        updateData.diaDeTreinoId = diaDeTreinoId && Types.ObjectId.isValid(diaDeTreinoId) ? new Types.ObjectId(diaDeTreinoId) : null;
+    }
+    if (diaDeTreinoIdentificador !== undefined) {
+        updateData.diaDeTreinoIdentificador = diaDeTreinoIdentificador;
+    }
+    if (alunoIdBody && Types.ObjectId.isValid(alunoIdBody)) {
+        const aluno = await Aluno.findOne({ _id: new Types.ObjectId(alunoIdBody), trainerId: new Types.ObjectId(personalIdFromToken) });
+        if (!aluno) return res.status(403).json({ mensagem: "Aluno selecionado não pertence a você ou não foi encontrado." });
+        updateData.alunoId = new Types.ObjectId(alunoIdBody);
+    }
+    if (pseAluno !== undefined) updateData.pseAluno = pseAluno as OpcaoPSE || null;
+    if (comentarioAluno !== undefined) updateData.comentarioAluno = comentarioAluno;
+    
+    if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ mensagem: "Nenhum dado válido para atualização fornecido." });
+    }
+
+    const mongoTransactionSession = await mongoose.startSession();
+    try {
+        mongoTransactionSession.startTransaction();
+        const personalObjectId = new Types.ObjectId(personalIdFromToken);
+        const sessionObjectId = new Types.ObjectId(sessionId);
+        const sessaoExistente = await Sessao.findOne({ _id: sessionObjectId, personalId: personalObjectId }).session(mongoTransactionSession);
+        if (!sessaoExistente) {
+            await mongoTransactionSession.abortTransaction();
+            return res.status(404).json({ mensagem: "Sessão não encontrada ou você não tem permissão para atualizá-la." });
+        }
+        const jaEstavaConcluida = sessaoExistente.status === 'completed';
+        Object.assign(sessaoExistente, updateData);
+        if (updateData.status === 'completed' && !sessaoExistente.concluidaEm) {
+            sessaoExistente.concluidaEm = new Date();
+        }
+        await sessaoExistente.save({ session: mongoTransactionSession });
+        if (updateData.status === 'completed' && !jaEstavaConcluida && sessaoExistente.rotinaId) {
+            const rotina: ITreino | null = await Treino.findById(sessaoExistente.rotinaId).session(mongoTransactionSession);
+            if (rotina) {
+                if (rotina.alunoId && rotina.alunoId.toString() !== sessaoExistente.alunoId.toString()) {
+                     await mongoTransactionSession.abortTransaction();
+                    return res.status(403).json({ message: "Acesso negado para modificar esta rotina (aluno não corresponde)." });
+                }
+                rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1;
+                await rotina.save({ session: mongoTransactionSession });
+            }
+        }
+        await mongoTransactionSession.commitTransaction();
+        const sessaoAtualizadaPopulada = await Sessao.findById(sessaoExistente._id)
+            .populate('alunoId', 'nome _id')
+            .populate('rotinaId', 'titulo _id')
+            .lean<ISessaoLean>();
+        res.json(sessaoAtualizadaPopulada);
+    } catch (error: any) {
+        if (mongoTransactionSession.inTransaction()) await mongoTransactionSession.abortTransaction();
+        if (error.name === 'ValidationError') return res.status(400).json({ mensagem: "Erro de validação", detalhes: error.errors });
+        next(error);
+    } finally {
+        await mongoTransactionSession.endSession();
+    }
+});
+
+// DELETE /api/sessions/:sessionId - Excluir uma sessão
+router.delete('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
+    const personalIdFromToken = req.user?.id;
+    const { sessionId } = req.params;
+
+    if(!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if(!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." });
+
+    try {
+        const result = await Sessao.deleteOne({ _id: new Types.ObjectId(sessionId), personalId: new Types.ObjectId(personalIdFromToken) });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ mensagem: "Sessão não encontrada ou você não tem permissão para excluí-la." });
+        }
+        res.status(200).json({ mensagem: "Sessão excluída com sucesso." });
+    } catch (error) {
+        next(error);
+    }
+});
 
 export default router;
-
-// Nota: Para ser breve, eu não colei todo o conteúdo do seu arquivo. 
-// Você deve apenas alterar as linhas de import e a assinatura das rotas.
-// Exemplo: router.post('/', authenticateToken, async (req: AuthenticatedRequest, ... se torna
-// router.post('/', authenticateToken, async (req: Request, ...

@@ -3,6 +3,7 @@ import express, { Request, Response, Router, NextFunction } from "express";
 import mongoose from "mongoose";
 import Exercicio, { IExercicio } from "../../models/Exercicio.js";
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router: Router = express.Router();
 
@@ -17,6 +18,7 @@ const buildFilterQuery = (baseFilter: mongoose.FilterQuery<IExercicio>, req: Req
 
 // GET /app
 router.get("/app", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const userId = req.user?.id; 
   try {
     const filterQuery = buildFilterQuery({ isCustom: false }, req); 
@@ -31,6 +33,7 @@ router.get("/app", authenticateToken, async (req: Request, res: Response, next: 
 
 // GET /meus
 router.get("/meus", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const creatorId = req.user?.id;
   try {
     if (!creatorId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -46,6 +49,7 @@ router.get("/meus", authenticateToken, async (req: Request, res: Response, next:
 
 // GET /favoritos
 router.get("/favoritos", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const userId = req.user?.id;
   try {
     if (!userId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -56,12 +60,9 @@ router.get("/favoritos", authenticateToken, async (req: Request, res: Response, 
   } catch (error) { next(error); }
 });
 
-// =======================================================
-// --- ROTAS POST, PUT, DELETE CORRIGIDAS E COMPLETAS ---
-// =======================================================
-
 // POST / - Criar um novo exercício
 router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const { nome, descricao, categoria, grupoMuscular, urlVideo, isCustom } = req.body;
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
@@ -74,12 +75,12 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
             nome: nome.trim(), descricao, categoria, grupoMuscular, urlVideo, isCustom
         };
 
-        if (isCustom === false) { // Criando um exercício do App
+        if (isCustom === false) {
             if (requesterRole?.toLowerCase() !== 'admin') {
                 return res.status(403).json({ erro: "Apenas administradores podem criar exercícios do App." });
             }
             exercicioData.creatorId = undefined;
-        } else { // Criando um exercício customizado
+        } else {
             exercicioData.isCustom = true;
             exercicioData.creatorId = new mongoose.Types.ObjectId(requesterId);
             const jaExiste = await Exercicio.findOne({ nome: nome.trim(), creatorId: exercicioData.creatorId });
@@ -95,6 +96,7 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
 
 // PUT /:id - Atualizar um exercício
 router.put("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
     const { id } = req.params;
@@ -124,6 +126,7 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
 
 // DELETE /:id - Deletar um exercício
 router.delete("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
     const { id } = req.params;
@@ -151,6 +154,7 @@ router.delete("/:id", authenticateToken, async (req: Request, res: Response, nex
 
 // POST /:id/favorite - Favoritar
 router.post("/:id/favorite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const userId = req.user?.id;
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id) || !userId) return res.status(400).json({ erro: "Requisição inválida." });
@@ -162,6 +166,7 @@ router.post("/:id/favorite", authenticateToken, async (req: Request, res: Respon
 
 // DELETE /:id/favorite - Desfavoritar
 router.delete("/:id/favorite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const userId = req.user?.id;
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id) || !userId) return res.status(400).json({ erro: "Requisição inválida." });

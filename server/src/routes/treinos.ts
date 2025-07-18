@@ -1,3 +1,4 @@
+// server/src/routes/treinos.ts
 import express, { Request, Response, NextFunction } from "express";
 import mongoose, { Types } from "mongoose";
 import Treino, {
@@ -9,17 +10,15 @@ import Treino, {
 } from "../../models/Treino.js";
 import PastaTreino from '../../models/Pasta.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
-// O tipo auxiliar ITreinoParaCriacao foi removido pois não é mais necessário.
-
-// --- ROTAS (sem alterações, exceto /associar-modelo) ---
-
 router.get("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   try {
     const criadorId = req.user?.id;
-    if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if (!criadorId) return res.status(401).json({ mensagem: "Usuário не autenticado." });
 
     const rotinas = await Treino.find({ criadorId: new Types.ObjectId(criadorId) })
         .populate({ path: 'alunoId', select: 'nome' })
@@ -41,6 +40,7 @@ router.get("/", authenticateToken, async (req: Request, res: Response, next: Nex
 });
 
 router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   try {
     const criadorId = req.user?.id;
     if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
@@ -67,8 +67,8 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
   }
 });
 
-// POST /api/treinos/associar-modelo - Associar modelo de treino a um aluno (ROTA CORRIGIDA FINAL)
 router.post("/associar-modelo", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     try {
         const { fichaModeloId, alunoId } = req.body;
         const criadorId = req.user?.id;
@@ -86,7 +86,6 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
             return res.status(404).json({ mensagem: "Ficha modelo não encontrada ou você não tem permissão para usá-la." });
         }
 
-        // Desestrutura o objeto PURO para remover propriedades que não queremos clonar
         const {
             _id,
             criadoEm,
@@ -95,17 +94,13 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
             ...modeloRestante
         } = fichaModelo.toObject();
 
-        // MUDANÇA PRINCIPAL: Removemos a anotação de tipo explícita.
-        // Deixamos o TypeScript inferir que `newFichaData` é um objeto simples.
-        // O construtor `new Treino()` aceita este objeto sem problemas.
         const newFichaData = {
             ...modeloRestante,
-            tipo: 'individual' as const, // O 'as const' ajuda o TS a saber que o tipo é literal 'individual'
+            tipo: 'individual' as const,
             criadorId: new Types.ObjectId(criadorId),
             alunoId: new Types.ObjectId(alunoId),
             pastaId: null,
             titulo: `${modeloRestante.titulo} (Ficha de Aluno)`,
-
             diasDeTreino: diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
@@ -151,9 +146,8 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
     }
 });
 
-
-// ... (resto do arquivo sem alterações)
 router.put("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   try {
     const { id } = req.params;
     const criadorId = req.user?.id;
@@ -185,6 +179,7 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
 });
 
 router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const { id: rotinaId } = req.params;
     const { pastaId } = req.body;
     const criadorId = req.user?.id;
@@ -200,7 +195,7 @@ router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, 
         if (pastaId) {
             const pastaDestino = await PastaTreino.findOne({ _id: pastaId, criadorId: criadorId });
             if (!pastaDestino) {
-                return res.status(404).json({ mensagem: "Pasta de destino não encontrada ou você não tem permissão para usá-la." });
+                return res.status(404).json({ mensagem: "Pasta de destino не encontrada ou você não tem permissão para usá-la." });
             }
         }
 
@@ -230,6 +225,7 @@ router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, 
 });
 
 router.delete("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     try {
         const { id } = req.params;
         const criadorId = req.user?.id;

@@ -19,7 +19,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "loadEnv.mts"],
   "exclude": ["node_modules"],
   "references": [
     { "path": "../shared" }

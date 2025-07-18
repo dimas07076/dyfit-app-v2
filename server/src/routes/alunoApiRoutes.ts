@@ -1,11 +1,12 @@
 // server/src/routes/alunoApiRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
-import Treino, { ITreinoPopuladoLean, IDiaDeTreino } from '../../models/Treino.js';
-import Sessao, { ISessaoDocument, OpcaoPSE, OPCOES_PSE, ISessaoLean } from '../../models/Sessao.js';
+import Treino, { ITreinoPopuladoLean } from '../../models/Treino.js';
+import Sessao from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import { startOfWeek, endOfWeek } from 'date-fns';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ const router = express.Router();
 
 // POST /api/aluno/convite - Personal gera convite
 router.post("/convite", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     if (req.user?.role?.toLowerCase() !== 'personal') return res.status(403).json({ erro: "Apenas personais podem gerar convites." });
     try {
@@ -36,7 +38,8 @@ router.post("/convite", async (req: Request, res: Response, next: NextFunction) 
 });
 
 // GET /api/aluno/gerenciar - Personal lista seus alunos
-router.get("/gerenciar", async (req, res, next) => {
+router.get("/gerenciar", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
     try {
@@ -46,7 +49,8 @@ router.get("/gerenciar", async (req, res, next) => {
 });
 
 // POST /api/aluno/gerenciar - Personal cadastra aluno manualmente
-router.post("/gerenciar", async (req, res, next) => {
+router.post("/gerenciar", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
     try {
@@ -62,7 +66,8 @@ router.post("/gerenciar", async (req, res, next) => {
 });
 
 // GET /api/aluno/gerenciar/:id - Personal busca um aluno específico
-router.get("/gerenciar/:id", async (req, res, next) => {
+router.get("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     const { id } = req.params;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -75,7 +80,8 @@ router.get("/gerenciar/:id", async (req, res, next) => {
 });
 
 // PUT /api/aluno/gerenciar/:id - Personal edita um aluno
-router.put("/gerenciar/:id", async (req, res, next) => {
+router.put("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     const { id } = req.params;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -96,7 +102,8 @@ router.put("/gerenciar/:id", async (req, res, next) => {
 });
 
 // DELETE /api/aluno/gerenciar/:id - Personal deleta um aluno
-router.delete("/gerenciar/:id", async (req, res, next) => {
+router.delete("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
     const { id } = req.params;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -113,6 +120,7 @@ router.delete("/gerenciar/:id", async (req, res, next) => {
 // ROTAS DO ALUNO (PARA ACESSO PRÓPRIO) - LÓGICA RESTAURADA
 // =======================================================
 router.get('/meus-treinos', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const alunoId = req.aluno?.id;
     if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); 
     try {
@@ -131,6 +139,7 @@ router.get('/meus-treinos', async (req: Request, res: Response, next: NextFuncti
 });
 
 router.get('/minhas-sessoes-concluidas-na-semana', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const alunoId = req.aluno?.id;
     if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' });
     try {

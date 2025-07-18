@@ -1,9 +1,9 @@
 // server/src/routes/authRoutes.ts
 import { Router, Request, Response, NextFunction } from 'express';
-import mongoose from 'mongoose';
 import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js';
 import jwt from 'jsonwebtoken';
 import ms from 'ms';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = Router();
 
@@ -17,6 +17,7 @@ const expiresInSeconds = calculateExpiresInSeconds(JWT_EXPIRES_IN);
 
 // --- Login Personal/Admin ---
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
 
@@ -46,7 +47,11 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
       role,
     };
 
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET!, {
+    if(!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET não está definido nas variáveis de ambiente.");
+    }
+
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
       expiresIn: expiresInSeconds,
     });
 
@@ -55,7 +60,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
       token,
       user: {
         id: user._id.toString(),
-        trainerId: user._id.toString(), // 🔧 compatibilidade para filtros de alunos
+        trainerId: user._id.toString(),
         username: user.email,
         firstName,
         lastName,

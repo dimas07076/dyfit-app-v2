@@ -2,11 +2,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = Router();
 
 router.patch('/me', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    // O resto do arquivo permanece EXATAMENTE igual
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const userId = req.user?.id;
     const { firstName, lastName } = req.body;
 

@@ -1,15 +1,17 @@
 // server/src/routes/pastasTreinos.ts
-import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
+import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import PastaTreino from '../../models/Pasta.js';
 import Treino from '../../models/Treino.js';
-import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
 console.log("--- [server/src/routes/pastasTreinos.ts] Ficheiro carregado (DEBUG transação para reordenar - Correção TS) ---");
 
 router.put('/reordenar', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const criadorId = req.user?.id;
     const { novaOrdemIds } = req.body;
 
@@ -79,6 +81,7 @@ router.put('/reordenar', authenticateToken, async (req: Request, res: Response, 
 });
 
 router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const criadorId = req.user?.id;
   const { nome } = req.body;
 
@@ -125,6 +128,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
 });
 
 router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect(); // <<< CHAMADA ADICIONADA
   const criadorId = req.user?.id;
   console.log(`[GET /api/pastas/treinos] Buscando pastas para o criador ID: ${criadorId}`);
 
@@ -147,6 +151,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
 });
 
 router.put('/:pastaId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const { pastaId } = req.params;
     const criadorId = req.user?.id;
     const { nome } = req.body;
@@ -200,6 +205,7 @@ router.put('/:pastaId', authenticateToken, async (req: Request, res: Response, n
 });
 
 router.delete('/:pastaId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const { pastaId } = req.params;
     const criadorId = req.user?.id;
 

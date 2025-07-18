@@ -3,11 +3,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import Aluno from '../../models/Aluno.js';
 import mongoose from 'mongoose';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
 // GET /api/public/convite-aluno/:token - Valida o token do convite
 router.get('/:token', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     try {
         const { token } = req.params;
         const convite = await ConviteAluno.findOne({ token, status: 'pendente' });
@@ -29,6 +31,7 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
 
 // POST /api/public/convite-aluno/registrar - Finaliza o cadastro do aluno
 router.post('/registrar', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     try {
         const { token, nome, password, ...outrosDados } = req.body;
 
@@ -58,7 +61,6 @@ router.post('/registrar', async (req: Request, res: Response, next: NextFunction
         await novoAluno.save();
 
         convite.status = 'utilizado';
-        // <<< CORREÇÃO AQUI: Garantindo o tipo correto para o TypeScript >>>
         convite.usadoPor = novoAluno._id as mongoose.Types.ObjectId;
         await convite.save();
 

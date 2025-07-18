@@ -1,16 +1,18 @@
 // server/src/routes/dashboardGeralRoutes.ts
-import express, { Request, Response, NextFunction } from 'express'; // Request foi adicionado
+import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import { authenticateToken } from '../../middlewares/authenticateToken.js'; // Importação corrigida
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import Aluno from '../../models/Aluno.js';
 import Treino from '../../models/Treino.js';
 import Sessao from '../../models/Sessao.js';
+import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
 
 const router = express.Router();
 
 console.log("--- [server/src/routes/dashboardGeralRoutes.ts] Ficheiro carregado e rota GET / definida ---");
 
 router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect(); // <<< CHAMADA ADICIONADA
     const trainerId = req.user?.id;
 
     if (!trainerId) {
