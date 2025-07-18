@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express, { Router } from 'express';
-// mongoose é importado nos próprios modelos agora, não é mais necessário aqui.
 import cors, { CorsOptions } from 'cors';
 import authRoutes from './src/routes/auth.js';
 import convitePublicRoutes from './src/routes/convitePublicRoutes.js';
@@ -18,6 +17,7 @@ import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
+import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js'; // <<< ADIÇÃO
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -29,7 +29,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const app = express();
 const apiRouter = Router();
 
-// --- CONFIGURAÇÃO DE CORS ---
+// --- CONFIGURAÇÃO DE CORS E MIDDLEWARES GLOBAIS ---
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
@@ -54,21 +54,36 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- BLOCO DE CONEXÃO COM O BANCO REMOVIDO DAQUI ---
-
-// --- ESTRUTURA DE ROTAS ---
+// --- ESTRUTURA DE ROTAS REESTRUTURADA ---
 app.use('/api', apiRouter);
+
+// --- Rotas Públicas (sem autenticação) ---
 apiRouter.use('/public/convites', convitePublicRoutes);
 apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
-apiRouter.use(authenticateToken);
-apiRouter.use('/admin', authorizeAdmin, adminRoutes);
-apiRouter.use('/dashboard/geral', dashboardRoutes);
-apiRouter.use('/treinos', treinoRoutes);
-apiRouter.use('/exercicios', exercicioRoutes);
-apiRouter.use('/sessions', sessionsRoutes);
-apiRouter.use('/pastas/treinos', pastaRoutes);
-apiRouter.use('/aluno', alunoApiRoutes);
+
+// --- Rotas Protegidas para Personal e Admin ---
+const personalAdminRouter = Router();
+personalAdminRouter.use(authenticateToken); // Aplica o middleware de Personal/Admin
+personalAdminRouter.use('/admin', authorizeAdmin, adminRoutes);
+personalAdminRouter.use('/dashboard/geral', dashboardRoutes);
+personalAdminRouter.use('/treinos', treinoRoutes);
+personalAdminRouter.use('/exercicios', exercicioRoutes);
+personalAdminRouter.use('/sessions', sessionsRoutes);
+personalAdminRouter.use('/pastas/treinos', pastaRoutes);
+personalAdminRouter.use('/aluno', alunoApiRoutes); // Rotas de GESTÃO de alunos pelo personal
+apiRouter.use(personalAdminRouter); // Registra o grupo de rotas
+
+// --- Rotas Protegidas para Aluno ---
+// (No futuro, se houver rotas exclusivas para alunos logados, elas viriam aqui)
+// Exemplo:
+// const alunoRouter = Router();
+// alunoRouter.use(authenticateAlunoToken);
+// alunoRouter.use('/meus-dados', rotasDeDadosDoAluno);
+// apiRouter.use('/aluno-area', alunoRouter);
+
+
+// --- Tratamento de Erros ---
 app.use(errorHandler);
 
 // --- EXPORTAÇÃO E INICIALIZAÇÃO ---

@@ -1,23 +1,11 @@
 // client/src/components/dialogs/AssociarModeloAlunoModal.tsx
-// ATUALIZADO: Adicionados mais logs no handleSubmit para depurar a chamada API
-// CORREÇÃO: Adicionada chave única ao Select e SelectContent para resolver erro de 'removeChild'
-
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Users } from 'lucide-react';
 import { Aluno } from '@/types/aluno';
@@ -30,7 +18,6 @@ interface AssociarModeloAlunoModalProps {
   onClose: () => void;
   fichaModeloId: string | null;
   fichaModeloTitulo: string | null;
-  // Removido onModeloAssociado da prop, a lógica de sucesso será tratada aqui
 }
 
 interface AssociacaoResponse {
@@ -51,27 +38,26 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
   const { toast } = useToast();
   const queryClient = useTanstackQueryClient();
 
-  // Hook para buscar alunos
+  // <<< CORREÇÃO DE ROTA E QUERY KEY >>>
   const { data: alunos = [], isLoading: isLoadingAlunos } = useQuery<Aluno[], Error>({
-    queryKey: ["/api/alunos/associar-modal"], // Chave ligeiramente diferente para evitar conflitos se houver outra query /api/alunos
+    queryKey: ["/api/aluno/gerenciar"], // Usar a query key consistente
     queryFn: async () => {
       console.log("[AssociarModeloAlunoModal] Buscando alunos para o modal...");
-      const data = await apiRequest<Aluno[]>("GET", "/api/alunos");
+      // Usar a rota correta para o personal listar seus alunos
+      const data = await apiRequest<Aluno[]>("GET", "/api/aluno/gerenciar");
       console.log(`[AssociarModeloAlunoModal] ${data.length} alunos recebidos.`);
       return Array.isArray(data) ? data : [];
     },
-    enabled: isOpen, // Só busca quando o modal está aberto
-    staleTime: 1000 * 60 * 5, // Cache de 5 minutos
+    enabled: isOpen,
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Efeito para resetar o aluno selecionado ao abrir o modal ou mudar o modelo
   useEffect(() => {
     if (isOpen) {
-      setSelectedAlunoId(undefined); // Reseta ao abrir/mudar ficha
+      setSelectedAlunoId(undefined);
     }
   }, [isOpen, fichaModeloId]);
 
-  // Função para lidar com a submissão do formulário
   const handleSubmit = async () => {
     if (!fichaModeloId || !selectedAlunoId) {
       toast({
@@ -89,30 +75,20 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
     };
     const apiPath = "/api/treinos/associar-modelo";
 
-    console.log(`[AssociarModeloAlunoModal] Tentando POST para: ${apiPath}`);
-    console.log("[AssociarModeloAlunoModal] Payload:", JSON.stringify(payload, null, 2));
-
     try {
-      // Chamada real à API
       const novaFichaIndividual = await apiRequest<AssociacaoResponse>("POST", apiPath, payload);
       
-      console.log("[AssociarModeloAlunoModal] SUCESSO na chamada API. Resposta:", novaFichaIndividual);
-
       toast({
         title: "Sucesso!",
         description: `Ficha "${novaFichaIndividual.titulo}" criada para ${novaFichaIndividual.alunoId.nome}.`,
       });
 
-      // Invalidar queries para atualizar as listas
-      console.log("[AssociarModeloAlunoModal] Invalidando queries: /api/treinos e fichasAluno para", selectedAlunoId);
       queryClient.invalidateQueries({ queryKey: ["/api/treinos"] });
-      queryClient.invalidateQueries({ queryKey: ["fichasAluno", selectedAlunoId] });
+      queryClient.invalidateQueries({ queryKey: ["alunoRotinas", selectedAlunoId] }); // Invalida a busca de rotinas do aluno específico
 
-      onClose(); // Fecha o modal
+      onClose();
 
     } catch (error: any) {
-      console.error("[AssociarModeloAlunoModal] ERRO na chamada apiRequest:", error);
-      console.error("[AssociarModeloAlunoModal] Detalhes do erro:", error.message, error.response?.data);
       toast({
         variant: "destructive",
         title: "Erro ao Associar",
@@ -123,7 +99,6 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
     }
   };
 
-  // Não renderiza o modal se não estiver aberto ou se faltarem dados essenciais
   if (!isOpen || !fichaModeloId || !fichaModeloTitulo) {
     return null;
   }
@@ -154,9 +129,7 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
             ) : alunos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum aluno cadastrado para selecionar.</p>
             ) : (
-              // Adicionada a chave 'key' ao componente Select para garantir a correta re-renderização
               <Select
-                key={`select-${fichaModeloId}-${selectedAlunoId}`} // Chave dinâmica para forçar re-montagem se o modelo ou aluno mudar
                 value={selectedAlunoId}
                 onValueChange={setSelectedAlunoId}
                 disabled={isSubmitting}
@@ -164,8 +137,7 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
                 <SelectTrigger id="aluno-select-associar" className="w-full">
                   <SelectValue placeholder="Escolha um aluno..." />
                 </SelectTrigger>
-                {/* Adicionada a chave 'key' ao componente SelectContent */}
-                <SelectContent key={`select-content-${fichaModeloId}`}>
+                <SelectContent>
                   {alunos.map((aluno) => (
                     <SelectItem key={aluno._id} value={aluno._id}>
                       {aluno.nome} ({aluno.email})
