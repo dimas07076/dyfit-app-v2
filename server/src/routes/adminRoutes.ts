@@ -4,7 +4,8 @@ import mongoose from 'mongoose';
 import crypto from 'crypto';
 import PersonalTrainer from '../../models/PersonalTrainer.js';
 import ConvitePersonal from '../../models/ConvitePersonal.js';
-import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
+import Exercicio from '../../models/Exercicio.js';
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ const router = express.Router();
 
 // POST /api/admin/personal-trainers
 router.post('/personal-trainers', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { nome, email, password, role } = req.body;
     if (!nome || !email || !password) {
@@ -35,9 +36,24 @@ router.post('/personal-trainers', async (req: Request, res: Response, next: Next
 
 // GET /api/admin/personal-trainers
 router.get('/personal-trainers', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
-    const personais = await PersonalTrainer.find().select('-passwordHash').sort({ createdAt: -1 });
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 0;
+    const sortQuery = (req.query.sort as string)?.split(':');
+    
+    // <<< CORREÇÃO DE TIPO: A tipagem agora é '1 | -1' para corresponder ao Mongoose >>>
+    let sortOptions: { [key: string]: 1 | -1 } = { createdAt: -1 }; // Sorteio padrão
+    if (sortQuery && sortQuery.length === 2) {
+      sortOptions = { [sortQuery[0]]: sortQuery[1] === 'desc' ? -1 : 1 };
+    }
+
+    const personaisQuery = PersonalTrainer.find().select('-passwordHash').sort(sortOptions);
+
+    if (limit > 0) {
+      personaisQuery.limit(limit);
+    }
+    
+    const personais = await personaisQuery.exec();
     res.status(200).json(personais);
   } catch (error) {
     console.error('[ADMIN ROUTES] Erro em GET /personal-trainers:', error);
@@ -45,9 +61,41 @@ router.get('/personal-trainers', async (req: Request, res: Response, next: NextF
   }
 });
 
+// GET /api/admin/dashboard/stats
+router.get('/dashboard/stats', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const totalPersonaisPromise = PersonalTrainer.countDocuments();
+        const personaisAtivosPromise = PersonalTrainer.countDocuments({ statusAssinatura: 'ativa' });
+        const convitesPendentesPromise = ConvitePersonal.countDocuments({ status: 'pendente' });
+        const totalExerciciosPromise = Exercicio.countDocuments();
+
+        const [totalPersonais, personaisAtivos, convitesPendentes, totalExercicios] = await Promise.all([
+            totalPersonaisPromise,
+            personaisAtivosPromise,
+            convitesPendentesPromise,
+            totalExerciciosPromise
+        ]);
+        
+        const finalPersonaisAtivos = personaisAtivos > 0 ? personaisAtivos : totalPersonais;
+
+        res.status(200).json({
+            totalPersonais,
+            personaisAtivos: finalPersonaisAtivos,
+            convitesPendentes,
+            totalExercicios
+        });
+
+    } catch (error) {
+        console.error('[ADMIN ROUTES] Erro em GET /dashboard/stats:', error);
+        next(error);
+    }
+});
+
+
 // GET /api/admin/personal-trainers/:id
 router.get('/personal-trainers/:id', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -66,7 +114,7 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
 
 // PUT /api/admin/personal-trainers/:id
 router.put('/personal-trainers/:id', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { id } = req.params;
     const { nome, email, role } = req.body;
@@ -94,7 +142,7 @@ router.put('/personal-trainers/:id', async (req: Request, res: Response, next: N
 
 // DELETE /api/admin/personal-trainers/:id
 router.delete('/personal-trainers/:id', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { id: personalIdToDelete } = req.params;
     if (!mongoose.isValidObjectId(personalIdToDelete)) {
@@ -115,7 +163,7 @@ router.delete('/personal-trainers/:id', async (req: Request, res: Response, next
 const conviteRouter = express.Router();
 
 conviteRouter.post('/personal', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { emailConvidado, roleConvidado, diasParaExpirar } = req.body;
     const adminId = req.user?.id;
@@ -143,7 +191,7 @@ conviteRouter.post('/personal', async (req: Request, res: Response, next: NextFu
 });
 
 conviteRouter.get('/personal', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const adminId = req.user?.id;
     if (!adminId) {
@@ -159,7 +207,7 @@ conviteRouter.get('/personal', async (req: Request, res: Response, next: NextFun
 });
 
 conviteRouter.delete('/personal/:conviteId', async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const adminId = req.user?.id;
     const { conviteId } = req.params;

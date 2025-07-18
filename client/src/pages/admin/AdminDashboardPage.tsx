@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-// Corrigindo a importação de ícones
 import { Users, UserPlus, Mail, List, UserCheck } from 'lucide-react'; 
 import { PersonalListadoItem } from '@/pages/admin/ListarPersonaisPage';
 
@@ -19,21 +18,14 @@ interface AdminDashboardData {
   totalExercicios: number;
 }
 
-const fetchAdminDashboardData = async (): Promise<AdminDashboardData> => {
-  // TODO: Implementar a rota GET /api/admin/dashboard/stats no backend
-  // Por enquanto, vamos retornar dados de exemplo
-  return {
-    totalPersonais: 15,
-    personaisAtivos: 12,
-    convitesPendentes: 3,
-    totalExercicios: 85
-  };
-};
+// <<< REMOÇÃO: A função de dados mocados não é mais necessária >>>
+// const fetchAdminDashboardData = async (): Promise<AdminDashboardData> => { ... };
 
 export default function AdminDashboardPage() {
+  // <<< ALTERAÇÃO: A função 'queryFn' agora usa 'apiRequest' para buscar dados reais >>>
   const { data, isLoading, error } = useQuery<AdminDashboardData>({
     queryKey: ['adminDashboardStats'],
-    queryFn: fetchAdminDashboardData,
+    queryFn: () => apiRequest('GET', '/api/admin/dashboard/stats'),
   });
 
   const { data: personaisRecentes, isLoading: isLoadingPersonais } = useQuery<PersonalListadoItem[]>({
@@ -41,7 +33,10 @@ export default function AdminDashboardPage() {
       queryFn: () => apiRequest('GET', '/api/admin/personal-trainers?limit=5&sort=createdAt:desc'),
   });
 
-  if (isLoading) {
+  // O estado de carregamento principal agora considera ambas as queries
+  const isPageLoading = isLoading || isLoadingPersonais;
+
+  if (isPageLoading) {
     return <LoadingSpinner text="Carregando dashboard..." />;
   }
 
@@ -62,7 +57,7 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.totalPersonais ?? '...'}</div>
+            <div className="text-2xl font-bold">{data?.totalPersonais ?? '0'}</div>
             <p className="text-xs text-muted-foreground">Cadastrados na plataforma</p>
           </CardContent>
         </Card>
@@ -72,7 +67,7 @@ export default function AdminDashboardPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.personaisAtivos ?? '...'}</div>
+            <div className="text-2xl font-bold">{data?.personaisAtivos ?? '0'}</div>
             <p className="text-xs text-muted-foreground">Personais com plano ativo</p>
           </CardContent>
         </Card>
@@ -82,7 +77,7 @@ export default function AdminDashboardPage() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.convitesPendentes ?? '...'}</div>
+            <div className="text-2xl font-bold">{data?.convitesPendentes ?? '0'}</div>
             <p className="text-xs text-muted-foreground">Aguardando aceite</p>
           </CardContent>
         </Card>
@@ -92,7 +87,7 @@ export default function AdminDashboardPage() {
             <List className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.totalExercicios ?? '...'}</div>
+            <div className="text-2xl font-bold">{data?.totalExercicios ?? '0'}</div>
             <p className="text-xs text-muted-foreground">Disponíveis para todos</p>
           </CardContent>
         </Card>
@@ -103,13 +98,13 @@ export default function AdminDashboardPage() {
             <h2 className="text-xl font-semibold">Ações Rápidas</h2>
             <Link href="/admin/criar-personal"><Button className="w-full justify-start"><UserPlus className="mr-2 h-4 w-4"/>Criar Novo Personal</Button></Link>
             <Link href="/admin/convites"><Button className="w-full justify-start"><Mail className="mr-2 h-4 w-4"/>Gerenciar Convites</Button></Link>
+            {/* <<< CORREÇÃO DE ROTA: Link para Gerenciar Exercícios deve apontar para a rota do personal >>> */}
             <Link href="/exercises"><Button className="w-full justify-start"><List className="mr-2 h-4 w-4"/>Gerenciar Exercícios</Button></Link>
         </div>
         <div className="md:col-span-2">
             <h2 className="text-xl font-semibold mb-4">Personais Recentes</h2>
             <Card>
                 <CardContent className="p-0">
-                    {isLoadingPersonais ? <LoadingSpinner /> : (
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -119,16 +114,25 @@ export default function AdminDashboardPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {personaisRecentes?.map(p => (
-                                <TableRow key={p._id}>
-                                    <TableCell className="font-medium">{p.nome}</TableCell>
-                                    <TableCell>{p.email}</TableCell>
-                                    <TableCell><Badge variant="outline">Ativo</Badge></TableCell>
+                            {/* <<< MELHORIA: Adicionado tratamento para lista vazia >>> */}
+                            {personaisRecentes && personaisRecentes.length > 0 ? (
+                                personaisRecentes.map(p => (
+                                    <TableRow key={p._id}>
+                                        <TableCell className="font-medium">{p.nome}</TableCell>
+                                        <TableCell>{p.email}</TableCell>
+                                        {/* A lógica de status pode ser aprimorada no futuro */}
+                                        <TableCell><Badge variant="outline">Ativo</Badge></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                        Nenhum personal encontrado.
+                                    </TableCell>
                                 </TableRow>
-                            ))}
+                            )}
                         </TableBody>
                     </Table>
-                    )}
                 </CardContent>
             </Card>
         </div>

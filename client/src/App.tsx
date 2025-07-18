@@ -26,14 +26,17 @@ const LoginPage = lazy(() => import("@/pages/login"));
 const CadastroPersonalPorConvitePage = lazy(() => import("@/pages/public/CadastroPersonalPorConvitePage"));
 const CadastroAlunoPorConvitePage = lazy(() => import("@/pages/public/CadastroAlunoPorConvitePage"));
 const AlunoLoginPage = lazy(() => import("@/pages/public/AlunoLoginPage"));
-// --- Páginas do Aluno ---
 const AlunoDashboardPage = lazy(() => import('@/pages/alunos/AlunoDashboardPage'));
 const AlunoFichaDetalhePage = lazy(() => import('@/pages/alunos/AlunoFichaDetalhePage'));
 const AlunoHistoricoPage = lazy(() => import('@/pages/alunos/AlunoHistoricoPage'));
+const ListarPersonaisPage = lazy(() => import('@/pages/admin/ListarPersonaisPage'));
+const CriarPersonalPage = lazy(() => import('@/pages/admin/CriarPersonalPage'));
+const EditarPersonalPage = lazy(() => import('@/pages/admin/EditarPersonalPage'));
+const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvitesPage'));
+const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
 
-interface CustomRouteProps extends Omit<RouteProps, 'component'> {
-  component: React.ComponentType<any>;
-}
+
+interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
 
 const ProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...rest }) => {
   const { user, isLoading: isUserContextLoading } = useContext(UserContext);
@@ -42,12 +45,20 @@ const ProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...r
   return <Route {...rest} component={Component} />;
 };
 
+const AdminProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...rest }) => {
+  const { user, isLoading: isUserContextLoading } = useContext(UserContext);
+  if (isUserContextLoading) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+  if (!user) return <Redirect to="/login" />;
+  if (user.role.toLowerCase() !== 'admin') return <Redirect to="/" />;
+  return <Route {...rest} component={Component} />;
+};
+
 const AlunoProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...rest }) => {
     const { aluno, isLoadingAluno } = useAluno();
     if (isLoadingAluno) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> Carregando...</div>;
     if (!aluno) return <Redirect to="/aluno/login" />;
     return <Route {...rest} component={Component} />;
-  };
+};
 
 function AppContent() {
   const { user, isLoading: isUserLoading } = useContext(UserContext);
@@ -58,8 +69,15 @@ function AppContent() {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
   
-  if (user) { 
-    if (location === "/login" || location === "/aluno/login") return <Redirect to="/" />;
+  if (user) {
+    if (location === "/login" || location === "/aluno/login") {
+        const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
+        return <Redirect to={redirectTo} />;
+    }
+    
+    if (user.role.toLowerCase() === 'admin') {
+        return <AdminApp />;
+    }
     return <PersonalApp />;
   } 
   
@@ -71,6 +89,28 @@ function AppContent() {
   return <PublicRoutes />;
 }
 
+function AdminApp() {
+    return (
+      <MainLayout>
+        <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+          <Switch>
+            <AdminProtectedRoute path="/admin" component={AdminDashboardPage} />
+            <AdminProtectedRoute path="/admin/personais" component={ListarPersonaisPage} />
+            <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} />
+            <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} />
+            <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} />
+            
+            {/* <<< CORREÇÃO: Rota de exercícios adicionada para o Admin >>> */}
+            <AdminProtectedRoute path="/exercises" component={ExercisesIndex} />
+            
+            <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} />
+            <Route path="/admin/:rest*"><Redirect to="/admin" /></Route>
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
+      </MainLayout>
+    );
+}
 
 function PersonalApp() {
   return (
@@ -85,14 +125,14 @@ function PersonalApp() {
           <ProtectedRoute path="/exercises" component={ExercisesIndex} />
           <ProtectedRoute path="/sessoes" component={SessionsPage} />
           <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} />
+          <Route path="/admin/:rest*"><Redirect to="/" /></Route>
           <Route component={NotFound} />
         </Switch>
       </Suspense>
     </MainLayout>
   );
 }
-
-// <<< NOVO COMPONENTE AlunoApp >>>
+//... O resto do arquivo permanece igual
 function AlunoApp() {
     return (
       <MainLayout>
@@ -107,7 +147,6 @@ function AlunoApp() {
       </MainLayout>
     );
 }
-
 function PublicRoutes() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
@@ -121,7 +160,6 @@ function PublicRoutes() {
     </Suspense>
   );
 }
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
