@@ -2,11 +2,13 @@
 import express, { Request, Response, Router, NextFunction } from "express";
 import mongoose from "mongoose";
 import Exercicio, { IExercicio } from "../../models/Exercicio.js";
+import Treino from "../../models/Treino.js"; // <<< ADIÇÃO: Importa o modelo Treino
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
-import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
+import dbConnect from '../../lib/dbConnect.js';
 
 const router: Router = express.Router();
 
+// ... (todas as outras rotas GET, POST, PUT, favorite permanecem inalteradas)
 // Função auxiliar de filtro
 const buildFilterQuery = (baseFilter: mongoose.FilterQuery<IExercicio>, req: Request): mongoose.FilterQuery<IExercicio> => {
     const query: mongoose.FilterQuery<IExercicio> = { ...baseFilter };
@@ -15,10 +17,9 @@ const buildFilterQuery = (baseFilter: mongoose.FilterQuery<IExercicio>, req: Req
     if (categoria && typeof categoria === 'string' && categoria !== 'all') query.categoria = categoria;
     return query;
 };
-
 // GET /app
 router.get("/app", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   const userId = req.user?.id; 
   try {
     const filterQuery = buildFilterQuery({ isCustom: false }, req); 
@@ -30,10 +31,9 @@ router.get("/app", authenticateToken, async (req: Request, res: Response, next: 
     res.status(200).json(exerciciosComFavorito);
   } catch (error) { next(error); }
 });
-
 // GET /meus
 router.get("/meus", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   const creatorId = req.user?.id;
   try {
     if (!creatorId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -46,10 +46,9 @@ router.get("/meus", authenticateToken, async (req: Request, res: Response, next:
     res.status(200).json(exerciciosComFavorito);
   } catch (error) { next(error); }
 });
-
 // GET /favoritos
 router.get("/favoritos", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   const userId = req.user?.id;
   try {
     if (!userId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -59,10 +58,9 @@ router.get("/favoritos", authenticateToken, async (req: Request, res: Response, 
     res.status(200).json(exerciciosComFavorito);
   } catch (error) { next(error); }
 });
-
 // POST / - Criar um novo exercício
 router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const { nome, descricao, categoria, grupoMuscular, urlVideo, isCustom } = req.body;
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
@@ -74,7 +72,6 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
         const exercicioData: Partial<IExercicio> = {
             nome: nome.trim(), descricao, categoria, grupoMuscular, urlVideo, isCustom
         };
-
         if (isCustom === false) {
             if (requesterRole?.toLowerCase() !== 'admin') {
                 return res.status(403).json({ erro: "Apenas administradores podem criar exercícios do App." });
@@ -86,17 +83,15 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
             const jaExiste = await Exercicio.findOne({ nome: nome.trim(), creatorId: exercicioData.creatorId });
             if (jaExiste) return res.status(409).json({ erro: "Você já possui um exercício personalizado com esse nome." });
         }
-
         const novoExercicio = await Exercicio.create(exercicioData);
         res.status(201).json(novoExercicio);
     } catch (error) {
         next(error);
     }
 });
-
 // PUT /:id - Atualizar um exercício
 router.put("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
     const { id } = req.params;
@@ -108,10 +103,8 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
     try {
         const exercicio = await Exercicio.findById(id);
         if (!exercicio) return res.status(404).json({ erro: "Exercício não encontrado." });
-        
         const isOwner = exercicio.creatorId?.equals(new mongoose.Types.ObjectId(requesterId));
         const isAdmin = requesterRole?.toLowerCase() === 'admin';
-
         if ((exercicio.isCustom && isOwner) || (!exercicio.isCustom && isAdmin)) {
             Object.assign(exercicio, updates);
             await exercicio.save();
@@ -124,9 +117,10 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
     }
 });
 
+
 // DELETE /:id - Deletar um exercício
 router.delete("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const requesterId = req.user?.id;
     const requesterRole = req.user?.role;
     const { id } = req.params;
@@ -142,8 +136,20 @@ router.delete("/:id", authenticateToken, async (req: Request, res: Response, nex
         const isAdmin = requesterRole?.toLowerCase() === 'admin';
 
         if ((exercicio.isCustom && isOwner) || (!exercicio.isCustom && isAdmin)) {
+            
+            // <<< CORREÇÃO: Lógica de remoção em cascata >>>
+            const exercicioId = new mongoose.Types.ObjectId(id);
+
+            // 1. Remove o exercício de todas as rotinas
+            await Treino.updateMany(
+                { "diasDeTreino.exerciciosDoDia.exercicioId": exercicioId },
+                { $pull: { "diasDeTreino.$[].exerciciosDoDia": { exercicioId: exercicioId } } }
+            );
+
+            // 2. Deleta o exercício principal
             await exercicio.deleteOne();
-            res.status(200).json({ message: "Exercício deletado com sucesso." });
+            
+            res.status(200).json({ message: "Exercício deletado com sucesso e removido de todas as rotinas." });
         } else {
             return res.status(403).json({ erro: "Permissão negada para deletar este exercício." });
         }
@@ -152,9 +158,10 @@ router.delete("/:id", authenticateToken, async (req: Request, res: Response, nex
     }
 });
 
+// ... (rotas de favorite/unfavorite permanecem inalteradas)
 // POST /:id/favorite - Favoritar
 router.post("/:id/favorite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const userId = req.user?.id;
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id) || !userId) return res.status(400).json({ erro: "Requisição inválida." });
@@ -163,10 +170,9 @@ router.post("/:id/favorite", authenticateToken, async (req: Request, res: Respon
         res.status(200).json({ message: "Exercício favoritado." });
     } catch (error) { next(error); }
 });
-
 // DELETE /:id/favorite - Desfavoritar
 router.delete("/:id/favorite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const userId = req.user?.id;
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id) || !userId) return res.status(400).json({ erro: "Requisição inválida." });

@@ -38,11 +38,11 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
 
   const outrasPastas = pastas.filter(p => p._id !== pastaAtualId);
 
-  const ActionButton = ({ title, onClick, children }: { title: string, onClick: () => void, children: React.ReactNode }) => (
+  const ActionButton = ({ title, onClick, children, className }: { title: string, onClick: () => void, children: React.ReactNode, className?: string }) => (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClick}>{children}</Button>
+          <Button variant="ghost" size="icon" className={`h-8 w-8 ${className}`} onClick={onClick}>{children}</Button>
         </TooltipTrigger>
         <TooltipContent><p>{title}</p></TooltipContent>
       </Tooltip>
@@ -56,14 +56,29 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         <CardDescription className="text-xs text-slate-500 dark:text-slate-400 h-8 line-clamp-2" title={rotina.descricao ?? undefined}>{rotina.descricao || 'Sem descrição.'}</CardDescription>
       </CardHeader>
       
-      <CardContent className="flex-grow pt-2 pb-4">
+      <CardContent className="flex-grow pt-2 pb-4 space-y-2">
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{`${diasDeTreinoCount} Dia(s)`}</Badge>
-          {isModelo ? <Badge variant="outline" className="border-primary text-primary"><FolderIcon className="mr-1 h-3 w-3"/>Modelo</Badge> : <Badge variant="outline" className="border-teal-500 text-teal-600"><User className="mr-1 h-3 w-3"/>{alunoNome || 'Individual'}</Badge>}
+          {/* <<< CORREÇÃO 2: Ajuste de cor e estilo da Badge "Individual" para consistência >>> */}
+          <Badge variant={isModelo ? 'outline' : 'default'} className={
+            isModelo 
+              ? "border-primary text-primary" 
+              : "bg-teal-100 text-teal-800 border-transparent hover:bg-teal-100/80 dark:bg-teal-900/50 dark:text-teal-300"
+          }>
+            {isModelo ? 'Modelo' : 'Individual'}
+          </Badge>
         </div>
+        
+        {!isModelo && alunoNome && (
+            <div className="flex items-center text-sm text-muted-foreground pt-1">
+                <User className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate" title={alunoNome}>{alunoNome}</span>
+            </div>
+        )}
+
       </CardContent>
 
-      <CardFooter className="p-2 border-t dark:border-slate-700 flex justify-between items-center gap-1">
+      <CardFooter className="p-2 border-t dark:border-slate-700 flex justify-between items-center gap-1 mt-auto">
         <div className="flex-1">
           {isModelo && (
             <Popover>
@@ -76,13 +91,12 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
                       </Button>
                     </PopoverTrigger>
                   </TooltipTrigger>
-                  <TooltipContent><p>Organizar Pastas</p></TooltipContent>
+                  <TooltipContent><p>Mover para Pasta</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <PopoverContent className="w-56 p-2">
                 <div className="grid gap-1">
-                  {/* --- AJUSTE DE ESTILO APLICADO AQUI --- */}
-                  <p className="font-semibold text-sm px-2 py-1.5 text-muted-foreground bg-slate-100 dark:bg-slate-800 rounded-sm">Mover para...</p>
+                  <p className="font-semibold text-sm px-2 py-1.5 text-muted-foreground">Mover para...</p>
                   
                   {outrasPastas.length > 0 ? (
                     outrasPastas.map(p => (
@@ -111,11 +125,9 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
           <ActionButton title="Visualizar" onClick={() => onView(rotina)}><Eye className="h-4 w-4 text-slate-500" /></ActionButton>
           {isModelo && <ActionButton title="Atribuir a Aluno" onClick={() => onAssign(rotina._id, rotina.titulo)}><CopyPlus className="h-4 w-4 text-slate-500" /></ActionButton>}
           <ActionButton title="Editar" onClick={() => onEdit(rotina)}><Edit className="h-4 w-4 text-slate-500" /></ActionButton>
-          <ActionButton title="Excluir" onClick={() => onDelete(rotina)}><Trash2 className="h-4 w-4 text-red-500/80 hover:text-red-500" /></ActionButton>
+          <ActionButton title="Excluir" onClick={() => onDelete(rotina)} className="text-red-500/80 hover:text-red-500"><Trash2 className="h-4 w-4" /></ActionButton>
         </div>
       </CardFooter>
     </Card>
   );
 };
-
-export default RotinaCard; // A exportação padrão foi restaurada para consistência

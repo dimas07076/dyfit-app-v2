@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, UserX, Mail } from "lucide-react";
+import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical } from "lucide-react"; // Adicionado MoreVertical
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -17,6 +17,57 @@ import ErrorMessage from "@/components/ErrorMessage";
 import { Aluno } from "@/types/aluno";
 import AlunoViewModal from "@/components/dialogs/AlunoViewModal";
 import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+// <<< NOVO COMPONENTE: Card para a visualização mobile >>>
+const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
+    const getInitials = (nome: string) => {
+        const partes = nome.split(' ').filter(Boolean);
+        if (partes.length > 1) return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
+        return partes[0] ? partes[0].substring(0, 2).toUpperCase() : '?';
+    };
+
+    return (
+        <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-4">
+                <Avatar>
+                    <AvatarFallback>{getInitials(student.nome)}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                    <span className="font-semibold text-sm">{student.nome}</span>
+                    <span className="text-xs text-muted-foreground">{student.email}</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-2">
+                <Badge variant={student.status === "active" ? "success" : "destructive"} className="hidden sm:inline-flex">
+                    {student.status === "active" ? "Ativo" : "Inativo"}
+                </Badge>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onView(student)}>
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href={`/alunos/editar/${student._id}`}>
+                                <Pencil className="mr-2 h-4 w-4" /> Editar
+                            </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => onDelete(student)}>
+                            <UserX className="mr-2 h-4 w-4" /> Remover
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        </div>
+    );
+};
+
 
 export default function StudentsIndex() {
     const { toast } = useToast();
@@ -27,14 +78,12 @@ export default function StudentsIndex() {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API e a queryKey >>>
     const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({
         queryKey: ['/api/aluno/gerenciar'],
         queryFn: () => fetchWithAuth<Aluno[]>("/api/aluno/gerenciar"),
         retry: 1,
     });
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
     const deleteStudentMutation = useMutation<any, Error, string>({
         mutationFn: (alunoId: string) => fetchWithAuth(`/api/aluno/gerenciar/${alunoId}`, { method: 'DELETE' }),
         onSuccess: () => {
@@ -78,14 +127,14 @@ export default function StudentsIndex() {
                         <Button variant="outline" onClick={() => setIsInviteModalOpen(true)}>
                             <Mail className="h-4 w-4 mr-2" /> Convidar Aluno
                         </Button>
-                        {/* O link da rota de página permanece o mesmo, a mudança é na API */}
                         <Link href="/alunos/novo">
                             <Button><Plus className="h-4 w-4 mr-2" /> Adicionar Aluno</Button>
                         </Link>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="overflow-x-auto">
+                    {/* <<< ALTERAÇÃO: Tabela visível apenas em telas médias e maiores >>> */}
+                    <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
                                 <TableRow>
@@ -97,7 +146,7 @@ export default function StudentsIndex() {
                             </TableHeader>
                             <TableBody className="divide-y">
                                 {isLoading && [...Array(5)].map((_, i) => (
-                                    <TableRow key={`skeleton-${i}`}>
+                                    <TableRow key={`skeleton-table-${i}`}>
                                         <TableCell className="pl-6 py-4"><Skeleton className="h-4 w-32" /></TableCell>
                                         <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                                         <TableCell><Skeleton className="h-6 w-16" /></TableCell>
@@ -132,6 +181,27 @@ export default function StudentsIndex() {
                             </TableBody>
                         </Table>
                     </div>
+
+                    {/* <<< ADIÇÃO: Lista de cards visível apenas em telas pequenas >>> */}
+                    <div className="md:hidden">
+                        {isLoading && [...Array(5)].map((_, i) => (
+                            <div key={`skeleton-card-${i}`} className="flex items-center justify-between p-4 border-b">
+                                <div className="flex items-center gap-4">
+                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                    <div className="flex flex-col gap-2">
+                                        <Skeleton className="h-4 w-28" />
+                                        <Skeleton className="h-3 w-36" />
+                                    </div>
+                                </div>
+                                <Skeleton className="h-8 w-8" />
+                            </div>
+                        ))}
+                        {isError && !isLoading && <ErrorMessage title="Erro ao Carregar" message={error.message} />}
+                        {!isLoading && !isError && filteredStudents.map((student) => (
+                            <AlunoCard key={student._id} student={student} onView={handleViewClick} onDelete={handleDeleteClick} />
+                        ))}
+                    </div>
+
                 </CardContent>
             </Card>
 
