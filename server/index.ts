@@ -17,7 +17,7 @@ import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
-import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js'; // <<< ADIÇÃO
+import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -39,7 +39,13 @@ const allowedOrigins = [
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     if (!origin) { return callback(null, true); }
-    if (allowedOrigins.includes(origin) || origin.endsWith('.gitpod.io')) {
+    
+    // <<< CORREÇÃO: Adicionado suporte para URLs de Preview da Vercel >>>
+    if (
+        allowedOrigins.includes(origin) || 
+        origin.endsWith('.gitpod.io') ||
+        origin.endsWith('.vercel.app') // Permite qualquer subdomínio de preview da Vercel
+    ) {
       callback(null, true);
     } else {
       console.warn(`CORS: Requisição bloqueada da origem: ${origin}`);
@@ -64,24 +70,15 @@ apiRouter.use('/auth', authRoutes);
 
 // --- Rotas Protegidas para Personal e Admin ---
 const personalAdminRouter = Router();
-personalAdminRouter.use(authenticateToken); // Aplica o middleware de Personal/Admin
+personalAdminRouter.use(authenticateToken);
 personalAdminRouter.use('/admin', authorizeAdmin, adminRoutes);
 personalAdminRouter.use('/dashboard/geral', dashboardRoutes);
 personalAdminRouter.use('/treinos', treinoRoutes);
 personalAdminRouter.use('/exercicios', exercicioRoutes);
 personalAdminRouter.use('/sessions', sessionsRoutes);
 personalAdminRouter.use('/pastas/treinos', pastaRoutes);
-personalAdminRouter.use('/aluno', alunoApiRoutes); // Rotas de GESTÃO de alunos pelo personal
-apiRouter.use(personalAdminRouter); // Registra o grupo de rotas
-
-// --- Rotas Protegidas para Aluno ---
-// (No futuro, se houver rotas exclusivas para alunos logados, elas viriam aqui)
-// Exemplo:
-// const alunoRouter = Router();
-// alunoRouter.use(authenticateAlunoToken);
-// alunoRouter.use('/meus-dados', rotasDeDadosDoAluno);
-// apiRouter.use('/aluno-area', alunoRouter);
-
+personalAdminRouter.use('/aluno', alunoApiRoutes);
+apiRouter.use(personalAdminRouter);
 
 // --- Tratamento de Erros ---
 app.use(errorHandler);
