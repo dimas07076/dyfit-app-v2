@@ -59,17 +59,16 @@ apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
 
 // --- 2. Rotas Protegidas ---
-// A autenticação é aplicada diretamente em cada grupo de rotas.
+// A autenticação é aplicada diretamente ou dentro de cada arquivo de rota.
 apiRouter.use('/admin', authenticateToken, authorizeAdmin, adminRoutes);
 apiRouter.use('/dashboard/geral', authenticateToken, dashboardRoutes);
 apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
-apiRouter.use('/sessions', authenticateToken, sessionsRoutes);
 apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
 
-// <<< CORREÇÃO: A rota /aluno agora é registrada sem middleware global. >>>
-// A segurança será tratada internamente pelo arquivo alunoApiRoutes.ts.
+// <<< CORREÇÃO: As rotas /aluno e /sessions agora gerenciam sua própria segurança interna >>>
 apiRouter.use('/aluno', alunoApiRoutes);
+apiRouter.use('/sessions', sessionsRoutes);
 
 // --- 3. Tratamento de Erros ---
 app.use(errorHandler);

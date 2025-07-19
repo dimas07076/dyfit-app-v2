@@ -1,28 +1,17 @@
 // server/models/Sessao.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export const TIPOS_COMPROMISSO = ['avaliacao', 'checkin', 'treino_acompanhado', 'outro', 'treino_rotina'] as const;
+// <<< CORREÇÃO: Adicionado 'treino' à lista de valores permitidos >>>
+export const TIPOS_COMPROMISSO = ['avaliacao', 'checkin', 'treino_acompanhado', 'outro', 'treino_rotina', 'treino'] as const;
 export type TipoCompromisso = typeof TIPOS_COMPROMISSO[number];
 
 export const OPCOES_PSE = [
-    'Muito Leve', 
-    'Leve', 
-    'Moderado', 
-    'Intenso', 
-    'Muito Intenso', 
-    'Máximo Esforço'
+    'Muito Leve', 'Leve', 'Moderado', 'Intenso', 'Muito Intenso', 'Máximo Esforço'
 ] as const;
 export type OpcaoPSE = typeof OPCOES_PSE[number];
 
-interface IPopulatedAlunoLean {
-  _id: string; 
-  nome: string;
-}
-
-interface IPopulatedRotinaLean {
-  _id: string;
-  titulo: string;
-}
+interface IPopulatedAlunoLean { _id: string; nome: string; }
+interface IPopulatedRotinaLean { _id: string; titulo: string; }
 
 export interface ISessaoLean {
   _id: string; 
@@ -31,7 +20,7 @@ export interface ISessaoLean {
   rotinaId: IPopulatedRotinaLean | string | null; 
   diaDeTreinoId: string | null; 
   diaDeTreinoIdentificador?: string | null;
-  nomeSubFichaDia?: string | null; // <<< ADICIONADO AQUI >>>
+  nomeSubFichaDia?: string | null;
   sessionDate: string; 
   tipoCompromisso: TipoCompromisso;
   notes?: string; 
@@ -41,7 +30,6 @@ export interface ISessaoLean {
   comentarioAluno?: string | null;
   createdAt?: string;
   updatedAt?: string;
-  __v?: number;
 }
 
 export interface ISessaoDocument extends Document {
@@ -50,7 +38,7 @@ export interface ISessaoDocument extends Document {
   rotinaId?: Types.ObjectId | null; 
   diaDeTreinoId?: Types.ObjectId | null; 
   diaDeTreinoIdentificador?: string | null;
-  nomeSubFichaDia?: string | null; // <<< ADICIONADO AQUI >>>
+  nomeSubFichaDia?: string | null;
   sessionDate: Date; 
   tipoCompromisso: TipoCompromisso;
   notes?: string; 
@@ -67,7 +55,7 @@ const SessaoSchema = new Schema<ISessaoDocument>(
     rotinaId: { type: Schema.Types.ObjectId, ref: 'Treino', required: false, default: null, index: true },
     diaDeTreinoId: { type: Schema.Types.ObjectId, required: false, default: null }, 
     diaDeTreinoIdentificador: { type: String, trim: true, default: null },
-    nomeSubFichaDia: { type: String, trim: true, default: null }, // <<< ADICIONADO AQUI >>>
+    nomeSubFichaDia: { type: String, trim: true, default: null },
     sessionDate: { type: Date, required: true },
     tipoCompromisso: {
       type: String,

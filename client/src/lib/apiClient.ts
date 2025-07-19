@@ -10,19 +10,31 @@ export const fetchWithAuth = async <T = any>(
     const isPublicAuthRoute = url.startsWith('/api/auth/');
 
     if (!isPublicAuthRoute) {
-        // <<< CORREÇÃO FINAL E DEFINITIVA DA LÓGICA DE SELEÇÃO DE TOKEN >>>
-        // Apenas rotas muito específicas como 'meus-treinos' devem usar o token de aluno.
-        // Todas as outras, incluindo as de gerenciamento, usam o token do personal.
-        if (
-            url.startsWith('/api/aluno/meus-treinos') || 
-            url.startsWith('/api/aluno/minhas-sessoes') 
-        ) {
-          token = localStorage.getItem('alunoAuthToken');
-          tokenTypeUsed = "aluno";
+        // <<< CORREÇÃO DEFINITIVA E MAIS SIMPLES >>>
+        // A regra é: Se o token de aluno existir, ele tem prioridade para as rotas que pode acessar.
+        // Se não, tentamos o token do personal. Isso cobre todos os casos.
+
+        const alunoToken = localStorage.getItem('alunoAuthToken');
+        const personalToken = localStorage.getItem('authToken');
+
+        // Rotas que são EXCLUSIVAS e devem usar o token de ALUNO
+        const alunoExclusiveRoutes = [
+            '/api/aluno/meus-treinos',
+            '/api/aluno/minhas-sessoes',
+            '/api/sessions/aluno/', // cobre /concluir-dia, /feedback, etc.
+            '/api/sessions/concluir-dia' // Adicionando a rota exata por segurança
+        ];
+
+        // Verifica se a URL corresponde a alguma das rotas exclusivas do aluno
+        const isAlunoRoute = alunoExclusiveRoutes.some(route => url.startsWith(route));
+
+        if (isAlunoRoute) {
+            token = alunoToken;
+            tokenTypeUsed = "aluno";
         } else {
-          // Para TODAS as outras rotas protegidas (gerenciamento, treinos, etc.)
-          token = localStorage.getItem('authToken');
-          tokenTypeUsed = "personalAdmin";
+            // Para todas as outras rotas, usa o token do personal/admin
+            token = personalToken;
+            tokenTypeUsed = "personalAdmin";
         }
     }
   
