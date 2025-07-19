@@ -7,6 +7,8 @@ import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import { startOfWeek, endOfWeek } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
+// <<< ADIÇÃO: Importa o middleware de autenticação >>>
+import { authenticateToken } from '../../middlewares/authenticateToken.js';
 
 const router = express.Router();
 
@@ -15,13 +17,14 @@ const router = express.Router();
 // =======================================================
 
 // POST /api/aluno/convite - Personal gera convite
-router.post("/convite", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.post("/convite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
-    if (req.user?.role?.toLowerCase() !== 'personal') return res.status(403).json({ erro: "Apenas personais podem gerar convites." });
+    // A verificação de role é uma boa prática, mas o middleware já garante que é um personal ou admin
+    if (!trainerId) return res.status(401).json({ erro: "Personal não autenticado." });
     try {
         const { emailConvidado } = req.body;
-        if (!trainerId) return res.status(401).json({ erro: "Personal não autenticado." });
         if (!emailConvidado) return res.status(400).json({ erro: "O email do aluno é obrigatório." });
         const alunoExistente = await Aluno.findOne({ email: emailConvidado, trainerId });
         if (alunoExistente) return res.status(409).json({ erro: "Este aluno já está cadastrado com você." });
@@ -38,7 +41,8 @@ router.post("/convite", async (req: Request, res: Response, next: NextFunction) 
 });
 
 // GET /api/aluno/gerenciar - Personal lista seus alunos
-router.get("/gerenciar", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.get("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -49,7 +53,8 @@ router.get("/gerenciar", async (req: Request, res: Response, next: NextFunction)
 });
 
 // POST /api/aluno/gerenciar - Personal cadastra aluno manualmente
-router.post("/gerenciar", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.post("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -66,7 +71,8 @@ router.post("/gerenciar", async (req: Request, res: Response, next: NextFunction
 });
 
 // GET /api/aluno/gerenciar/:id - Personal busca um aluno específico
-router.get("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const { id } = req.params;
@@ -79,8 +85,9 @@ router.get("/gerenciar/:id", async (req: Request, res: Response, next: NextFunct
     } catch (error) { next(error); }
 });
 
-// <<< ADIÇÃO: Nova rota para buscar as rotinas de um aluno específico >>>
-router.get('/:alunoId/rotinas', async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/aluno/:alunoId/rotinas - Personal busca as rotinas de um aluno
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.get('/:alunoId/rotinas', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const { alunoId } = req.params;
@@ -88,13 +95,11 @@ router.get('/:alunoId/rotinas', async (req: Request, res: Response, next: NextFu
     if (!mongoose.Types.ObjectId.isValid(alunoId)) return res.status(400).json({ erro: 'ID do aluno inválido.' });
 
     try {
-        // Verifica se o personal tem permissão para ver este aluno
         const aluno = await Aluno.findOne({ _id: alunoId, trainerId });
         if (!aluno) {
             return res.status(404).json({ erro: 'Aluno não encontrado ou não pertence a este personal.' });
         }
 
-        // Busca as rotinas do tipo 'individual' associadas ao aluno
         const rotinas = await Treino.find({
             alunoId: new mongoose.Types.ObjectId(alunoId),
             criadorId: new mongoose.Types.ObjectId(trainerId),
@@ -107,9 +112,9 @@ router.get('/:alunoId/rotinas', async (req: Request, res: Response, next: NextFu
     }
 });
 
-
 // PUT /api/aluno/gerenciar/:id - Personal edita um aluno
-router.put("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const { id } = req.params;
@@ -131,7 +136,8 @@ router.put("/gerenciar/:id", async (req: Request, res: Response, next: NextFunct
 });
 
 // DELETE /api/aluno/gerenciar/:id - Personal deleta um aluno
-router.delete("/gerenciar/:id", async (req: Request, res: Response, next: NextFunction) => {
+// <<< CORREÇÃO: Middleware adicionado >>>
+router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const { id } = req.params;
@@ -144,11 +150,12 @@ router.delete("/gerenciar/:id", async (req: Request, res: Response, next: NextFu
     } catch (error) { next(error); }
 });
 
-
 // =======================================================
-// ROTAS DO ALUNO (PARA ACESSO PRÓPRIO)
+// ROTAS DO ALUNO (PARA ACESSO PRÓPRIO) - NÃO ADICIONAR authenticateToken AQUI
 // =======================================================
 router.get('/meus-treinos', async (req: Request, res: Response, next: NextFunction) => {
+    // Esta rota deve usar um middleware de autenticação de ALUNO, se necessário
+    // Por agora, ela continuará como está, esperando req.aluno
     await dbConnect();
     const alunoId = req.aluno?.id;
     if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); 

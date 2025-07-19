@@ -2,34 +2,27 @@
 import express, { Request, Response, NextFunction } from "express";
 import mongoose, { Types } from "mongoose";
 import Treino, {
-    ITreino,
-    IDiaDeTreino,
-    IExercicioEmDiaDeTreino,
     IDiaDeTreinoPlain,
     IExercicioEmDiaDeTreinoPlain
 } from "../../models/Treino.js";
 import PastaTreino from '../../models/Pasta.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
-import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
 
 router.get("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const criadorId = req.user?.id;
-    if (!criadorId) return res.status(401).json({ mensagem: "Usuário не autenticado." });
+    if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
 
     const rotinas = await Treino.find({ criadorId: new Types.ObjectId(criadorId) })
         .populate({ path: 'alunoId', select: 'nome' })
         .populate({ path: 'pastaId', select: 'nome' })
         .populate({
             path: 'diasDeTreino',
-            populate: {
-                path: 'exerciciosDoDia.exercicioId',
-                model: 'Exercicio',
-                select: 'nome urlVideo'
-            }
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         })
         .sort({ tipo: 1, atualizadoEm: -1 });
 
@@ -39,8 +32,41 @@ router.get("/", authenticateToken, async (req: Request, res: Response, next: Nex
   }
 });
 
+// <<< ADIÇÃO: Nova rota para buscar uma única rotina por ID >>>
+router.get("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const criadorId = req.user?.id;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ mensagem: "ID da rotina inválido." });
+        }
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+
+        const rotina = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId) })
+            .populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+                path: 'diasDeTreino',
+                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+            });
+
+        if (!rotina) {
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você не tem permissão." });
+        }
+
+        res.status(200).json(rotina);
+    } catch (error) {
+        next(error);
+    }
+});
+
+
 router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const criadorId = req.user?.id;
     if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
@@ -54,11 +80,7 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
         .populate({ path: 'pastaId', select: 'nome' })
         .populate({
             path: 'diasDeTreino',
-            populate: {
-                path: 'exerciciosDoDia.exercicioId',
-                model: 'Exercicio',
-                select: 'nome urlVideo'
-            }
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         });
 
     res.status(201).json(rotinaPopulada);
@@ -68,32 +90,19 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
 });
 
 router.post("/associar-modelo", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     try {
         const { fichaModeloId, alunoId } = req.body;
         const criadorId = req.user?.id;
 
-        if (!criadorId) {
-            return res.status(401).json({ mensagem: "Usuário não autenticado." });
-        }
+        if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
         if (!mongoose.Types.ObjectId.isValid(fichaModeloId) || !mongoose.Types.ObjectId.isValid(alunoId)) {
             return res.status(400).json({ mensagem: "IDs inválidos fornecidos." });
         }
-
         const fichaModelo = await Treino.findOne({ _id: fichaModeloId, criadorId: new Types.ObjectId(criadorId), tipo: 'modelo' });
+        if (!fichaModelo) return res.status(404).json({ mensagem: "Ficha modelo não encontrada ou você não tem permissão para usá-la." });
 
-        if (!fichaModelo) {
-            return res.status(404).json({ mensagem: "Ficha modelo não encontrada ou você não tem permissão para usá-la." });
-        }
-
-        const {
-            _id,
-            criadoEm,
-            atualizadoEm,
-            diasDeTreino,
-            ...modeloRestante
-        } = fichaModelo.toObject();
-
+        const { _id, criadoEm, atualizadoEm, diasDeTreino, ...modeloRestante } = fichaModelo.toObject();
         const newFichaData = {
             ...modeloRestante,
             tipo: 'individual' as const,
@@ -107,17 +116,11 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
                 ordemNaRotina: dia.ordemNaRotina,
                 exerciciosDoDia: dia.exerciciosDoDia?.map((ex): IExercicioEmDiaDeTreinoPlain => {
                     const exercicioIdValue = typeof ex.exercicioId === 'object' && ex.exercicioId?._id
-                        ? ex.exercicioId._id.toString()
-                        : ex.exercicioId.toString();
-
+                        ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
                     return {
                         exercicioId: new Types.ObjectId(exercicioIdValue),
-                        series: ex.series,
-                        repeticoes: ex.repeticoes,
-                        carga: ex.carga,
-                        observacoes: ex.observacoes,
-                        ordemNoDia: ex.ordemNoDia,
-                        concluido: false
+                        series: ex.series, repeticoes: ex.repeticoes, carga: ex.carga,
+                        observacoes: ex.observacoes, ordemNoDia: ex.ordemNoDia, concluido: false
                     };
                 }) ?? []
             })) ?? []
@@ -125,21 +128,15 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
 
         const novaFichaIndividual = new Treino(newFichaData);
         await novaFichaIndividual.save();
-
         const fichaPopulada = await Treino.findById(novaFichaIndividual._id)
             .populate({ path: 'alunoId', select: 'nome' })
             .populate({ path: 'pastaId', select: 'nome' })
             .populate({
                 path: 'diasDeTreino',
-                populate: {
-                    path: 'exerciciosDoDia.exercicioId',
-                    model: 'Exercicio',
-                    select: 'nome urlVideo'
-                }
+                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
             });
 
         res.status(201).json(fichaPopulada);
-
     } catch (error) {
         console.error("Erro ao associar modelo de treino ao aluno:", error);
         next(error);
@@ -147,13 +144,11 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
 });
 
 router.put("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect(); // <<< CHAMADA ADICIONADA
+  await dbConnect();
   try {
     const { id } = req.params;
     const criadorId = req.user?.id;
-    if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
-        return res.status(400).json({ mensagem: "Requisição inválida." });
-    }
+    if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) return res.status(400).json({ mensagem: "Requisição inválida." });
 
     const rotina = await Treino.findOneAndUpdate(
         { _id: id, criadorId: new Types.ObjectId(criadorId) },
@@ -163,15 +158,10 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
      .populate({ path: 'pastaId', select: 'nome' })
      .populate({
          path: 'diasDeTreino',
-         populate: {
-             path: 'exerciciosDoDia.exercicioId',
-             model: 'Exercicio',
-             select: 'nome urlVideo'
-         }
+         populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
      });
 
     if (!rotina) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
-
     res.status(200).json(rotina);
   } catch (error) {
     next(error);
@@ -179,26 +169,19 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response, next: 
 });
 
 router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     const { id: rotinaId } = req.params;
     const { pastaId } = req.body;
     const criadorId = req.user?.id;
 
-    if (!criadorId || !mongoose.Types.ObjectId.isValid(rotinaId)) {
-        return res.status(400).json({ mensagem: "ID da rotina inválido ou usuário não autenticado." });
-    }
-    if (pastaId && !mongoose.Types.ObjectId.isValid(pastaId)) {
-        return res.status(400).json({ mensagem: "ID da pasta inválido." });
-    }
+    if (!criadorId || !mongoose.Types.ObjectId.isValid(rotinaId)) return res.status(400).json({ mensagem: "ID da rotina inválido ou usuário não autenticado." });
+    if (pastaId && !mongoose.Types.ObjectId.isValid(pastaId)) return res.status(400).json({ mensagem: "ID da pasta inválido." });
 
     try {
         if (pastaId) {
             const pastaDestino = await PastaTreino.findOne({ _id: pastaId, criadorId: criadorId });
-            if (!pastaDestino) {
-                return res.status(404).json({ mensagem: "Pasta de destino не encontrada ou você não tem permissão para usá-la." });
-            }
+            if (!pastaDestino) return res.status(404).json({ mensagem: "Pasta de destino não encontrada ou você não tem permissão para usá-la." });
         }
-
         const rotinaAtualizada = await Treino.findOneAndUpdate(
             { _id: rotinaId, criadorId: criadorId },
             { $set: { pastaId: pastaId ? new Types.ObjectId(pastaId) : null } },
@@ -206,32 +189,21 @@ router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, 
         ).populate('pastaId', 'nome')
          .populate({
             path: 'diasDeTreino',
-            populate: {
-                path: 'exerciciosDoDia.exercicioId',
-                model: 'Exercicio',
-                select: 'nome urlVideo'
-            }
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         });
-
-        if (!rotinaAtualizada) {
-            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão para movê-la." });
-        }
-
+        if (!rotinaAtualizada) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão para movê-la." });
         res.status(200).json(rotinaAtualizada);
-
     } catch (error) {
         next(error);
     }
 });
 
 router.delete("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     try {
         const { id } = req.params;
         const criadorId = req.user?.id;
-        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
-            return res.status(400).json({ mensagem: "Requisição inválida." });
-        }
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) return res.status(400).json({ mensagem: "Requisição inválida." });
         const resultado = await Treino.findOneAndDelete({ _id: id, criadorId: new Types.ObjectId(criadorId) });
         if (!resultado) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
         res.status(200).json({ mensagem: "Rotina excluída com sucesso." });

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical } from "lucide-react"; // Adicionado MoreVertical
+import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -20,7 +20,6 @@ import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-// <<< NOVO COMPONENTE: Card para a visualização mobile >>>
 const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
     const getInitials = (nome: string) => {
         const partes = nome.split(' ').filter(Boolean);
@@ -133,7 +132,6 @@ export default function StudentsIndex() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    {/* <<< ALTERAÇÃO: Tabela visível apenas em telas médias e maiores >>> */}
                     <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
@@ -168,11 +166,14 @@ export default function StudentsIndex() {
                                         <TableCell className="pr-6 text-right">
                                             <div className="flex justify-end items-center space-x-1">
                                                 <Button variant="ghost" size="icon" onClick={() => handleViewClick(student)} title="Visualizar"><Eye className="h-4 w-4" /></Button>
-                                                <Link href={`/alunos/editar/${student._id}`}>
-                                                    <Button variant="ghost" size="icon" asChild title="Editar">
-                                                        <a><Pencil className="h-4 w-4" /></a>
-                                                    </Button>
-                                                </Link>
+                                                
+                                                {/* <<< CORREÇÃO DE ANINHAMENTO DE LINK >>> */}
+                                                <Button variant="ghost" size="icon" asChild title="Editar">
+                                                    <Link href={`/alunos/editar/${student._id}`}>
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+
                                                 <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(student)} title="Remover"><UserX className="h-4 w-4" /></Button>
                                             </div>
                                         </TableCell>
@@ -182,7 +183,6 @@ export default function StudentsIndex() {
                         </Table>
                     </div>
 
-                    {/* <<< ADIÇÃO: Lista de cards visível apenas em telas pequenas >>> */}
                     <div className="md:hidden">
                         {isLoading && [...Array(5)].map((_, i) => (
                             <div key={`skeleton-card-${i}`} className="flex items-center justify-between p-4 border-b">
