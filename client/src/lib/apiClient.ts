@@ -7,20 +7,23 @@ export const fetchWithAuth = async <T = any>(
     
     let token: string | null = null;
     let tokenTypeUsed: 'aluno' | 'personalAdmin' | 'none' = 'none';
+    const isPublicAuthRoute = url.startsWith('/api/auth/');
 
-    // <<< CORREÇÃO DEFINITIVA: Lógica de seleção de token restaurada e corrigida >>>
-    // Verifica se a rota é específica da área logada do aluno.
-    if (
-        url.startsWith('/api/aluno/') && 
-        !url.startsWith('/api/aluno/gerenciar') &&
-        !url.startsWith('/api/aluno/convite')
-    ) {
-      token = localStorage.getItem('alunoAuthToken');
-      tokenTypeUsed = "aluno";
-    } else {
-      // Para todas as outras rotas (personal, admin, etc.), usa o authToken principal.
-      token = localStorage.getItem('authToken');
-      tokenTypeUsed = "personalAdmin";
+    if (!isPublicAuthRoute) {
+        // <<< CORREÇÃO FINAL E DEFINITIVA DA LÓGICA DE SELEÇÃO DE TOKEN >>>
+        // Apenas rotas muito específicas como 'meus-treinos' devem usar o token de aluno.
+        // Todas as outras, incluindo as de gerenciamento, usam o token do personal.
+        if (
+            url.startsWith('/api/aluno/meus-treinos') || 
+            url.startsWith('/api/aluno/minhas-sessoes') 
+        ) {
+          token = localStorage.getItem('alunoAuthToken');
+          tokenTypeUsed = "aluno";
+        } else {
+          // Para TODAS as outras rotas protegidas (gerenciamento, treinos, etc.)
+          token = localStorage.getItem('authToken');
+          tokenTypeUsed = "personalAdmin";
+        }
     }
   
     const headers = new Headers(options.headers || {});
@@ -28,8 +31,8 @@ export const fetchWithAuth = async <T = any>(
   
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
-    } else {
-      console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota '${url}' (tipo esperado: ${tokenTypeUsed})`);
+    } else if (!isPublicAuthRoute) {
+      console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota protegida '${url}' (tipo esperado: ${tokenTypeUsed})`);
     }
   
     if (options.body && typeof options.body === 'string') {
@@ -39,14 +42,9 @@ export const fetchWithAuth = async <T = any>(
     }
   
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      const response = await fetch(url, { ...options, headers });
   
-      if (response.status === 204) {
-        return null as T; 
-      }
+      if (response.status === 204) return null as T; 
   
       const responseText = await response.text();
       let data;
@@ -61,7 +59,6 @@ export const fetchWithAuth = async <T = any>(
             window.dispatchEvent(new CustomEvent('auth-failed', { 
               detail: { 
                 status: 401,
-                // Informa corretamente qual contexto falhou
                 forAluno: tokenTypeUsed === 'aluno', 
                 forPersonalAdmin: tokenTypeUsed === 'personalAdmin'
               } 

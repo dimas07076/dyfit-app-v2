@@ -8,7 +8,6 @@ import ConviteAluno from '../../models/ConviteAluno.js';
 import { startOfWeek, endOfWeek } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
-// <<< O NOME DO ARQUIVO É O MESMO, MAS O CONTEÚDO DENTRO DELE MUDOU >>>
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 
 const router = express.Router();
