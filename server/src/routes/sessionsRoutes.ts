@@ -27,7 +27,8 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
         if (date && typeof date === 'string') {
             const targetDate = new Date(date);
             if (!isNaN(targetDate.getTime())) {
-                const inicioDia = new Date(targetDate); inicioDia.setHours(0, 0, 0, 0);
+                const inicioDia = new Date(targetDate);
+                inicioDia.setHours(0, 0, 0, 0);
                 const fimDia = new Date(targetDate); fimDia.setHours(23, 59, 59, 999);
                 queryFilter.sessionDate = { $gte: inicioDia, $lte: fimDia };
             }
@@ -36,10 +37,10 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
             queryFilter.tipoCompromisso = tipoCompromissoQuery;
         }
         let query = Sessao.find(queryFilter).sort({ sessionDate: 1 });
-        if (populateStudent === 'true') query = query.populate('alunoId', 'nome _id'); 
+        if (populateStudent === 'true') query = query.populate('alunoId', 'nome _id');
         query = query.populate('rotinaId', 'titulo _id');
         if (limit && typeof limit === 'string' && !isNaN(parseInt(limit))) query = query.limit(parseInt(limit));
-        const sessoes = await query.lean<ISessaoLean[]>(); 
+        const sessoes = await query.lean<ISessaoLean[]>();
         res.json(sessoes);
     } catch (error) {
         console.error("[GET /api/sessions] Erro ao buscar sessões:", error);
@@ -50,7 +51,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
 router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const personalIdFromToken = req.user?.id;
-    const { alunoId, sessionDate, tipoCompromisso, notes, status, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador } = req.body; 
+    const { alunoId, sessionDate, tipoCompromisso, notes, status, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador } = req.body;
     if (!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
     if (!alunoId || !sessionDate || !status || !tipoCompromisso) return res.status(400).json({ mensagem: "Campos obrigatórios ausentes." });
     if (!Types.ObjectId.isValid(alunoId)) return res.status(400).json({ mensagem: "ID do aluno inválido." });
@@ -59,7 +60,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
     try {
         const personalObjectId = new Types.ObjectId(personalIdFromToken);
         const alunoObjectId = new Types.ObjectId(alunoId);
-        const aluno = await Aluno.findOne({ _id: alunoObjectId, trainerId: personalObjectId }); 
+        const aluno = await Aluno.findOne({ _id: alunoObjectId, trainerId: personalObjectId });
         if (!aluno) return res.status(403).json({ mensagem: "Aluno não pertence a você." });
         const novaSessaoDoc = new Sessao({
             personalId: personalObjectId, alunoId: alunoObjectId, sessionDate: validDate, tipoCompromisso,
@@ -67,31 +68,100 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
             diaDeTreinoId: diaDeTreinoId ? new Types.ObjectId(diaDeTreinoId) : null, diaDeTreinoIdentificador: diaDeTreinoIdentificador || null,
         });
         await novaSessaoDoc.save();
-        const sessaoPopulada = await Sessao.findById(novaSessaoDoc._id).populate('alunoId', 'nome _id').populate('rotinaId', 'titulo _id').lean<ISessaoLean>(); 
+        const sessaoPopulada = await Sessao.findById(novaSessaoDoc._id).populate('alunoId', 'nome _id').populate('rotinaId', 'titulo _id').lean<ISessaoLean>();
         res.status(201).json(sessaoPopulada);
     } catch (error: any) {
         next(error);
     }
 });
 
-router.put('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const personalIdFromToken = req.user?.id; const { sessionId } = req.params; const { status, notes, sessionDate, tipoCompromisso, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador, alunoId: alunoIdBody, pseAluno, comentarioAluno } = req.body; if (!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." }); if (!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." }); const updateData: Partial<ISessaoDocument> = {}; if (status) updateData.status = status; if (notes !== undefined) updateData.notes = notes; if (sessionDate) { const validDate = new Date(sessionDate); if (isNaN(validDate.getTime())) return res.status(400).json({ mensagem: "Formato de data inválido." }); updateData.sessionDate = validDate; } if (tipoCompromisso) updateData.tipoCompromisso = tipoCompromisso; if (rotinaId !== undefined) updateData.rotinaId = rotinaId ? new Types.ObjectId(rotinaId) : null; if (diaDeTreinoId !== undefined) updateData.diaDeTreinoId = diaDeTreinoId ? new Types.ObjectId(diaDeTreinoId) : null; if (diaDeTreinoIdentificador !== undefined) updateData.diaDeTreinoIdentificador = diaDeTreinoIdentificador; if (alunoIdBody) { const aluno = await Aluno.findOne({ _id: new Types.ObjectId(alunoIdBody), trainerId: new Types.ObjectId(personalIdFromToken) }); if (!aluno) return res.status(403).json({ mensagem: "Aluno não pertence a você." }); updateData.alunoId = new Types.ObjectId(alunoIdBody); } if (pseAluno !== undefined) updateData.pseAluno = pseAluno; if (comentarioAluno !== undefined) updateData.comentarioAluno = comentarioAluno; if (Object.keys(updateData).length === 0) return res.status(400).json({ mensagem: "Nenhum dado para atualização." }); const mongoTransactionSession = await mongoose.startSession(); try { mongoTransactionSession.startTransaction(); const personalObjectId = new Types.ObjectId(personalIdFromToken); const sessaoExistente = await Sessao.findOne({ _id: sessionId, personalId: personalObjectId }).session(mongoTransactionSession); if (!sessaoExistente) { await mongoTransactionSession.abortTransaction(); return res.status(404).json({ mensagem: "Sessão não encontrada." }); } const jaEstavaConcluida = sessaoExistente.status === 'completed'; Object.assign(sessaoExistente, updateData); if (updateData.status === 'completed' && !sessaoExistente.concluidaEm) sessaoExistente.concluidaEm = new Date(); await sessaoExistente.save({ session: mongoTransactionSession }); if (updateData.status === 'completed' && !jaEstavaConcluida && sessaoExistente.rotinaId) { const rotina = await Treino.findById(sessaoExistente.rotinaId).session(mongoTransactionSession); if (rotina) { rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1; await rotina.save({ session: mongoTransactionSession }); } } await mongoTransactionSession.commitTransaction(); const sessaoAtualizadaPopulada = await Sessao.findById(sessaoExistente._id).populate('alunoId', 'nome _id').populate('rotinaId', 'titulo _id').lean<ISessaoLean>(); res.json(sessaoAtualizadaPopulada); } catch (error: any) { if (mongoTransactionSession.inTransaction()) await mongoTransactionSession.abortTransaction(); next(error); } finally { await mongoTransactionSession.endSession(); } });
-router.delete('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const personalIdFromToken = req.user?.id; const { sessionId } = req.params; if(!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." }); if(!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." }); try { const result = await Sessao.deleteOne({ _id: new Types.ObjectId(sessionId), personalId: new Types.ObjectId(personalIdFromToken) }); if (result.deletedCount === 0) return res.status(404).json({ mensagem: "Sessão não encontrada." }); res.status(200).json({ mensagem: "Sessão excluída com sucesso." }); } catch (error) { next(error); } });
+router.put('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const personalIdFromToken = req.user?.id;
+    const { sessionId } = req.params;
+    const { status, notes, sessionDate, tipoCompromisso, rotinaId, diaDeTreinoId, diaDeTreinoIdentificador, alunoId: alunoIdBody, pseAluno, comentarioAluno } = req.body;
+    if (!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if (!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." });
+    const updateData: Partial<ISessaoDocument> = {};
+    if (status) updateData.status = status;
+    if (notes !== undefined) updateData.notes = notes;
+    if (sessionDate) {
+        const validDate = new Date(sessionDate);
+        if (isNaN(validDate.getTime())) return res.status(400).json({ mensagem: "Formato de data inválido." });
+        updateData.sessionDate = validDate;
+    }
+    if (tipoCompromisso) updateData.tipoCompromisso = tipoCompromisso;
+    if (rotinaId !== undefined) updateData.rotinaId = rotinaId ? new Types.ObjectId(rotinaId) : null;
+    if (diaDeTreinoId !== undefined) updateData.diaDeTreinoId = diaDeTreinoId ? new Types.ObjectId(diaDeTreinoId) : null;
+    if (diaDeTreinoIdentificador !== undefined) updateData.diaDeTreinoIdentificador = diaDeTreinoIdentificador;
+    if (alunoIdBody) {
+        const aluno = await Aluno.findOne({ _id: new Types.ObjectId(alunoIdBody), trainerId: new Types.ObjectId(personalIdFromToken) });
+        if (!aluno) return res.status(403).json({ mensagem: "Aluno não pertence a você." });
+        updateData.alunoId = new Types.ObjectId(alunoIdBody);
+    }
+    if (pseAluno !== undefined) updateData.pseAluno = pseAluno;
+    if (comentarioAluno !== undefined) updateData.comentarioAluno = comentarioAluno;
+    if (Object.keys(updateData).length === 0) return res.status(400).json({ mensagem: "Nenhum dado para atualização." });
+    const mongoTransactionSession = await mongoose.startSession();
+    try {
+        mongoTransactionSession.startTransaction();
+        const personalObjectId = new Types.ObjectId(personalIdFromToken);
+        const sessaoExistente = await Sessao.findOne({ _id: sessionId, personalId: personalObjectId }).session(mongoTransactionSession);
+        if (!sessaoExistente) {
+            await mongoTransactionSession.abortTransaction();
+            return res.status(404).json({ mensagem: "Sessão não encontrada." });
+        }
+        const jaEstavaConcluida = sessaoExistente.status === 'completed';
+        Object.assign(sessaoExistente, updateData);
+        if (updateData.status === 'completed' && !sessaoExistente.concluidaEm) sessaoExistente.concluidaEm = new Date();
+        await sessaoExistente.save({ session: mongoTransactionSession });
+        if (updateData.status === 'completed' && !jaEstavaConcluida && sessaoExistente.rotinaId) {
+            const rotina = await Treino.findById(sessaoExistente.rotinaId).session(mongoTransactionSession);
+            if (rotina) {
+                rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1;
+                await rotina.save({ session: mongoTransactionSession });
+            }
+        }
+        await mongoTransactionSession.commitTransaction();
+        const sessaoAtualizadaPopulada = await Sessao.findById(sessaoExistente._id).populate('alunoId', 'nome _id').populate('rotinaId', 'titulo _id').lean<ISessaoLean>();
+        res.json(sessaoAtualizadaPopulada);
+    } catch (error: any) {
+        if (mongoTransactionSession.inTransaction()) await mongoTransactionSession.abortTransaction();
+        next(error);
+    } finally {
+        await mongoTransactionSession.endSession();
+    }
+});
 
+router.delete('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const personalIdFromToken = req.user?.id;
+    const { sessionId } = req.params;
+    if(!personalIdFromToken) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    if(!Types.ObjectId.isValid(sessionId)) return res.status(400).json({ mensagem: "ID da sessão inválido." });
+    try {
+        const result = await Sessao.deleteOne({ _id: new Types.ObjectId(sessionId), personalId: new Types.ObjectId(personalIdFromToken) });
+        if (result.deletedCount === 0) return res.status(404).json({ mensagem: "Sessão não encontrada." });
+        res.status(200).json({ mensagem: "Sessão excluída com sucesso." });
+    } catch (error) {
+        next(error);
+    }
+});
 
 // =======================================================
 // ROTAS DO ALUNO
 // =======================================================
 
-// <<< CORREÇÃO: O prefixo '/aluno' foi movido do index.ts para cá, tornando a rota completa >>>
-// Rota Final: POST /api/sessions/concluir-dia
-router.post('/concluir-dia', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+// CORREÇÃO: O prefixo '/aluno' foi adicionado aqui para corresponder à requisição do frontend.
+// Rota Final esperada pelo frontend: POST /api/sessions/aluno/concluir-dia
+router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
     const { rotinaId, diaDeTreinoId, pseAluno, comentarioAluno } = req.body;
 
     if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." });
     if (!rotinaId || !diaDeTreinoId) return res.status(400).json({ message: "ID da rotina e do dia de treino são obrigatórios." });
-    
+
     const mongoTransactionSession = await mongoose.startSession();
     try {
         mongoTransactionSession.startTransaction();
