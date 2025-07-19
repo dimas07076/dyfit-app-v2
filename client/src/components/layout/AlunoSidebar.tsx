@@ -1,15 +1,14 @@
 // Caminho: ./client/src/components/layout/AlunoSidebar.tsx
-import React from 'react';
+// <<< ALTERAÇÃO: 'React' foi removido da importação pois não é mais necessário >>>
 import { Link, useLocation } from "wouter";
-// Ícones usados: Home, ListChecks, History, LogOut
 import { Home, ListChecks, History, LogOut } from "lucide-react"; 
 import { useAluno, AlunoLogado } from "@/context/AlunoContext";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // Removido AvatarImage se não usada
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const AlunoSidebarLinks = [
   { href: "/aluno/dashboard", label: "Meu Painel", icon: Home },
-  { href: "/aluno/dashboard#minhas-fichas", label: "Minhas Fichas", icon: ListChecks },
+  { href: "/aluno/meus-treinos", label: "Minhas Fichas", icon: ListChecks },
   { href: "/aluno/historico", label: "Meu Histórico", icon: History },
 ];
 
@@ -17,7 +16,6 @@ interface AlunoSidebarProps {
   onNavigate?: () => void;
 }
 
-// <<< FUNÇÕES getAlunoDisplayName e getAlunoInitials DEFINIDAS AQUI DENTRO >>>
 const getAlunoDisplayName = (currentAluno: AlunoLogado | null): string => {
   if (!currentAluno) return "Aluno";
   return currentAluno.nome || currentAluno.email || "Aluno";
@@ -29,9 +27,8 @@ const getAlunoInitials = (currentAluno: AlunoLogado | null): string => {
   const firstInitial = names[0]?.[0] || '';
   const lastInitial = names.length > 1 ? names[names.length - 1]?.[0] || '' : '';
   const initials = `${firstInitial}${lastInitial}`.toUpperCase();
-  return initials.length > 0 ? initials : (currentAluno.email?.[0]?.toUpperCase() || '?'); // Fallback para inicial do email
+  return initials.length > 0 ? initials : (currentAluno.email?.[0]?.toUpperCase() || '?');
 };
-// <<< FIM DAS FUNÇÕES HELPER >>>
 
 
 export default function AlunoSidebar({ onNavigate }: AlunoSidebarProps) {
@@ -52,14 +49,10 @@ export default function AlunoSidebar({ onNavigate }: AlunoSidebarProps) {
   };
   
   const isActive = (path: string): boolean => {
-    if (path === "/aluno/dashboard" && location === "/aluno/dashboard") return true;
-    if (path.includes("#")) {
-        const [basePath, hash] = path.split("#");
-        // Verifica se a base da URL corresponde e se o hash na janela corresponde ao hash do link
-        return location === basePath && window.location.hash === `#${hash}`;
+    if (path === "/aluno/dashboard") {
+      return location === path;
     }
-    if (path !== "/aluno/dashboard" && location.startsWith(path)) return true;
-    return false;
+    return location.startsWith(path);
   };
 
   const getLinkClasses = (path: string): string => {
@@ -84,11 +77,11 @@ export default function AlunoSidebar({ onNavigate }: AlunoSidebarProps) {
         />
         <Avatar className="h-16 w-16 mb-2 border-2 border-primary">
           <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-            {getAlunoInitials(aluno)} {/* Agora deve encontrar a função definida acima */}
+            {getAlunoInitials(aluno)}
           </AvatarFallback>
         </Avatar>
         <p className="font-medium text-md truncate">
-          {getAlunoDisplayName(aluno)} {/* Agora deve encontrar a função definida acima */}
+          {getAlunoDisplayName(aluno)}
         </p>
         <p className="text-xs text-muted-foreground">
           Aluno DyFit
