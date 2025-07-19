@@ -2,20 +2,21 @@
 import { Link } from 'wouter';
 import { Shield, User } from 'lucide-react';
 
+// CORREÇÃO: Removido o <a> aninhado. As classes são aplicadas diretamente no Link.
 const ProfileButton = ({ href, text, icon: Icon, className }: { href: string, text: string, icon: React.ElementType, className: string }) => (
-    <Link href={href}>
-        <a className={`flex items-center justify-center gap-3 w-full text-white font-semibold py-3 px-6 rounded-lg text-center shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300 ease-in-out ${className}`}>
-            <Icon className="h-5 w-5" />
-            <span>{text}</span>
-        </a>
+    <Link 
+        href={href}
+        className={`flex items-center justify-center gap-3 w-full text-white font-semibold py-3 px-6 rounded-lg text-center shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300 ease-in-out ${className}`}
+    >
+        <Icon className="h-5 w-5" />
+        <span>{text}</span>
     </Link>
 );
 
 export default function LandingLoginPage() {
     return (
         <div className="min-h-screen text-white antialiased">
-            {/* 
-                LAYOUT DESKTOP (lg e acima)
+            {/* LAYOUT DESKTOP (lg e acima)
             */}
             <div className="hidden lg:flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 py-8">
                 <main className="w-full max-w-4xl mx-auto grid grid-cols-2 gap-0 items-center bg-slate-800/20 backdrop-blur-sm border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
@@ -43,8 +44,7 @@ export default function LandingLoginPage() {
                 </footer>
             </div>
 
-            {/* 
-                LAYOUT MOBILE (abaixo de lg)
+            {/* LAYOUT MOBILE (abaixo de lg)
             */}
             <div className="lg:hidden min-h-screen flex flex-col bg-slate-900 relative p-6">
                 <div className="absolute inset-0 z-0">
