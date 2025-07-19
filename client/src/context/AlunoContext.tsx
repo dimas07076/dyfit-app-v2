@@ -1,13 +1,13 @@
 // client/src/context/AlunoContext.tsx
 import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import { useLocation } from 'wouter'; // <<< ADIÇÃO: Importa o hook de localização
 
-// Interface do Aluno, agora esperando 'aluno' em minúsculo
 export interface AlunoLogado {
   id: string;
   nome: string;
-  role: 'aluno'; // ---> CORREÇÃO: Espera o role em minúsculo
-  email: string; // Garantir que o email esteja presente
+  role: 'aluno';
+  email: string;
   personalId?: string;
   exp?: number;
   iat?: number;
@@ -18,7 +18,7 @@ interface AlunoContextType {
   tokenAluno: string | null;
   isLoadingAluno: boolean;
   loginAluno: (token: string) => void;
-  logoutAluno: () => void;
+  logoutAluno: (options?: { redirect?: boolean }) => void; // Adicionado options
   checkAlunoSession: () => void;
 }
 
@@ -28,28 +28,34 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [aluno, setAluno] = useState<AlunoLogado | null>(null);
   const [tokenAluno, setTokenAluno] = useState<string | null>(null);
   const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
+  const [, setLocationWouter] = useLocation(); // <<< ADIÇÃO: Hook para redirecionamento
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
   const ALUNO_DATA_KEY = 'alunoData';
 
-  const logoutAluno = useCallback(() => {
+  // <<< CORREÇÃO: Função de logout atualizada para redirecionar corretamente >>>
+  const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
+    const shouldRedirect = options?.redirect ?? true;
     setAluno(null);
     setTokenAluno(null);
     localStorage.removeItem(ALUNO_TOKEN_KEY);
     localStorage.removeItem(ALUNO_DATA_KEY);
     console.log("Contexto Aluno: Aluno deslogado.");
-  }, []);
+    if (shouldRedirect) {
+        console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
+        setLocationWouter("/login"); // Redireciona para a nova página hub
+    }
+  }, [setLocationWouter]);
 
   const setAlunoFromToken = useCallback((token: string): AlunoLogado | null => {
     try {
       const decodedToken = jwtDecode<AlunoLogado>(token);
       if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
         console.warn("Contexto Aluno: Token de aluno expirado ao tentar decodificar.");
-        logoutAluno();
+        logoutAluno({ redirect: false }); // Evita redirecionamento em loop
         return null;
       }
       
-      // ---> CORREÇÃO: Verifica por 'aluno' em minúsculo
       if (decodedToken.id && decodedToken.role === 'aluno') {
         const alunoData: AlunoLogado = {
           id: decodedToken.id,
@@ -67,18 +73,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.log("Contexto Aluno: Dados do aluno definidos a partir do token:", alunoData);
         return alunoData;
       } else {
-        console.error("Contexto Aluno: Payload do token de aluno inválido (role incorreto ou id faltando):", decodedToken);
-        logoutAluno();
+        console.error("Contexto Aluno: Payload do token de aluno inválido:", decodedToken);
+        logoutAluno({ redirect: false });
         return null;
       }
     } catch (error) {
       console.error("Contexto Aluno: Erro ao decodificar token de aluno:", error);
-      logoutAluno();
+      logoutAluno({ redirect: false });
       return null;
     }
   }, [logoutAluno]);
   
-  // O resto do arquivo (loginAluno, checkAlunoSession, etc.) não precisa de alterações
   const loginAluno = useCallback((token: string) => {
     setIsLoadingAluno(true);
     setAlunoFromToken(token);
@@ -90,7 +95,6 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsLoadingAluno(true);
     const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
     if (storedToken) {
-      // Simplifica a lógica: sempre re-valida o token ao carregar
       setAlunoFromToken(storedToken);
     } else {
       console.log("Contexto Aluno: Nenhum token de aluno encontrado no localStorage.");

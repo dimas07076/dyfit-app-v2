@@ -1,6 +1,7 @@
 // Localização: client/src/pages/public/AlunoLoginPage.tsx
 import React, { useState, useContext, useEffect } from 'react';
-import { useLocation, Redirect } from 'wouter';
+// <<< CORREÇÃO: Removida a importação não utilizada de Redirect >>>
+import { useLocation } from 'wouter'; 
 import { AlunoContext } from '@/context/AlunoContext';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogIn } from "lucide-react";
@@ -10,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from '@/components/ui/label';
 import { apiRequest } from '@/lib/queryClient';
 
-// Interface para a resposta da API de login do aluno
 interface AlunoLoginApiResponse {
     message: string;
     token: string;
@@ -84,21 +84,18 @@ export default function AlunoLoginPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-500 to-blue-700 p-4 selection:bg-blue-200 selection:text-blue-900">
-            {/* Card de Login */}
             <Card className="w-full max-w-md shadow-2xl bg-white dark:bg-gray-900 rounded-xl overflow-hidden md:flex md:max-w-3xl">
-                {/* Lado esquerdo com imagem para Aluno */}
                 <div
                     className="hidden md:flex md:w-1/2 bg-cover bg-center relative"
-                    style={{ backgroundImage: "url('/images/login-aluno.png')" }} // <<< IMAGEM ATUALIZADA AQUI
+                    style={{ backgroundImage: "url('/images/login-aluno.png')" }}
                 >
-                     <div className="absolute inset-0 bg-blue-700 opacity-40"></div> {/* Overlay com cor temática do aluno */}
+                     <div className="absolute inset-0 bg-blue-700 opacity-40"></div>
                      <div className="absolute bottom-10 left-10 text-white z-10 p-4">
                         <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">DyFit Aluno</h1>
                         <p className="text-lg text-gray-100 drop-shadow-md">Acesse seus treinos e acompanhe seu progresso.</p>
                     </div>
                 </div>
 
-                {/* Lado direito (formulário) */}
                 <div className="w-full md:w-1/2 flex flex-col justify-center">
                     <CardHeader className="text-center space-y-3 pt-8 pb-6 md:pt-10">
                         <img src="/logodyfit.png" alt="Logo DyFit" className="h-14 md:h-16 mx-auto" />
