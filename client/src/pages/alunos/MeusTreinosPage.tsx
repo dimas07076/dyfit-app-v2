@@ -1,5 +1,5 @@
 // client/src/pages/alunos/MeusTreinosPage.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAluno } from '../../context/AlunoContext';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../../components/ui/card';
@@ -7,7 +7,6 @@ import { Progress } from '../../components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/queryClient';
 import { Loader2, AlertTriangle, ListChecks, Star, Eye, ArrowLeft } from 'lucide-react';
-// <<< CORREÇÃO: Removido o import não utilizado 'Link as WouterLink' >>>
 import { useLocation } from 'wouter';
 import { format, parseISO, isValid as isDateValidFn } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -142,7 +141,8 @@ const MeusTreinosPage: React.FC = () => {
                     <p><strong>Organização:</strong> <span className="capitalize">{rotina.tipoOrganizacaoRotina}</span></p>
                     {rotina.dataValidade && <p><strong>Válida até:</strong> {formatarDataSimples(rotina.dataValidade)}</p>}
                 </CardContent>
-                <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+                {/* <<< ALTERAÇÃO: Adicionada a classe 'sm:flex-wrap' para quebrar a linha no desktop >>> */}
+                <CardFooter className="flex flex-col sm:flex-row sm:flex-wrap justify-end gap-2 pt-4">
                    <Button 
                         variant="outline" 
                         className="w-full sm:w-auto"
