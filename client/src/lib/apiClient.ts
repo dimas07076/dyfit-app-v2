@@ -5,15 +5,31 @@ export const fetchWithAuth = async <T = any>(
     options: RequestInit = {}
   ): Promise<T> => {
     
-    const token = localStorage.getItem('authToken');
-    // <<< REMOÇÃO: Variável não utilizada foi removida daqui >>>
-    // const tokenTypeUsed = "authToken";
+    let token: string | null = null;
+    let tokenTypeUsed: 'aluno' | 'personalAdmin' | 'none' = 'none';
+
+    // <<< CORREÇÃO DEFINITIVA: Lógica de seleção de token restaurada e corrigida >>>
+    // Verifica se a rota é específica da área logada do aluno.
+    if (
+        url.startsWith('/api/aluno/') && 
+        !url.startsWith('/api/aluno/gerenciar') &&
+        !url.startsWith('/api/aluno/convite')
+    ) {
+      token = localStorage.getItem('alunoAuthToken');
+      tokenTypeUsed = "aluno";
+    } else {
+      // Para todas as outras rotas (personal, admin, etc.), usa o authToken principal.
+      token = localStorage.getItem('authToken');
+      tokenTypeUsed = "personalAdmin";
+    }
   
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
   
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota '${url}' (tipo esperado: ${tokenTypeUsed})`);
     }
   
     if (options.body && typeof options.body === 'string') {
@@ -45,8 +61,9 @@ export const fetchWithAuth = async <T = any>(
             window.dispatchEvent(new CustomEvent('auth-failed', { 
               detail: { 
                 status: 401,
-                forAluno: false, 
-                forPersonalAdmin: true
+                // Informa corretamente qual contexto falhou
+                forAluno: tokenTypeUsed === 'aluno', 
+                forPersonalAdmin: tokenTypeUsed === 'personalAdmin'
               } 
             }));
         }

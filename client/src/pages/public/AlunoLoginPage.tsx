@@ -7,7 +7,6 @@ import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// <<< CORREÇÃO: Importação de 'Label' removida >>>
 import { apiRequest } from '@/lib/queryClient';
 
 interface AlunoLoginApiResponse {
@@ -16,9 +15,8 @@ interface AlunoLoginApiResponse {
     aluno: { id: string; nome: string; email: string; role: 'Aluno'; personalId: string; };
 }
 
-// Componente para o formulário de login do Aluno
-const LoginFormAluno = () => {
-    // <<< CORREÇÃO: 'navigate' removido, pois não é usado aqui >>>
+// Componente para o formulário de login do Aluno, para reutilização
+const AlunoLoginForm = () => {
     const alunoContext = useContext(AlunoContext);
     const { toast } = useToast();
     const [email, setEmail] = useState("");
@@ -85,7 +83,6 @@ const LoginFormAluno = () => {
 export default function AlunoLoginPage() {
     const [, navigate] = useLocation();
     const alunoContext = useContext(AlunoContext);
-
     const { aluno: alunoLogado, isLoadingAluno } = alunoContext || {};
 
     useEffect(() => {
@@ -99,12 +96,32 @@ export default function AlunoLoginPage() {
     }
 
     return (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-500 to-blue-700 p-4 relative">
-            <div className="absolute top-8 sm:top-12">
-                {/* <<< CORREÇÃO: Tamanho da logo padronizado >>> */}
-                <img src="/images/logo-branco.png" alt="Logo DyFit" className="h-24 sm:h-28" />
+        <div className="min-h-screen w-full">
+            {/* 
+                ============================================================
+                LAYOUT DESKTOP (Visível em 'lg' e acima)
+                ============================================================
+            */}
+            <div className="hidden lg:grid lg:grid-cols-2 min-h-screen">
+                <div className="flex items-center justify-center py-12 px-4">
+                    <AlunoLoginForm />
+                </div>
+                <div className="hidden bg-muted lg:block">
+                    <img src="/images/login-aluno.png" alt="Imagem de um aluno treinando" className="h-full w-full object-cover dark:brightness-[0.8]" />
+                </div>
             </div>
-            <LoginFormAluno />
+
+            {/* 
+                ============================================================
+                LAYOUT MOBILE (Visível abaixo de 'lg')
+                ============================================================
+            */}
+            <div className="lg:hidden min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-500 to-blue-700 p-4 relative">
+                <div className="absolute top-8 sm:top-12">
+                    <img src="/images/logo-branco.png" alt="Logo DyFit" className="h-24 sm:h-28" />
+                </div>
+                <AlunoLoginForm />
+            </div>
         </div>
     );
 }

@@ -17,8 +17,6 @@ import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
-// authenticateAlunoToken não está sendo usado globalmente, pode ser removido se não for usado em outro lugar
-// import { authenticateAlunoToken } from './middlewares/authenticateAlunoToken.js'; 
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -32,20 +30,12 @@ const apiRouter = Router();
 
 // --- CONFIGURAÇÃO DE CORS E MIDDLEWARES GLOBAIS ---
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:4173',
-  process.env.FRONTEND_URL, 
+  'http://localhost:5173', 'http://localhost:4173', process.env.FRONTEND_URL, 
 ].filter(Boolean) as string[];
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin) { return callback(null, true); }
-    
-    if (
-        allowedOrigins.includes(origin) || 
-        origin.endsWith('.gitpod.io') ||
-        origin.endsWith('.vercel.app')
-    ) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.gitpod.io') || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
       console.warn(`CORS: Requisição bloqueada da origem: ${origin}`);
@@ -60,23 +50,25 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- ESTRUTURA DE ROTAS REESTRUTURADA ---
+// --- ESTRUTURA DE ROTAS ---
 app.use('/api', apiRouter);
 
-// --- 1. Rotas Públicas (sem autenticação) ---
+// --- 1. Rotas Públicas ---
 apiRouter.use('/public/convites', convitePublicRoutes);
 apiRouter.use('/public/convite-aluno', conviteAlunoPublicRoutes);
 apiRouter.use('/auth', authRoutes);
 
-// --- 2. Rotas Protegidas (requerem token de Personal ou Admin) ---
-// <<< CORREÇÃO: Aplicando o middleware de autenticação a cada rota protegida individualmente para clareza >>>
+// --- 2. Rotas Protegidas ---
+// O middleware de autenticação será aplicado DENTRO de cada arquivo de rota.
 apiRouter.use('/admin', authenticateToken, authorizeAdmin, adminRoutes);
 apiRouter.use('/dashboard/geral', authenticateToken, dashboardRoutes);
 apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
 apiRouter.use('/sessions', authenticateToken, sessionsRoutes);
 apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
-apiRouter.use('/aluno', authenticateToken, alunoApiRoutes); // Agora explicitamente protegido
+
+// <<< CORREÇÃO: Removemos a autenticação global daqui. O próprio arquivo de rota cuidará disso. >>>
+apiRouter.use('/aluno', alunoApiRoutes);
 
 // --- 3. Tratamento de Erros ---
 app.use(errorHandler);
