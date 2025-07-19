@@ -1,43 +1,30 @@
 // Localização: client/src/pages/public/AlunoLoginPage.tsx
 import React, { useState, useContext, useEffect } from 'react';
-// <<< CORREÇÃO: Removida a importação não utilizada de Redirect >>>
-import { useLocation } from 'wouter'; 
+import { useLocation, Link } from 'wouter';
 import { AlunoContext } from '@/context/AlunoContext';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiRequest } from '@/lib/queryClient';
 
 interface AlunoLoginApiResponse {
     message: string;
     token: string;
-    aluno: {
-        id: string;
-        nome: string;
-        email: string;
-        role: 'Aluno';
-        personalId: string;
-    };
+    aluno: { id: string; nome: string; email: string; role: 'Aluno'; personalId: string; };
 }
 
 export default function AlunoLoginPage() {
     const [, navigate] = useLocation();
     const alunoContext = useContext(AlunoContext);
     const { toast } = useToast();
-
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
-    if (!alunoContext) {
-        console.warn("AlunoContext ainda não está disponível em AlunoLoginPage.");
-        return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> Carregando contexto...</div>;
-    }
-    const { loginAluno, aluno: alunoLogado, isLoadingAluno } = alunoContext;
+    const { loginAluno, aluno: alunoLogado, isLoadingAluno } = alunoContext || {};
 
     useEffect(() => {
         if (!isLoadingAluno && alunoLogado) {
@@ -49,30 +36,17 @@ export default function AlunoLoginPage() {
         e.preventDefault();
         setError("");
         setIsLoading(true);
-
         try {
             const response = await apiRequest<AlunoLoginApiResponse>(
                 'POST',
                 '/api/auth/aluno/login', 
                 { email: email.toLowerCase().trim(), password }
             );
-            
-            await loginAluno(response.token);
-
-            toast({
-                title: "Login bem-sucedido!",
-                description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!`,
-            });
-            
+            loginAluno?.(response.token);
+            toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
         } catch (err: any) {
-            console.error("Erro no login do aluno:", err);
-            const errorMessage = err.message || 'Credenciais inválidas ou erro no servidor.';
-            setError(errorMessage);
-            toast({
-                title: "Erro no Login",
-                description: errorMessage,
-                variant: "destructive",
-            });
+            setError(err.message || 'Credenciais inválidas ou erro no servidor.');
+            toast({ title: "Erro no Login", description: err.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -83,82 +57,55 @@ export default function AlunoLoginPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-500 to-blue-700 p-4 selection:bg-blue-200 selection:text-blue-900">
-            <Card className="w-full max-w-md shadow-2xl bg-white dark:bg-gray-900 rounded-xl overflow-hidden md:flex md:max-w-3xl">
-                <div
-                    className="hidden md:flex md:w-1/2 bg-cover bg-center relative"
-                    style={{ backgroundImage: "url('/images/login-aluno.png')" }}
-                >
-                     <div className="absolute inset-0 bg-blue-700 opacity-40"></div>
-                     <div className="absolute bottom-10 left-10 text-white z-10 p-4">
-                        <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">DyFit Aluno</h1>
-                        <p className="text-lg text-gray-100 drop-shadow-md">Acesse seus treinos e acompanhe seu progresso.</p>
+        <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
+            {/* Lado do Formulário (Comum para mobile e desktop) */}
+            <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 
+                           bg-gradient-to-br from-sky-500 to-blue-700 lg:bg-none">
+                
+                <div className="w-full max-w-sm space-y-8">
+                     {/* Logo (Apenas no Mobile) */}
+                    <div className="lg:hidden text-center">
+                        <img src="/images/logo-branco.png" alt="Logo DyFit" className="h-24 mx-auto" />
                     </div>
-                </div>
 
-                <div className="w-full md:w-1/2 flex flex-col justify-center">
-                    <CardHeader className="text-center space-y-3 pt-8 pb-6 md:pt-10">
-                        <img src="/logodyfit.png" alt="Logo DyFit" className="h-14 md:h-16 mx-auto" />
-                        <CardTitle className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-50">
-                            Acesso Aluno
-                        </CardTitle>
-                        <CardDescription className="text-slate-600 dark:text-slate-400 px-4">
-                            Entre com seu email e senha para continuar.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-6 pb-8 sm:px-8">
-                        <form onSubmit={handleLoginAluno} className="space-y-6">
-                            {error && (
-                                <div role="alert" className="text-red-600 dark:text-red-400 text-sm text-center p-3 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md">
-                                    {error}
+                    <Card className="w-full animate-in fade-in-50 slide-in-from-bottom-10 duration-500 lg:border-none lg:shadow-none lg:bg-transparent">
+                        <CardHeader className="text-center">
+                            {/* Logo (Apenas no Desktop) */}
+                            <img src="/logodyfit.png" alt="Logo DyFit" className="h-14 mx-auto hidden lg:block" />
+                            <CardTitle className="text-3xl font-bold lg:text-gray-900 lg:dark:text-white">Entrar como Aluno</CardTitle>
+                            <CardDescription className="lg:text-gray-600 lg:dark:text-gray-400">Acesse seus treinos e seu progresso.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleLoginAluno} className="grid gap-4">
+                                {error && ( <p className="text-red-500 text-sm text-center -mt-2 mb-2 p-2 bg-red-50 dark:bg-red-900/30 rounded-md">{error}</p> )}
+                                <div className="grid gap-2 relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                    <Input id="email-aluno" type="email" placeholder="seu.email@exemplo.com" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} autoComplete="email" className="pl-10 h-12 text-base bg-white/80 dark:bg-slate-800/80 lg:bg-background" />
                                 </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="email-aluno-login" className="text-slate-700 dark:text-slate-300 font-medium">Email</Label>
-                                <Input
-                                   type="email"
-                                   id="email-aluno-login"
-                                   value={email}
-                                   onChange={(e) => setEmail(e.target.value)}
-                                   placeholder="seu.email@exemplo.com"
-                                   required
-                                   autoComplete="email"
-                                   disabled={isLoading}
-                                   className="bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:border-primary dark:focus:border-primary focus:ring-primary dark:focus:ring-primary"
-                                />
+                                <div className="grid gap-2 relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                    <Input id="password-aluno" type="password" placeholder="Sua senha" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} autoComplete="current-password" className="pl-10 h-12 text-base bg-white/80 dark:bg-slate-800/80 lg:bg-background" />
+                                </div>
+                                <Button type="submit" className="w-full h-12 text-base font-semibold mt-2" disabled={isLoading}>
+                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Entrar
+                                </Button>
+                            </form>
+                            <div className="mt-6 text-center text-sm">
+                                <Link href="/login" className="inline-flex items-center text-muted-foreground hover:text-primary transition-colors">
+                                    <ArrowLeft className="mr-1 h-4 w-4" />
+                                    Voltar para seleção de perfil
+                                </Link>
                             </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="password-aluno-login" className="text-slate-700 dark:text-slate-300 font-medium">Senha</Label>
-                                <Input
-                                    type="password"
-                                    id="password-aluno-login"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Sua senha"
-                                    required
-                                    autoComplete="current-password"
-                                    disabled={isLoading}
-                                    className="bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:border-primary dark:focus:border-primary focus:ring-primary dark:focus:ring-primary"
-                                />
-                            </div>
-                            
-                            <Button 
-                                type="submit" 
-                                className="w-full font-semibold text-base py-3 bg-blue-600 hover:bg-blue-700 dark:bg-sky-600 dark:hover:bg-sky-700" 
-                                disabled={isLoading}
-                            >
-                                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
-                                {isLoading ? 'Entrando...' : 'Entrar'}
-                            </Button>
-                        </form>
-                    </CardContent>
-                    <CardFooter className="text-center text-xs text-muted-foreground pt-6 pb-8 border-t dark:border-slate-700 md:border-t-0 md:pt-4">
-                        <p>Ainda não tem conta? Peça um convite ao seu personal.</p>
-                    </CardFooter>
+                        </CardContent>
+                    </Card>
                 </div>
-            </Card>
+            </div>
+
+            {/* Lado da Imagem (Apenas no Desktop) */}
+            <div className="hidden bg-muted lg:block">
+                <img src="/images/login-aluno.png" alt="Imagem de um aluno treinando" className="h-full w-full object-cover dark:brightness-[0.8]" />
+            </div>
         </div>
     );
 }

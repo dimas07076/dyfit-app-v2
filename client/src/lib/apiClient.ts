@@ -5,15 +5,34 @@ export const fetchWithAuth = async <T = any>(
     options: RequestInit = {}
   ): Promise<T> => {
     
-    const token = localStorage.getItem('authToken');
-    // <<< REMOÇÃO: Variável não utilizada foi removida daqui >>>
-    // const tokenTypeUsed = "authToken";
+    let token: string | null = null;
+    let tokenTypeUsed: 'aluno' | 'personalAdmin' | 'none' = 'none';
+    const isPublicAuthRoute = url.startsWith('/api/auth/');
+
+    if (!isPublicAuthRoute) {
+        // <<< CORREÇÃO FINAL E DEFINITIVA DA LÓGICA DE SELEÇÃO DE TOKEN >>>
+        // Apenas rotas muito específicas como 'meus-treinos' devem usar o token de aluno.
+        // Todas as outras, incluindo as de gerenciamento, usam o token do personal.
+        if (
+            url.startsWith('/api/aluno/meus-treinos') || 
+            url.startsWith('/api/aluno/minhas-sessoes') 
+        ) {
+          token = localStorage.getItem('alunoAuthToken');
+          tokenTypeUsed = "aluno";
+        } else {
+          // Para TODAS as outras rotas protegidas (gerenciamento, treinos, etc.)
+          token = localStorage.getItem('authToken');
+          tokenTypeUsed = "personalAdmin";
+        }
+    }
   
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
   
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+    } else if (!isPublicAuthRoute) {
+      console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota protegida '${url}' (tipo esperado: ${tokenTypeUsed})`);
     }
   
     if (options.body && typeof options.body === 'string') {
@@ -23,14 +42,9 @@ export const fetchWithAuth = async <T = any>(
     }
   
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      const response = await fetch(url, { ...options, headers });
   
-      if (response.status === 204) {
-        return null as T; 
-      }
+      if (response.status === 204) return null as T; 
   
       const responseText = await response.text();
       let data;
@@ -45,8 +59,8 @@ export const fetchWithAuth = async <T = any>(
             window.dispatchEvent(new CustomEvent('auth-failed', { 
               detail: { 
                 status: 401,
-                forAluno: false, 
-                forPersonalAdmin: true
+                forAluno: tokenTypeUsed === 'aluno', 
+                forPersonalAdmin: tokenTypeUsed === 'personalAdmin'
               } 
             }));
         }

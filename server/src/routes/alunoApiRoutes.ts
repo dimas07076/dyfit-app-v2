@@ -7,21 +7,19 @@ import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import { startOfWeek, endOfWeek } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
-// <<< ADIÇÃO: Importa o middleware de autenticação >>>
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 
 const router = express.Router();
 
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
+// Protegidas por authenticateToken (verifica req.user)
 // =======================================================
 
-// POST /api/aluno/convite - Personal gera convite
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.post("/convite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
-    // A verificação de role é uma boa prática, mas o middleware já garante que é um personal ou admin
     if (!trainerId) return res.status(401).json({ erro: "Personal não autenticado." });
     try {
         const { emailConvidado } = req.body;
@@ -40,8 +38,6 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
     } catch (error) { next(error); }
 });
 
-// GET /api/aluno/gerenciar - Personal lista seus alunos
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.get("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -52,8 +48,6 @@ router.get("/gerenciar", authenticateToken, async (req: Request, res: Response, 
     } catch (error) { next(error); }
 });
 
-// POST /api/aluno/gerenciar - Personal cadastra aluno manualmente
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.post("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -70,8 +64,6 @@ router.post("/gerenciar", authenticateToken, async (req: Request, res: Response,
     } catch (error) { next(error); }
 });
 
-// GET /api/aluno/gerenciar/:id - Personal busca um aluno específico
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -85,35 +77,24 @@ router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
     } catch (error) { next(error); }
 });
 
-// GET /api/aluno/:alunoId/rotinas - Personal busca as rotinas de um aluno
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.get('/:alunoId/rotinas', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const { alunoId } = req.params;
     if (!trainerId) return res.status(401).json({ erro: 'Personal não autenticado.' });
     if (!mongoose.Types.ObjectId.isValid(alunoId)) return res.status(400).json({ erro: 'ID do aluno inválido.' });
-
     try {
         const aluno = await Aluno.findOne({ _id: alunoId, trainerId });
-        if (!aluno) {
-            return res.status(404).json({ erro: 'Aluno não encontrado ou não pertence a este personal.' });
-        }
-
+        if (!aluno) return res.status(404).json({ erro: 'Aluno não encontrado ou não pertence a este personal.' });
         const rotinas = await Treino.find({
             alunoId: new mongoose.Types.ObjectId(alunoId),
             criadorId: new mongoose.Types.ObjectId(trainerId),
             tipo: 'individual'
         }).select('titulo descricao criadoEm atualizadoEm').sort({ atualizadoEm: -1 });
-
         res.status(200).json(rotinas);
-    } catch (error) {
-        next(error);
-    }
+    } catch (error) { next(error); }
 });
 
-// PUT /api/aluno/gerenciar/:id - Personal edita um aluno
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -125,9 +106,7 @@ router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
         const aluno = await Aluno.findOne({ _id: id, trainerId });
         if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." });
         Object.assign(aluno, updateData);
-        if (password && password.trim() !== "") {
-            aluno.passwordHash = password;
-        }
+        if (password && password.trim() !== "") { aluno.passwordHash = password; }
         const alunoAtualizado = await aluno.save();
         const alunoParaRetornar = { ...alunoAtualizado.toObject() };
         delete (alunoParaRetornar as any).passwordHash;
@@ -135,8 +114,6 @@ router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
     } catch (error) { next(error); }
 });
 
-// DELETE /api/aluno/gerenciar/:id - Personal deleta um aluno
-// <<< CORREÇÃO: Middleware adicionado >>>
 router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -151,11 +128,10 @@ router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Res
 });
 
 // =======================================================
-// ROTAS DO ALUNO (PARA ACESSO PRÓPRIO) - NÃO ADICIONAR authenticateToken AQUI
+// ROTAS DO ALUNO (PARA ACESSO PRÓPRIO)
+// Protegidas por authenticateAlunoToken (verifica req.aluno)
 // =======================================================
-router.get('/meus-treinos', async (req: Request, res: Response, next: NextFunction) => {
-    // Esta rota deve usar um middleware de autenticação de ALUNO, se necessário
-    // Por agora, ela continuará como está, esperando req.aluno
+router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
     if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); 
@@ -163,18 +139,13 @@ router.get('/meus-treinos', async (req: Request, res: Response, next: NextFuncti
         const query = Treino.find({ alunoId: new Types.ObjectId(alunoId), tipo: 'individual' })
                           .sort({ atualizadoEm: -1, criadoEm: -1 })
                           .populate({ path: 'criadorId', select: 'nome email _id' })
-                          .populate({
-                              path: 'diasDeTreino.exerciciosDoDia.exercicioId', 
-                              select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' 
-                          });
+                          .populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' });
         const rotinasDoAluno = await query.lean<ITreinoPopuladoLean[]>();
         res.status(200).json(rotinasDoAluno);
-    } catch (error) { 
-        next(error); 
-    }
+    } catch (error) { next(error); }
 });
 
-router.get('/minhas-sessoes-concluidas-na-semana', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
     if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' });
@@ -187,13 +158,9 @@ router.get('/minhas-sessoes-concluidas-na-semana', async (req: Request, res: Res
             alunoId: new Types.ObjectId(alunoId), 
             status: 'completed',
             concluidaEm: { $gte: inicioDaSemana, $lte: fimDaSemana }, 
-        }).select('_id sessionDate concluidaEm tipoCompromisso') 
-          .sort({ concluidaEm: 1 })
-          .lean();
+        }).select('_id sessionDate concluidaEm tipoCompromisso').sort({ concluidaEm: 1 }).lean();
         res.status(200).json(sessoesConcluidas);
-    } catch (error) { 
-        next(error); 
-    }
+    } catch (error) { next(error); }
 });
 
 export default router;
