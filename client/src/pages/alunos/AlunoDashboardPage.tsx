@@ -7,21 +7,19 @@ import { Progress } from '../../components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/queryClient';
-// <<< CORREÇÃO: Removido o import não utilizado 'CheckCircle2' >>>
-import { Loader2, AlertTriangle, PlayCircle, Zap, History, Dumbbell, TrendingUp, ClipboardList, BookOpenCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, PlayCircle, Zap, History, Dumbbell, TrendingUp, ClipboardList, BookOpenCheck, Replace } from 'lucide-react'; // Adicionado ícone 'Replace'
 import { useLocation } from 'wouter';
 import { format, parseISO, isValid as isDateValidFn, nextDay, Day, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import FrequenciaSemanal from '../../components/alunos/FrequenciaSemanal';
 
-// --- Interfaces (sem alterações) ---
+// --- Interfaces e Helpers (sem alterações) ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; grupoMuscular?: string; urlVideo?: string; descricao?: string; categoria?: string; tipo?: string; }
 interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string; series?: string; repeticoes?: string; carga?: string; descanso?: string; observacoes?: string; ordemNoDia: number; concluido?: boolean; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; dataSugeridaFormatada?: string; concluidoNestaSemana?: boolean; }
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; tipo: "modelo" | "individual"; alunoId?: { _id: string; nome: string; email?: string; } | string | null; criadorId?: { _id: string; nome: string; email?: string; } | string; tipoOrganizacaoRotina: 'diasDaSemana' | 'numerico' | 'livre'; diasDeTreino: DiaDeTreinoPopulado[]; pastaId?: { _id: string; nome: string; } | string | null; statusModelo?: "ativo" | "rascunho" | "arquivado"; ordemNaPasta?: number; dataValidade?: string | null; totalSessoesRotinaPlanejadas?: number | null; sessoesRotinaConcluidas: number; criadoEm: string; atualizadoEm?: string; }
 interface SessaoConcluidaParaFrequencia { _id: string; sessionDate: string | Date; tipoCompromisso?: string; }
 
-// --- Funções Helper (sem alterações) ---
 const weekDayMap: { [key: string]: Day } = { 'domingo': 0, 'segunda-feira': 1, 'terca-feira': 2, 'quarta-feira': 3, 'quinta-feira': 4, 'sexta-feira': 5, 'sabado': 6 };
 const getNextDateForWeekday = (weekdayName: string): Date | null => {
     const lowerWeekdayName = weekdayName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace("-feira", "");
@@ -30,14 +28,11 @@ const getNextDateForWeekday = (weekdayName: string): Date | null => {
     return nextDay(new Date(), targetDayIndex as Day);
 };
 
-// --- Componente Principal ---
 const AlunoDashboardPage: React.FC = () => {
-  // --- Hooks (lógica de estado e dados mantida) ---
   const { aluno } = useAluno();
   const [, navigate] = useLocation();
 
   const [activeRotinaId, setActiveRotinaId] = useState<string | null>(() => {
-    // <<< CORREÇÃO: Adicionada verificação de segurança para 'aluno' aqui >>>
     if (aluno) {
       return localStorage.getItem(`activeRotinaId_${aluno.id}`);
     }
@@ -60,10 +55,8 @@ const AlunoDashboardPage: React.FC = () => {
   });
 
   useEffect(() => {
-    // <<< CORREÇÃO: Adicionada verificação de segurança 'if (!aluno) return' >>>
     if (!aluno) return; 
 
-    // Sincroniza o localStorage quando a query 'minhasRotinas' carrega
     const handleSyncActiveRotina = () => {
       if (minhasRotinas && minhasRotinas.length > 0) {
         const currentId = localStorage.getItem(`activeRotinaId_${aluno.id}`);
@@ -79,7 +72,6 @@ const AlunoDashboardPage: React.FC = () => {
     };
     handleSyncActiveRotina();
 
-    // Listener para sincronizar abas diferentes
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === `activeRotinaId_${aluno.id}`) {
         setActiveRotinaId(event.newValue);
@@ -89,7 +81,7 @@ const AlunoDashboardPage: React.FC = () => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [minhasRotinas, aluno]); // <-- Ajustado para depender de 'aluno'
+  }, [minhasRotinas, aluno]);
 
   const rotinaAtiva = useMemo(() => {
       if (!minhasRotinas || !activeRotinaId) return null;
@@ -141,15 +133,13 @@ const AlunoDashboardPage: React.FC = () => {
     return { proximoDiaSugerido: proximoDia, alertaRotina: alerta };
   }, [rotinaAtiva]);
 
-  // --- Estados de Carregamento e Erro ---
-  if (isLoadingRotinas || isLoadingFrequencia || !aluno) { // <<< CORREÇÃO: Adicionada verificação '!aluno' aqui
+  if (isLoadingRotinas || isLoadingFrequencia || !aluno) { 
     return ( <div className="flex h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <span className="ml-4 text-lg">Carregando seu painel...</span> </div> );
   }
   if (errorRotinas) { 
-      return ( <div className="container mx-auto p-4 md:p-6"> <Alert variant="destructive"> <AlertTriangle className="h-4 w-4" /> <AlertTitle>Erro de Conexão</AlertTitle> <AlertDescription>Não foi possível carregar suas rotinas de treino. Por favor, tente novamente mais tarde.</AlertDescription> </Alert> </div> );
+      return ( <div className="container mx-auto p-4 md:p-6"> <Alert variant="destructive"> <AlertTitle>Erro de Conexão</AlertTitle> <AlertDescription>Não foi possível carregar suas rotinas de treino. Por favor, tente novamente mais tarde.</AlertDescription> </Alert> </div> );
   }
 
-  // --- RENDERIZAÇÃO DO DASHBOARD ---
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -204,12 +194,18 @@ const AlunoDashboardPage: React.FC = () => {
                 </div>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex-col items-stretch gap-2">
             {rotinaAtiva && proximoDiaSugerido && !alertaRotina?.mensagem.includes("expirou") && !alertaRotina?.mensagem.includes("concluiu") ? (
+              <>
                 <Button size="lg" className="w-full font-bold text-lg" onClick={() => navigate(`/aluno/ficha/${rotinaAtiva._id}?diaId=${proximoDiaSugerido._id}`)}>
                     <PlayCircle className="w-6 h-6 mr-3" />
                     Iniciar Treino do Dia
                 </Button>
+                <Button variant="link" className="text-sm text-muted-foreground h-auto pb-1" onClick={() => navigate(`/aluno/ficha/${rotinaAtiva._id}`)}>
+                    <Replace className="w-4 h-4 mr-2" />
+                    Escolher outro treino
+                </Button>
+              </>
             ) : (
                 <Button size="lg" className="w-full font-bold text-lg" onClick={() => navigate('/aluno/meus-treinos')}>
                     <BookOpenCheck className="w-6 h-6 mr-3" />
@@ -219,6 +215,7 @@ const AlunoDashboardPage: React.FC = () => {
           </CardFooter>
         </Card>
 
+        {/* ... Os outros cards permanecem os mesmos ... */}
         <Card className="shadow-md">
             <CardHeader>
                 <div className="flex items-center gap-3">
@@ -236,7 +233,6 @@ const AlunoDashboardPage: React.FC = () => {
                 </Button>
             </CardFooter>
         </Card>
-
         <Card className="shadow-md">
             <CardHeader>
                 <div className="flex items-center gap-3">
@@ -266,7 +262,6 @@ const AlunoDashboardPage: React.FC = () => {
                 </Button>
             </CardFooter>
         </Card>
-
         <Card className="shadow-md">
             <CardHeader>
                 <div className="flex items-center gap-3">
@@ -287,7 +282,6 @@ const AlunoDashboardPage: React.FC = () => {
                 </Button>
             </CardFooter>
         </Card>
-
       </div>
     </div>
   );

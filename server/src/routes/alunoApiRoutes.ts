@@ -41,7 +41,6 @@ router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Re
     } catch (error) { next(error); }
 });
 
-// <<< CORREÇÃO FINAL: Rota para buscar uma rotina específica do aluno >>>
 router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -52,10 +51,10 @@ router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res
     try {
         const rotina = await Treino.findOne({
             _id: new mongoose.Types.ObjectId(treinoId),
-            alunoId: new mongoose.Types.ObjectId(alunoId) // Garante que o treino pertence ao aluno logado
+            alunoId: new mongoose.Types.ObjectId(alunoId)
         }).populate({ path: 'criadorId', select: 'nome email _id' })
           .populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' })
-          .lean<ITreinoPopuladoLean>(); // lean() é importante para performance e para evitar problemas de tipo
+          .lean<ITreinoPopuladoLean>();
 
         if (!rotina) {
             return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." });
@@ -83,5 +82,54 @@ router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async
         res.status(200).json(sessoesConcluidas);
     } catch (error) { next(error); }
 });
+
+
+// <<< ADICIONE ESTE BLOCO DE CÓDIGO NO SEU ARQUIVO >>>
+// ROTA PARA BUSCAR O HISTÓRICO COMPLETO DE SESSÕES DO ALUNO COM PAGINAÇÃO
+router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) {
+        return res.status(401).json({ message: 'ID do aluno não encontrado no token.' });
+    }
+
+    // Lógica de paginação
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const skip = (page - 1) * limit;
+
+    try {
+        // Query para buscar apenas as sessões concluídas do aluno
+        const query = {
+            alunoId: new Types.ObjectId(alunoId),
+            status: 'completed'
+        };
+
+        // Conta o total de documentos para a paginação
+        const totalSessoes = await Sessao.countDocuments(query);
+
+        // Busca as sessões da página atual
+        const sessoes = await Sessao.find(query)
+            .sort({ concluidaEm: -1 }) // Ordena pelas mais recentes
+            .skip(skip)
+            .limit(limit)
+            .populate({
+                path: 'rotinaId',
+                select: 'titulo'
+            })
+            .lean(); // .lean() para performance
+
+        res.status(200).json({
+            sessoes,
+            currentPage: page,
+            totalPages: Math.ceil(totalSessoes / limit),
+            totalSessoes,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+// <<< FIM DO BLOCO DE CÓDIGO A SER ADICIONADO >>>
+
 
 export default router;
