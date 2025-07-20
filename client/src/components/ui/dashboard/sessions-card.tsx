@@ -1,32 +1,15 @@
 // client/src/components/ui/dashboard/sessions-card.tsx
-import { useState, useEffect } from "react"; // Removido React, não é necessário importar explicitamente no escopo do arquivo com JSX
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MoreVertical, Plus, CalendarClock, UserCircle, Info, Loader2, Edit3, Activity, ClipboardCheck, Dumbbell } from "lucide-react"; // Adicionado Dumbbell
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+// <<< CORREÇÃO: Removidos ícones não utilizados (UserCircle, Edit3) >>>
+import { MoreVertical, Plus, CalendarClock, Info, Loader2, Activity, ClipboardCheck, Dumbbell } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,15 +19,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Aluno } from "@/types/aluno";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-// <<< TIPOS DUPLICADOS/ADAPTADOS PARA O FRONTEND (Idealmente viriam de uma pasta 'shared') >>>
 export const TIPOS_COMPROMISSO_FRONTEND = ['avaliacao', 'checkin', 'treino_acompanhado', 'outro'] as const;
 export type TipoCompromissoFrontend = typeof TIPOS_COMPROMISSO_FRONTEND[number];
 
-// Interface para os dados de sessão/compromisso esperados da API
 interface CompromissoData {
   _id: string;
   sessionDate: string; 
-  tipoCompromisso: TipoCompromissoFrontend; // Usando o tipo do frontend
+  tipoCompromisso: TipoCompromissoFrontend;
   notes?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   studentId: { _id: string; nome: string; } | string; 
@@ -53,14 +34,12 @@ interface CompromissoData {
 
 interface NewCompromissoState {
     sessionDate: string;
-    tipoCompromisso: TipoCompromissoFrontend; // Usando o tipo do frontend
+    tipoCompromisso: TipoCompromissoFrontend;
     notes: string;
     status: CompromissoData['status'];
     studentId: string;
     trainerId: string;
 }
-// <<< FIM DOS TIPOS DUPLICADOS >>>
-
 
 interface SessionsCardProps {
   trainerId: string; 
@@ -163,27 +142,23 @@ export function SessionsCard({ trainerId }: SessionsCardProps) {
     return studentDetails?.nome || "Aluno";
   };
 
-  const getTipoCompromissoLabel = (tipo: TipoCompromissoFrontend): string => { // <<< TIPO ATUALIZADO
+  const getTipoCompromissoLabel = (tipo: TipoCompromissoFrontend): string => {
     switch (tipo) {
       case 'avaliacao': return 'Avaliação';
       case 'checkin': return 'Check-in';
       case 'treino_acompanhado': return 'Treino Acompanhado';
       case 'outro': return 'Outro';
-      default: 
-        const exhaustiveCheck: never = tipo; // Para checagem em tempo de compilação
-        return exhaustiveCheck;
+      // <<< CORREÇÃO: Removida a função 'exhaustiveCheck' não utilizada >>>
     }
   };
   
-  const getTipoCompromissoIcon = (tipo: TipoCompromissoFrontend) => { // <<< TIPO ATUALIZADO
+  const getTipoCompromissoIcon = (tipo: TipoCompromissoFrontend) => {
     switch (tipo) {
         case 'avaliacao': return <ClipboardCheck className="w-4 h-4 mr-1.5 text-blue-500" />;
         case 'checkin': return <Activity className="w-4 h-4 mr-1.5 text-green-500" />;
-        case 'treino_acompanhado': return <Dumbbell className="w-4 h-4 mr-1.5 text-purple-500" />; // Ícone Dumbbell
+        case 'treino_acompanhado': return <Dumbbell className="w-4 h-4 mr-1.5 text-purple-500" />;
         case 'outro': return <Info className="w-4 h-4 mr-1.5 text-gray-500" />;
-        default: 
-            const exhaustiveCheck: never = tipo; // Para checagem em tempo de compilação
-            return null;
+        // <<< CORREÇÃO: Removida a função 'exhaustiveCheck' não utilizada >>>
     }
   };
 
@@ -310,7 +285,7 @@ export function SessionsCard({ trainerId }: SessionsCardProps) {
                 <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
               <SelectContent>
-                {TIPOS_COMPROMISSO_FRONTEND.map(tipo => ( // Usando a constante do frontend
+                {TIPOS_COMPROMISSO_FRONTEND.map(tipo => (
                     <SelectItem key={tipo} value={tipo}>
                         {getTipoCompromissoLabel(tipo)}
                     </SelectItem>
@@ -322,7 +297,7 @@ export function SessionsCard({ trainerId }: SessionsCardProps) {
             <Label htmlFor="status" className="text-right">Status</Label>
             <Select
               onValueChange={(value) => setNewCompromisso((prev) => ({ ...prev, status: value as CompromissoData['status'] }))}
-              value={newCompromisso.status} // Usar value para controle completo
+              value={newCompromisso.status}
               disabled={createCompromissoMutation.isPending}
             >
               <SelectTrigger id="status" className="col-span-3">

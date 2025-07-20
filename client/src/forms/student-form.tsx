@@ -8,17 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { Aluno } from '@/types/aluno'; // <<< Importa o tipo correto e unificado
+import { Aluno } from '@/types/aluno';
 
-// --- Funções de Validação ---
-const requiredNumericString = (fieldName: string) => z.string()
-    .min(1, `${fieldName} é obrigatório.`)
-    .refine((val) => !isNaN(parseFloat(val.replace(',', '.'))), { message: "Deve ser um número." });
-const requiredIntegerString = (fieldName: string) => z.string()
-    .min(1, `${fieldName} é obrigatório.`)
-    .refine((val) => /^\d+$/.test(val), { message: "Deve ser um número inteiro." });
+// --- Funções de Validação (sem alterações) ---
+const requiredNumericString = (fieldName: string) => z.string().min(1, `${fieldName} é obrigatório.`).refine((val) => !isNaN(parseFloat(val.replace(',', '.'))), { message: "Deve ser um número." });
+const requiredIntegerString = (fieldName: string) => z.string().min(1, `${fieldName} é obrigatório.`).refine((val) => /^\d+$/.test(val), { message: "Deve ser um número inteiro." });
 
-// --- SCHEMA ZOD ---
+// <<< CORREÇÃO FINAL: Schema de validação com lógica aprimorada no superRefine >>>
 const createStudentFormSchema = (isEditing: boolean) => z.object({
     nome: z.string().min(3, "Nome completo é obrigatório."),
     email: z.string().email("E-mail inválido."),
@@ -31,21 +27,38 @@ const createStudentFormSchema = (isEditing: boolean) => z.object({
     startDate: z.string().min(1, "Data de início é obrigatória."),
     status: z.enum(['active', 'inactive']),
     notes: z.string().optional(),
-    password: isEditing 
-        ? z.string().optional() 
-        : z.string().min(6, "A senha deve ter no mínimo 6 caracteres."),
-    confirmPassword: isEditing 
-        ? z.string().optional() 
-        : z.string().min(6, "A confirmação de senha é obrigatória."),
-}).refine(data => {
-    if (!isEditing || data.password) {
-        return data.password === data.confirmPassword;
+    password: z.string().optional(),
+    confirmPassword: z.string().optional(),
+}).superRefine((data, ctx) => {
+    const password = data.password || "";
+    const confirmPassword = data.confirmPassword || "";
+
+    if (!isEditing) {
+        // --- MODO DE CRIAÇÃO ---
+        if (password.length < 6) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A senha deve ter no mínimo 6 caracteres.", path: ["password"] });
+        }
+        if (password !== confirmPassword) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "As senhas não coincidem.", path: ["confirmPassword"] });
+        }
+    } else {
+        // --- MODO DE EDIÇÃO ---
+        // A validação só acontece se uma nova senha for fornecida
+        if (password.length > 0) {
+            if (password.length < 6) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A nova senha deve ter no mínimo 6 caracteres.", path: ["password"] });
+            }
+            if (password !== confirmPassword) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "As senhas não coincidem.", path: ["confirmPassword"] });
+            }
+        }
+        // Se a senha estiver vazia, mas a confirmação não, isso é um erro
+        else if (confirmPassword.length > 0) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Digite a nova senha primeiro.", path: ["password"] });
+        }
     }
-    return true;
-}, {
-    message: "As senhas não coincidem.",
-    path: ["confirmPassword"],
 });
+
 
 type StudentFormValues = z.infer<ReturnType<typeof createStudentFormSchema>>;
 
@@ -56,7 +69,6 @@ export interface StudentFormDataProcessed {
     password?: string;
 }
 
-// <<< AGORA USA O TIPO ALUNO IMPORTADO >>>
 interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; }
 
 export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false }: StudentFormProps) {
@@ -69,7 +81,8 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
             weight: initialData?.weight ? String(initialData.weight) : '', height: initialData?.height ? String(initialData.height) : '',
             startDate: initialData?.startDate ? initialData.startDate.split('T')[0] : "",
             status: initialData?.status || 'active', notes: initialData?.notes || "",
-            password: "", confirmPassword: "",
+            password: "",
+            confirmPassword: "",
         },
     });
 
@@ -79,15 +92,16 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
             ...restOfData,
             weight: parseFloat(data.weight.replace(',', '.')),
             height: parseInt(data.height, 10),
-            password: data.password?.trim() === '' ? undefined : data.password,
+            password: data.password && data.password.trim() !== '' ? data.password : undefined,
         };
         onSubmitProp(processedData);
     }
 
+    const passwordValue = form.watch('password');
+
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-                {/* O restante do JSX do formulário permanece o mesmo... */}
                 {/* Dados Pessoais */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold border-b pb-2">Dados Pessoais</h3>
@@ -113,10 +127,11 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
                 <div className="space-y-4">
                      <h3 className="text-lg font-semibold border-b pb-2">Credenciais de Acesso</h3>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                        <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>{isEditing ? 'Nova Senha' : 'Senha*'}</FormLabel><FormControl><Input type="password" placeholder={isEditing ? 'Deixe em branco para não alterar' : 'Mínimo 6 caracteres'} {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        {(!isEditing || form.watch('password')) && (
-                             <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>{isEditing ? 'Confirme a Nova Senha' : 'Confirmar Senha*'}</FormLabel><FormControl><Input type="password" placeholder="Repita a senha" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        )}
+                        <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>{isEditing ? 'Nova Senha (Opcional)' : 'Senha*'}</FormLabel><FormControl><Input type="password" placeholder={isEditing ? 'Deixe em branco para não alterar' : 'Mínimo 6 caracteres'} {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        {/* <<< CORREÇÃO: Renderização condicional mais estrita >>> */}
+                        {(passwordValue && passwordValue.trim() !== '') || !isEditing ? (
+                             <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirmar Senha*</FormLabel><FormControl><Input type="password" placeholder="Repita a senha" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        ) : null}
                     </div>
                 </div>
 

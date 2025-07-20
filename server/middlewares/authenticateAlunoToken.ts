@@ -1,10 +1,10 @@
 // server/middlewares/authenticateAlunoToken.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
+// <<< CORREÇÃO FINAL, APLICANDO A SUGESTÃO DA IA: O caminho relativo foi ajustado >>>
+import Aluno from '../models/Aluno.js'; 
 
-// <<< LÓGICA CORRIGIDA E COMPLETA >>>
-// Este middleware agora é AUTÔNOMO e responsável por autenticar o ALUNO.
-export const authenticateAlunoToken = (req: Request, res: Response, next: NextFunction) => {
+export const authenticateAlunoToken = async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
@@ -21,8 +21,14 @@ export const authenticateAlunoToken = (req: Request, res: Response, next: NextFu
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-        // Este middleware SÓ deve aceitar tokens com a role 'aluno'.
         if (decoded.role?.toLowerCase() === 'aluno') {
+            const aluno = await Aluno.findById(decoded.id).select('status').lean();
+
+            if (!aluno || aluno.status !== 'active') {
+                console.warn(`[Auth Aluno Middleware] Falha: Tentativa de acesso do aluno inativo ou não encontrado - ID: ${decoded.id}`);
+                return res.status(403).json({ message: 'Sua conta está inativa. Fale com seu personal trainer.', code: 'ACCOUNT_INACTIVE' });
+            }
+
             req.aluno = {
                 id: decoded.id,
                 role: 'aluno',
@@ -30,11 +36,9 @@ export const authenticateAlunoToken = (req: Request, res: Response, next: NextFu
                 email: decoded.email,
                 personalId: decoded.personalId,
             };
-            console.log(`[Auth Aluno Middleware] Sucesso: Aluno autenticado - ID: ${decoded.id}`);
             return next();
         }
 
-        // Se o token for válido mas não for de um aluno (ex: um personal tentando acessar), nega o acesso.
         console.warn(`[Auth Aluno Middleware] Falha: Token de ${decoded.role} inválido para rota de aluno.`);
         return res.status(403).json({ message: 'Acesso proibido. Esta rota é exclusiva para alunos.' });
 

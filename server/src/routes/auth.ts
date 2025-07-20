@@ -4,11 +4,10 @@ import PersonalTrainer, { IPersonalTrainer } from '../../models/PersonalTrainer.
 import Aluno, { IAluno } from '../../models/Aluno.js';
 import jwt, { Secret } from 'jsonwebtoken';
 import ms from 'ms';
-import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO DO HELPER
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = Router();
 
-// Função para obter o JWT_SECRET de forma segura.
 const getJwtSecret = (): Secret => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
@@ -18,7 +17,6 @@ const getJwtSecret = (): Secret => {
     return secret;
 };
 
-// Função para obter o tempo de expiração
 const getExpiresInSeconds = (durationString: string | undefined, defaultDuration: string): number => {
     try {
         const durationMs = ms(durationString || defaultDuration);
@@ -29,7 +27,7 @@ const getExpiresInSeconds = (durationString: string | undefined, defaultDuration
 };
 
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< GARANTE A CONEXÃO COM O BANCO
+    await dbConnect();
     
     const { email, password } = req.body;
     
@@ -75,17 +73,28 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 });
 
 router.post('/aluno/login', async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< GARANTE A CONEXÃO COM O BANCO
+    await dbConnect();
     
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
 
     try {
-        const aluno: IAluno | null = await Aluno.findOne({ email: email.toLowerCase() }).select('+passwordHash');
+        // <<< ALTERAÇÃO: Agora buscamos o status junto com o hash da senha >>>
+        const aluno: IAluno | null = await Aluno.findOne({ email: email.toLowerCase() }).select('+passwordHash +status');
         if (!aluno || !aluno._id) return res.status(401).json({ message: 'Credenciais inválidas.' });
         
         const isPasswordValid = await aluno.comparePassword(password);
         if (!isPasswordValid) return res.status(401).json({ message: 'Credenciais inválidas.' });
+
+        // <<< ADIÇÃO: Verificação de status ANTES de gerar o token >>>
+        if (aluno.status !== 'active') {
+            console.warn(`[POST /aluno/login] Falha: Tentativa de login de aluno inativo - Email: ${aluno.email}`);
+            // Retorna o erro 403 com a mensagem e o código que o frontend espera
+            return res.status(403).json({ 
+                message: 'Sua conta está inativa. Fale com seu personal trainer.', 
+                code: 'ACCOUNT_INACTIVE' 
+            });
+        }
         
         const tokenPayload = {
             id: aluno._id.toString(),

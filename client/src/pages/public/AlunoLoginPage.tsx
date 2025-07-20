@@ -13,6 +13,8 @@ interface AlunoLoginApiResponse {
     message: string;
     token: string;
     aluno: { id: string; nome: string; email: string; role: 'Aluno'; personalId: string; };
+    // <<< ADIÇÃO: Adicionando o campo 'code' opcional à resposta de erro >>>
+    code?: string;
 }
 
 export default function AlunoLoginPage() {
@@ -45,8 +47,19 @@ export default function AlunoLoginPage() {
             loginAluno?.(response.token);
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
         } catch (err: any) {
-            setError(err.message || 'Credenciais inválidas ou erro no servidor.');
-            toast({ title: "Erro no Login", description: err.message, variant: "destructive" });
+            // <<< ALTERAÇÃO: Lógica de erro aprimorada para tratar o caso de conta inativa >>>
+            const errorMessage = err.message || 'Credenciais inválidas ou erro no servidor.';
+            const errorCode = err.code; // O 'code' virá do erro lançado pela nossa API
+
+            if (errorCode === 'ACCOUNT_INACTIVE') {
+                // Se a conta estiver inativa, mostramos uma mensagem específica
+                setError('Sua conta está inativa. Por favor, entre em contato com seu personal trainer para reativá-la.');
+            } else {
+                // Para todos os outros erros, mostramos a mensagem genérica
+                setError(errorMessage);
+            }
+            // O toast continua mostrando o erro técnico para o caso de precisarmos depurar
+            toast({ title: "Erro no Login", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }

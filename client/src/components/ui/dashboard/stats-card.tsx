@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Dumbbell,
   UsersRound,
+  Activity, // <<< ADIÇÃO: Importa o novo ícone 'Activity'
 } from "lucide-react";
 
 interface StatsCardProps {
@@ -17,7 +18,8 @@ interface StatsCardProps {
     value: string;
     trend: "up" | "down" | "neutral";
   };
-  icon: "students" | "workouts" | "sessions" | "completion";
+  // <<< ALTERAÇÃO: Adiciona 'activity' à lista de ícones permitidos >>>
+  icon: "students" | "workouts" | "sessions" | "completion" | "activity";
   isLoading?: boolean;
 }
 
@@ -38,6 +40,9 @@ export function StatsCard({
         return <CalendarCheck className="w-6 h-6" />;
       case "completion":
         return <CheckCircle className="w-6 h-6" />;
+      // <<< ADIÇÃO: Novo caso para o ícone 'activity' >>>
+      case "activity":
+        return <Activity className="w-6 h-6" />;
       default:
         return <UsersRound className="w-6 h-6" />;
     }
@@ -53,6 +58,9 @@ export function StatsCard({
         return "bg-accent/10 text-accent";
       case "completion":
         return "bg-success/10 text-success";
+      // <<< ADIÇÃO: Novo caso de cor para o ícone 'activity' >>>
+      case "activity":
+        return "bg-orange-100 text-orange-500";
       default:
         return "bg-primary/10 text-primary";
     }
@@ -73,7 +81,7 @@ export function StatsCard({
   };
 
   return (
-    <Card className="p-5 border border-gray-100">
+    <Card className="p-5 border-0 shadow-md bg-white">
       <div className="flex justify-between items-center">
         <div>
           <p className="text-gray-500 text-sm">{title}</p>
