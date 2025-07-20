@@ -6,7 +6,6 @@ import { apiRequest } from "@/lib/queryClient";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/dashboard/stats-card";
-// <<< ADIÇÃO: Importa o novo componente de lista de alunos >>>
 import { AlunosAtivosList } from "@/components/ui/dashboard/AlunosAtivosList";
 
 import { Button } from "@/components/ui/button";
@@ -15,11 +14,12 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorMessage from "@/components/ErrorMessage"; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// <<< ALTERAÇÃO: Interface de dados atualizada >>>
 interface DashboardStatsData {
   totalAlunos: number;
   treinosAtivos: number; 
-  sessoesHojeCount: number;
   totalTreinosModelo?: number;
+  feedbacksHojeCount?: number; // Novo campo para feedbacks
 }
 
 export default function Dashboard() {
@@ -35,14 +35,16 @@ export default function Dashboard() {
     queryKey: ["dashboardGeral", trainerId], 
     queryFn: async () => {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar estatísticas.");
+      // O backend precisará ser ajustado para retornar 'feedbacksHojeCount'
       return apiRequest<DashboardStatsData>("GET", `/api/dashboard/geral?trainerId=${trainerId}`);
     },
     enabled: !!trainerId, 
   });
 
-  const sessoesHojeTexto = isLoadingStats 
-    ? "Carregando seus compromissos..." 
-    : `Você tem ${dashboardStats?.sessoesHojeCount ?? 0} compromissos agendados para hoje.`;
+  // <<< ALTERAÇÃO: Texto de saudação simplificado >>>
+  const saudacaoSubtexto = isLoadingStats
+    ? "Carregando um resumo do seu dia..."
+    : "Aqui está um resumo da sua atividade hoje.";
 
   if (!user) {
     return <div className="bg-blue-50 dark:bg-slate-900 h-full"><LoadingSpinner text="Carregando dados do usuário..." /></div>;
@@ -56,7 +58,7 @@ export default function Dashboard() {
             Bem-vindo(a) de volta, {saudacaoNome}! 👋
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            {sessoesHojeTexto}
+            {saudacaoSubtexto}
           </p>
         </div>
       </header>
@@ -72,14 +74,14 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          {/* <<< ALTERAÇÃO: Cards de estatísticas atualizados >>> */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard title="Total de Alunos" value={isLoadingStats ? "..." : (dashboardStats?.totalAlunos ?? 0).toString()} icon="students" isLoading={isLoadingStats} />
-            <StatsCard title="Alunos Ativos" value={isLoadingStats ? "..." : (dashboardStats?.treinosAtivos ?? 0).toString()} icon="completion" isLoading={isLoadingStats} />
+            <StatsCard title="Alunos Ativos" value={isLoadingStats ? "..." : (dashboardStats?.treinosAtivos ?? 0).toString()} icon="activity" isLoading={isLoadingStats} />
             <StatsCard title="Fichas Modelo" value={isLoadingStats ? "..." : (dashboardStats?.totalTreinosModelo ?? 0).toString()} icon="workouts" isLoading={isLoadingStats} />
-            <StatsCard title="Compromissos Hoje" value={isLoadingStats ? "..." : (dashboardStats?.sessoesHojeCount ?? 0).toString()} icon="sessions" isLoading={isLoadingStats} />
+            <StatsCard title="Feedbacks Hoje" value={isLoadingStats ? "..." : (dashboardStats?.feedbacksHojeCount ?? 0).toString()} icon="sessions" isLoading={isLoadingStats} />
           </div>
           
-          {/* <<< ALTERAÇÃO: Placeholder substituído pelo novo componente >>> */}
           <div>
             <AlunosAtivosList trainerId={trainerId!} />
           </div>

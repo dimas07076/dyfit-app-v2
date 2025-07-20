@@ -20,6 +20,8 @@ import PastaFormModal, { PastaExistente } from "@/components/dialogs/PastaFormMo
 import { Badge } from "@/components/ui/badge";
 import VideoPlayerModal from "@/components/dialogs/VideoPlayerModal";
 import { Input } from "@/components/ui/input";
+// <<< CORREÇÃO: Removido import não utilizado 'Link' de 'wouter' >>>
+import { useUser } from "@/context/UserContext";
 
 export interface Pasta { _id: string; nome: string; ordem?: number; }
 
@@ -40,12 +42,28 @@ export default function TreinosPage() {
 
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const { user } = useUser();
+    const trainerId = user?.id;
 
     const { data: rotinas = [], isLoading: isLoadingRotinas, error: errorRotinas } = useQuery<RotinaListagemItem[], Error>({ queryKey: ["/api/treinos"], queryFn: () => apiRequest("GET", "/api/treinos") });
     const { data: alunos = [], isLoading: isLoadingAlunos } = useQuery<Aluno[], Error>({ queryKey: ["/api/aluno/gerenciar"], queryFn: () => apiRequest("GET", "/api/aluno/gerenciar"), staleTime: 1000 * 60 * 5 });
     const { data: pastas = [], isLoading: isLoadingPastas } = useQuery<Pasta[], Error>({ queryKey: ["/api/pastas/treinos"], queryFn: () => apiRequest("GET", "/api/pastas/treinos")});
     
-    const deleteMutation = useMutation<any, Error, { id: string; tipo: 'rotina' | 'pasta' }>({ mutationFn: ({ id, tipo }) => apiRequest("DELETE", tipo === 'rotina' ? `/api/treinos/${id}` : `/api/pastas/treinos/${id}`), onSuccess: (_, variables) => { const itemTipo = variables.tipo === 'rotina' ? 'Rotina' : 'Pasta'; toast({ title: "Sucesso!", description: `${itemTipo} excluída com sucesso.` }); queryClient.invalidateQueries({ queryKey: ["/api/treinos"] }); queryClient.invalidateQueries({ queryKey: ["/api/pastas/treinos"] }); }, onError: (err) => toast({ variant: "destructive", title: "Erro ao Excluir", description: err.message }), onSettled: () => setIsDeleteAlertOpen(false), });
+    const deleteMutation = useMutation<any, Error, { id: string; tipo: 'rotina' | 'pasta' }>({ 
+        mutationFn: ({ id, tipo }) => apiRequest("DELETE", tipo === 'rotina' ? `/api/treinos/${id}` : `/api/pastas/treinos/${id}`), 
+        onSuccess: (_, variables) => { 
+            const itemTipo = variables.tipo === 'rotina' ? 'Rotina' : 'Pasta'; 
+            toast({ title: "Sucesso!", description: `${itemTipo} excluída com sucesso.` }); 
+            queryClient.invalidateQueries({ queryKey: ["/api/treinos"] }); 
+            queryClient.invalidateQueries({ queryKey: ["/api/pastas/treinos"] });
+            if (trainerId) {
+                queryClient.invalidateQueries({ queryKey: ["dashboardGeral", trainerId] });
+            }
+        }, 
+        onError: (err) => toast({ variant: "destructive", title: "Erro ao Excluir", description: err.message }), 
+        onSettled: () => setIsDeleteAlertOpen(false), 
+    });
+
     const moveRotinaMutation = useMutation<RotinaListagemItem, Error, { rotinaId: string; pastaId: string | null }>({ mutationFn: ({ rotinaId, pastaId }) => apiRequest("PUT", `/api/treinos/${rotinaId}/pasta`, { pastaId }), onSuccess: (updatedRotina) => { toast({ title: "Sucesso!", description: `Rotina "${updatedRotina.titulo}" movida.` }); queryClient.setQueryData<RotinaListagemItem[]>(["/api/treinos"], (oldData) => { if (!oldData) return [updatedRotina]; return oldData.map(r => r._id === updatedRotina._id ? updatedRotina : r); }); }, onError: (err) => toast({ variant: "destructive", title: "Erro ao Mover", description: err.message }), });
 
 
@@ -64,9 +82,7 @@ export default function TreinosPage() {
 
     const rotinasIndividuaisFiltradas = useMemo(() => {
         const rotinasBase = rotinas.filter(r => r.tipo === 'individual');
-        if (!buscaAluno.trim()) {
-            return rotinasBase;
-        }
+        if (!buscaAluno.trim()) { return rotinasBase; }
         const lowerCaseBusca = buscaAluno.toLowerCase();
         return rotinasBase.filter(rotina => {
             const aluno = alunos.find(a => a._id === (typeof rotina.alunoId === 'string' ? rotina.alunoId : rotina.alunoId?._id));
@@ -86,7 +102,6 @@ export default function TreinosPage() {
 
     return (
         <div className="container mx-auto py-8 px-4">
-            {/* <<< CORREÇÃO DE LAYOUT RESPONSIVO >>> */}
             <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center">
                     <Dumbbell className="mr-3 h-8 w-8 text-primary"/>
@@ -129,13 +144,7 @@ export default function TreinosPage() {
                 <TabsContent value="individuais" className="mt-6">
                     <div className="relative mb-6">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input 
-                            type="search" 
-                            placeholder="Buscar por nome do aluno ou título da rotina..." 
-                            className="pl-9 w-full sm:w-96" 
-                            value={buscaAluno} 
-                            onChange={(e) => setBuscaAluno(e.target.value)} 
-                        />
+                        <Input type="search" placeholder="Buscar por nome do aluno ou título da rotina..." className="pl-9 w-full sm:w-96" value={buscaAluno} onChange={(e) => setBuscaAluno(e.target.value)} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {rotinasIndividuaisFiltradas.map(rotina => {
