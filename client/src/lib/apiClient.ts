@@ -10,22 +10,22 @@ export const fetchWithAuth = async <T = any>(
     let tokenTypeUsed: 'aluno' | 'personalAdmin' | 'none' = 'none';
     const isPublicAuthRoute = url.startsWith('/api/auth/');
  if (!isPublicAuthRoute) {
-        // <<< LÓGICA DE SELEÇÃO DE TOKEN CORRIGIDA E FINAL >>>
-        // Define explicitamente quais rotas são para o aluno logado
+        // <<< ALTERAÇÃO: Adicionada a rota do histórico à lista de rotas do aluno >>>
         const alunoExclusiveRoutes = [
             '/api/aluno/meus-treinos',
             '/api/aluno/minhas-sessoes',
-            '/api/sessions/aluno/concluir-dia', // Rota exata para concluir
-            '/api/sessions/aluno/',             // Cobre outras rotas de aluno em /sessions
-            '/api/sessions/'                    // Cobre /api/sessions/:id/feedback
+            '/api/aluno/meu-historico-sessoes', // <-- ROTA ADICIONADA AQUI
+            '/api/sessions/aluno/concluir-dia', 
+            '/api/sessions/aluno/',             
+            '/api/sessions/'                    
         ];
- // Verifica se a URL da requisição corresponde a alguma rota de aluno
+        // <<< FIM DA ALTERAÇÃO >>>
+
         const isAlunoRoute = alunoExclusiveRoutes.some(route => url.startsWith(route));
  if (isAlunoRoute) {
             token = localStorage.getItem('alunoAuthToken');
             tokenTypeUsed = "aluno";
  } else {
-            // Para todas as outras rotas (personal, admin, gerenciamento de aluno)
             token = localStorage.getItem('authToken');
  tokenTypeUsed = "personalAdmin";
         }
@@ -50,24 +50,21 @@ export const fetchWithAuth = async <T = any>(
       const response = await fetch(url, { ...options, headers });
  if (response.status === 204) return null as T;
 
-      // Adição: Verificação do Content-Type antes de tentar parsear como JSON
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
 
       let data;
-      let responseText = await response.text(); // Sempre pegamos o texto primeiro
+      let responseText = await response.text();
 
       if (responseText && isJson) {
         try {
           data = JSON.parse(responseText);
         } catch (parseError) {
-          // Se for um erro de parsing mas o servidor indicou JSON, ainda é um problema.
           console.error(`[fetchWithAuth] Erro ao parsear JSON da rota '${url}':`, parseError, `Conteúdo: ${responseText.substring(0, 200)}...`);
           throw new Error(`Erro ${response.status}: Resposta JSON inválida do servidor.`);
         }
       } else if (responseText) {
-        // Se não for JSON, usamos o texto como mensagem de erro ou logamos
-        data = { message: responseText }; // Envolve em um objeto para consistência
+        data = { message: responseText };
       } else {
         data = null;
       }
@@ -83,7 +80,6 @@ export const fetchWithAuth = async <T = any>(
             }));
  }
         
-        // Prioriza a mensagem do data (se for JSON) ou o texto da resposta
         const errorMessage = data?.message || data?.mensagem || data?.erro || `Erro ${response.status}: ${response.statusText || 'Ocorreu um erro na comunicação.'}`;
         throw new Error(errorMessage);
  }
