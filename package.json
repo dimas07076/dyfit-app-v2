@@ -7,12 +7,10 @@
     "dev": "concurrently -k --kill-others-on-fail --name \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "NODE_ENV=development tsx --require ./server/loadEnv.mts server/index.ts",
     "dev:client": "vite",
-    
     "build:shared": "tsc -p shared/tsconfig.json",
     "build:client": "vite build",
     "build:server": "tsc -p server/tsconfig.json",
     "build": "npm run build:shared && npm run build:client && npm run build:server",
-
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -81,6 +79,7 @@
     "tailwindcss": "^3.4.3",
     "tsx": "^4.11.2",
     "typescript": "^5.2.2",
-    "vite": "^5.2.13"
+    "vite": "^5.2.13",
+    "vite-plugin-pwa": "^1.0.1"
   }
 }
