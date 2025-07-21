@@ -22,10 +22,10 @@ const MeusTreinosPage: React.FC = () => {
   const handleSetRotinaAtiva = (id: string) => { setActiveRotinaId(id); if (aluno?.id) { localStorage.setItem(`activeRotinaId_${aluno.id}`, id); } };
   const formatarDataSimples = (dataISO?: string | null): string => { if (!dataISO) return 'N/A'; try { const dateObj = parseISO(dataISO); return isDateValidFn(dateObj) ? format(dateObj, "dd/MM/yyyy", { locale: ptBR }) : 'Data inválida'; } catch (e) { return 'Data inválida'; } };
 
-  // --- Estados de Carregamento e Erro (Estilizados) ---
+  // --- Estados de Carregamento e Erro (Mantidos com fundo para cobrir a tela) ---
   if (isLoadingRotinas) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 flex items-center justify-center">
+      <div className="min-h-screen w-full flex items-center justify-center">
         <div className="flex flex-col items-center">
             <Loader2 className="h-10 w-10 animate-spin text-white mb-3" />
             <span className="text-lg text-white">Carregando suas rotinas...</span>
@@ -35,7 +35,7 @@ const MeusTreinosPage: React.FC = () => {
   }
   if (errorRotinas) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4">
+      <div className="p-4">
         <div className="bg-red-800/80 border border-red-500 text-white p-4 rounded-lg flex items-center">
           <AlertTriangle className="w-5 h-5 mr-3" />
           <span>Erro ao carregar rotinas: {errorRotinas.message}</span>
@@ -44,14 +44,15 @@ const MeusTreinosPage: React.FC = () => {
     );
   }
 
-  // --- RENDERIZAÇÃO DA PÁGINA ESTILIZADA ---
+  // --- RENDERIZAÇÃO DA PÁGINA ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
+    // <<< CORREÇÃO: Removidas classes de fundo e padding daqui >>>
+    <div>
       <div className="flex items-center gap-4 mb-6">
          <Button variant="outline" size="icon" className="bg-white/20 hover:bg-white/30 border-white/50 text-white" onClick={() => navigate('/aluno/dashboard')}>
             <ArrowLeft className="h-4 w-4" />
          </Button>
-        <div>
+        <div className="text-white">
             <h1 className="text-2xl md:text-3xl font-bold">Minhas Rotinas de Treino</h1>
             <p className="text-md opacity-90">Veja todas as suas fichas e escolha qual deseja seguir.</p>
         </div>

@@ -52,7 +52,8 @@ const AlunoDashboardPage: React.FC = () => {
 
   // --- RENDERIZAÇÃO DO NOVO DASHBOARD ESTILIZADO ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
+    // Removido o fundo gradiente e o padding daqui, pois serão controlados pelo MainLayout
+    <div className="min-h-screen text-white"> 
       {/* Cabeçalho */}
       <div className="mb-6">
           <h1 className="text-3xl font-bold">Olá, {aluno.nome?.split(' ')[0] || 'Aluno'}!</h1>

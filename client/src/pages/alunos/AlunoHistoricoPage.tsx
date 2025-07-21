@@ -27,13 +27,13 @@ const AlunoHistoricoPage: React.FC = () => {
 
   const { data: historicoData, isLoading: isLoadingHistorico, error: errorHistorico, isFetching: isFetchingHistorico, } = useQuery<HistoricoSessoesResponse, Error>({ queryKey: ['alunoHistoricoSessoes', aluno?.id, currentPage, SESSIONS_PER_PAGE], queryFn: async () => { if (!aluno?.id) throw new Error("Aluno não autenticado."); return apiRequest<HistoricoSessoesResponse>( 'GET', `/api/aluno/meu-historico-sessoes?page=${currentPage}&limit=${SESSIONS_PER_PAGE}` ); }, enabled: !!aluno, placeholderData: (previousData) => previousData, });
 
-  if (isLoadingHistorico && !historicoData) { return ( <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 flex items-center justify-center"> <div className="flex flex-col items-center"> <Loader2 className="h-10 w-10 animate-spin text-white mb-3" /> <p className="text-lg text-white">Carregando seu histórico...</p> </div> </div> ); }
-  if (errorHistorico) { return ( <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4"> <div className="bg-red-800/80 border border-red-500 text-white p-4 rounded-lg flex items-center"> <AlertTriangle className="w-5 h-5 mr-3" /> <span>Erro: {errorHistorico.message}</span> </div> </div> ); }
+  if (isLoadingHistorico && !historicoData) { return ( <div className="min-h-screen w-full flex items-center justify-center"> <div className="flex flex-col items-center"> <Loader2 className="h-10 w-10 animate-spin text-white mb-3" /> <p className="text-lg text-white">Carregando seu histórico...</p> </div> </div> ); }
+  if (errorHistorico) { return ( <div className="p-4"> <div className="bg-red-800/80 border border-red-500 text-white p-4 rounded-lg flex items-center"> <AlertTriangle className="w-5 h-5 mr-3" /> <span>Erro: {errorHistorico.message}</span> </div> </div> ); }
   
   const formatarDataHora = (dataISO?: string): string => { if (!dataISO) return 'N/A'; try { return format(parseISO(dataISO), "dd/MM/yy 'às' HH:mm", { locale: ptBR }); } catch (e) { return 'Data inválida'; } };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4">
+    <div>
       <div className="mb-6">
         <WouterLink href="/aluno/dashboard">
             <Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg">
@@ -57,13 +57,13 @@ const AlunoHistoricoPage: React.FC = () => {
           ) : (
             <div className="space-y-5">
               {historicoData.sessoes.map(sessao => (
-                // <<< ALTERAÇÃO: A classe da borda foi escurecida para 'border-slate-200' >>>
                 <Card key={sessao._id} className="bg-card border border-slate-200 shadow-sm rounded-xl">
                   <CardHeader className="flex flex-row justify-between items-start pb-3">
                     <div>
                       <CardTitle className="text-lg leading-tight text-gray-900">{sessao.rotinaId?.titulo || 'Sessão Avulsa'}</CardTitle>
                       <CardDescription className="text-sm mt-1">{sessao.diaDeTreinoIdentificador || 'Detalhes não especificados'}{sessao.nomeSubFichaDia && ` - ${sessao.nomeSubFichaDia}`}</CardDescription>
                     </div>
+                    {/* <<< BOTÃO RESTAURADO AQUI >>> */}
                     {sessao.rotinaId && sessao.diaDeTreinoId && (
                       <Button variant="ghost" size="sm" className="text-xs h-8 text-indigo-600 hover:text-indigo-700" onClick={() => setSessaoSelecionada(sessao)}>
                         Ver Detalhes <Eye className="w-3 h-3 ml-1.5"/>
