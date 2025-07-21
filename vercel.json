@@ -20,7 +20,7 @@
       "destination": "/server/index.ts"
     },
     {
-      "source": "/((?!api/|images/|favicon.ico).*)",
+      "source": "/((?!api/|images/|favicon.ico|manifest.json|pwa-.*\\.png).*)",
       "destination": "/index.html"
     }
   ]
