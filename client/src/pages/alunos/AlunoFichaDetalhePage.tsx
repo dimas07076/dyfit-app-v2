@@ -58,41 +58,22 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, onSubmit
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader className="text-center items-center">
-                    <div className="bg-green-100 rounded-full p-3 w-fit mb-4">
-                        <Award className="w-8 h-8 text-green-600" />
-                    </div>
+                    <div className="bg-green-100 rounded-full p-3 w-fit mb-4"><Award className="w-8 h-8 text-green-600" /></div>
                     <DialogTitle className="text-2xl font-bold">Parabéns!</DialogTitle>
                     <DialogDescription>Você concluiu seu treino!</DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4 text-center border-y my-4">
-                    <div>
-                        <p className="text-sm text-gray-500">Início</p>
-                        <p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500">Fim</p>
-                        <p className="font-semibold">{format(stats.fim, 'HH:mm')}</p>
-                    </div>
-                    <div className="col-span-2">
-                         <p className="text-sm text-gray-500">Tempo de Treino</p>
-                         <p className="font-semibold">{formatTime(stats.tempoTotal)}</p>
-                    </div>
+                    <div><p className="text-sm text-gray-500">Início</p><p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p></div>
+                    <div><p className="text-sm text-gray-500">Fim</p><p className="font-semibold">{format(stats.fim, 'HH:mm')}</p></div>
+                    <div className="col-span-2"><p className="text-sm text-gray-500">Tempo de Treino</p><p className="font-semibold">{formatTime(stats.tempoTotal)}</p></div>
                 </div>
                 <div className="grid gap-4">
                     <Label htmlFor="pse">O que você achou dessa atividade?</Label>
-                    <Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}>
-                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent>
-                    </Select>
+                    <Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent></Select>
                     <Label htmlFor="comentario">Se quiser, deixe seu comentário aqui:</Label>
                     <Textarea id="comentario" placeholder="..." value={comentario} onChange={(e) => setComentario(e.target.value)} />
                 </div>
-                <DialogFooter className="mt-4">
-                    <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">
-                        {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-                        Concluir
-                    </Button>
-                </DialogFooter>
+                <DialogFooter className="mt-4"><Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">{isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}Concluir</Button></DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -187,19 +168,13 @@ const AlunoFichaDetalhePage: React.FC = () => {
     const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl], queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`), enabled: !!rotinaIdUrl && !!aluno, });
     const diaDeTreinoAtivo = useMemo(() => { if (!rotinaDetalhes || !diaIdUrl) return null; return rotinaDetalhes.diasDeTreino.find(d => d._id === diaIdUrl) || null; }, [rotinaDetalhes, diaIdUrl]);
 
-    // NOVA MUTATION: para atualizar as cargas na ficha
     const atualizarCargasFichaMutation = useMutation<any, Error, { cargas: Record<string, string> }>({
-        mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, {
-            diaDeTreinoId: diaIdUrl,
-            cargas,
-        }),
+        mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, { diaDeTreinoId: diaIdUrl, cargas, }),
         onSuccess: () => {
             console.log("Cargas na ficha atualizadas com sucesso!");
             queryClientHook.invalidateQueries({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl] });
         },
-        onError: (error) => {
-            console.error("Erro ao atualizar cargas na ficha:", error.message);
-        }
+        onError: (error) => { console.error("Erro ao atualizar cargas na ficha:", error.message); }
     });
 
     const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload, dataInicio: Date }>({
@@ -219,8 +194,12 @@ const AlunoFichaDetalhePage: React.FC = () => {
         onSuccess: () => {
             toast({ title: "Feedback Enviado!", description: "Obrigado!" });
             setWorkoutSummary(null);
-            queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
-            queryClientHook.invalidateQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
+            
+            // <<< INÍCIO DA ALTERAÇÃO >>>
+            // Esta é a linha correta que invalida o cache da nova rota do dashboard.
+            queryClientHook.invalidateQueries({ queryKey: ['alunoDashboardData', aluno?.id] });
+            // <<< FIM DA ALTERAÇÃO >>>
+            
             setTimeout(() => { navigateWouter('/aluno/dashboard'); }, 1000);
         },
         onError: (error) => toast({ title: "Erro ao Enviar Feedback", description: error.message, variant: "destructive" }),
