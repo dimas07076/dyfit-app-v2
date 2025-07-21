@@ -1,7 +1,6 @@
 // server/middlewares/authenticateAlunoToken.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
-// <<< CORREÇÃO FINAL, APLICANDO A SUGESTÃO DA IA: O caminho relativo foi ajustado >>>
 import Aluno from '../models/Aluno.js'; 
 
 export const authenticateAlunoToken = async (req: Request, res: Response, next: NextFunction) => {
@@ -20,6 +19,16 @@ export const authenticateAlunoToken = async (req: Request, res: Response, next: 
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+
+        // <<< INÍCIO DA CORREÇÃO >>>
+        // Valida se o ID do aluno está presente no payload do token decodificado.
+        // Isso evita que a consulta ao banco de dados falhe se o token for válido, mas não contiver o ID.
+        if (!decoded.id) {
+            console.warn(`[Auth Aluno Middleware] Falha: Token válido, mas sem 'id' no payload.`);
+            return res.status(403).json({ message: 'Acesso proibido. Token de aluno com formato inválido.' });
+        }
+        // <<< FIM DA CORREÇÃO >>>
+
 
         if (decoded.role?.toLowerCase() === 'aluno') {
             const aluno = await Aluno.findById(decoded.id).select('status').lean();

@@ -19,6 +19,11 @@ import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+// <<< INÍCIO DA CORREÇÃO >>>
+// Importar a função de conexão com o banco de dados
+import dbConnect from './lib/dbConnect.js';
+// <<< FIM DA CORREÇÃO >>>
+
 
 // --- CONFIGURAÇÃO DE AMBIENTE ---
 const __filename = fileURLToPath(import.meta.url);
@@ -66,7 +71,6 @@ apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
 apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
 
-// <<< CORREÇÃO: As rotas /aluno e /sessions agora gerenciam sua própria segurança interna >>>
 apiRouter.use('/aluno', alunoApiRoutes);
 apiRouter.use('/sessions', sessionsRoutes);
 
@@ -76,9 +80,24 @@ app.use(errorHandler);
 // --- EXPORTAÇÃO E INICIALIZAÇÃO ---
 export default app;
 
-if (process.env.NODE_ENV === 'development') {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`[DEV] Servidor Express de desenvolvimento rodando em http://localhost:${PORT}`);
-  });
-}
+// <<< INÍCIO DA CORREÇÃO >>>
+// A lógica de inicialização agora garante que o DB conecte ANTES do servidor iniciar.
+const startServer = async () => {
+  try {
+    await dbConnect();
+    console.log('Banco de dados conectado com sucesso!');
+    
+    if (process.env.NODE_ENV === 'development') {
+      const PORT = process.env.PORT || 5000;
+      app.listen(PORT, () => {
+        console.log(`[DEV] Servidor Express de desenvolvimento rodando em http://localhost:${PORT}`);
+      });
+    }
+  } catch (error) {
+    console.error('Falha ao conectar ao banco de dados:', error);
+    process.exit(1); // Encerra o processo se a conexão com o DB falhar
+  }
+};
+
+startServer();
+// <<< FIM DA CORREÇÃO >>>
