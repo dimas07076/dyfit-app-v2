@@ -4,17 +4,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express, { Router } from 'express';
 import cors, { CorsOptions } from 'cors';
-// <<< INÍCIO DA ALTERAÇÃO: Extensões .js removidas >>>
-import authRoutes from './src/routes/auth';
-import convitePublicRoutes from './src/routes/convitePublicRoutes';
-import conviteAlunoPublicRoutes from './src/routes/conviteAlunoPublicRoutes';
-import dashboardRoutes from './src/routes/dashboardGeralRoutes';
-import treinoRoutes from './src/routes/treinos';
-import exercicioRoutes from './src/routes/exercicios';
-import sessionsRoutes from './src/routes/sessionsRoutes';
-import pastaRoutes from './src/routes/pastasTreinos';
-import alunoApiRoutes from './src/routes/alunoApiRoutes';
-import adminRoutes from './src/routes/adminRoutes';
+// <<< INÍCIO DA ALTERAÇÃO: Extensões .js reintroduzidas para compatibilidade com Vercel >>>
+import authRoutes from './src/routes/auth.js';
+import convitePublicRoutes from './src/routes/convitePublicRoutes.js';
+import conviteAlunoPublicRoutes from './src/routes/conviteAlunoPublicRoutes.js';
+import dashboardRoutes from './src/routes/dashboardGeralRoutes.js';
+import treinoRoutes from './src/routes/treinos.js';
+import exercicioRoutes from './src/routes/exercicios.js';
+import sessionsRoutes from './src/routes/sessionsRoutes.js';
+import pastaRoutes from './src/routes/pastasTreinos.js';
+import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
+import adminRoutes from './src/routes/adminRoutes.js';
 // <<< FIM DA ALTERAÇÃO >>>
 import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
