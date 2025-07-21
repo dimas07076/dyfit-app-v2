@@ -1,7 +1,7 @@
 // client/src/context/AlunoContext.tsx
 import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
-import { useLocation } from 'wouter'; // <<< ADIÇÃO: Importa o hook de localização
+import { useLocation } from 'wouter';
 
 export interface AlunoLogado {
   id: string;
@@ -18,7 +18,7 @@ interface AlunoContextType {
   tokenAluno: string | null;
   isLoadingAluno: boolean;
   loginAluno: (token: string) => void;
-  logoutAluno: (options?: { redirect?: boolean }) => void; // Adicionado options
+  logoutAluno: (options?: { redirect?: boolean }) => void;
   checkAlunoSession: () => void;
 }
 
@@ -28,12 +28,11 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [aluno, setAluno] = useState<AlunoLogado | null>(null);
   const [tokenAluno, setTokenAluno] = useState<string | null>(null);
   const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
-  const [, setLocationWouter] = useLocation(); // <<< ADIÇÃO: Hook para redirecionamento
+  const [, setLocationWouter] = useLocation();
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
   const ALUNO_DATA_KEY = 'alunoData';
 
-  // <<< CORREÇÃO: Função de logout atualizada para redirecionar corretamente >>>
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
     setAluno(null);
@@ -43,7 +42,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     console.log("Contexto Aluno: Aluno deslogado.");
     if (shouldRedirect) {
         console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
-        setLocationWouter("/login"); // Redireciona para a nova página hub
+        setLocationWouter("/login");
     }
   }, [setLocationWouter]);
 
@@ -52,7 +51,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const decodedToken = jwtDecode<AlunoLogado>(token);
       if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
         console.warn("Contexto Aluno: Token de aluno expirado ao tentar decodificar.");
-        logoutAluno({ redirect: false }); // Evita redirecionamento em loop
+        logoutAluno({ redirect: false });
         return null;
       }
       
@@ -117,6 +116,32 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [logoutAluno]);
+
+  // <<< INÍCIO DA CORREÇÃO >>>
+  // Adiciona o listener para o evento 'auth-failed', replicando a lógica do UserContext.
+  useEffect(() => {
+    const handleAuthFailed = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log("[AlunoContext] Evento 'auth-failed' recebido:", customEvent.detail);
+
+      // Verifica se o evento é um erro de autorização (401) e se é para o aluno
+      if (customEvent.detail && customEvent.detail.status === 401) {
+        if (customEvent.detail.forAluno && aluno) {
+          console.warn("[AlunoContext] Falha de autenticação (401) para Aluno detectada. Fazendo logout...");
+          logoutAluno(); // Executa o logout do aluno
+        }
+      }
+    };
+
+    window.addEventListener('auth-failed', handleAuthFailed);
+    console.log("[AlunoContext] Event listener para 'auth-failed' adicionado.");
+
+    return () => {
+      window.removeEventListener('auth-failed', handleAuthFailed);
+      console.log("[AlunoContext] Event listener para 'auth-failed' removido.");
+    };
+  }, [aluno, logoutAluno]);
+  // <<< FIM DA CORREÇÃO >>>
 
   return (
     <AlunoContext.Provider value={{ aluno, tokenAluno, isLoadingAluno, loginAluno, logoutAluno, checkAlunoSession }}>
