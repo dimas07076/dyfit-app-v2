@@ -12,7 +12,6 @@ import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken
 
 const router = express.Router();
 
-// ... (todas as outras rotas permanecem exatamente as mesmas)
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
 // =======================================================
@@ -24,55 +23,59 @@ router.get('/:alunoId/rotinas', authenticateToken, async (req: Request, res: Res
 router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { id } = req.params; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." }); try { const { password, ...updateData } = req.body; const aluno = await Aluno.findOne({ _id: id, trainerId }); if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." }); Object.assign(aluno, updateData); if (password && password.trim() !== "") { aluno.passwordHash = password; } const alunoAtualizado = await aluno.save(); const alunoParaRetornar = { ...alunoAtualizado.toObject() }; delete (alunoParaRetornar as any).passwordHash; res.status(200).json(alunoParaRetornar); } catch (error) { next(error); } });
 router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { id } = req.params; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." }); try { const result = await Aluno.findOneAndDelete({ _id: id, trainerId }); if (!result) return res.status(404).json({ erro: "Aluno não encontrado ou sem permissão." }); res.status(200).json({ mensagem: "Aluno removido com sucesso" }); } catch (error) { next(error); } });
 
+
 // =======================================================
 // ROTAS DO ALUNO (PARA ACESSO PRÓPRIO)
 // =======================================================
+router.get('/dashboard', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ message: 'Aluno não autenticado.' });
+
+    try {
+        const alunoObjectId = new Types.ObjectId(alunoId);
+        const minhasRotinas = await Treino.find({ alunoId: alunoObjectId, tipo: 'individual' }).sort({ atualizadoEm: -1, criadoEm: -1 }).populate({ path: 'criadorId', select: 'nome email _id' }).populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' }).lean<ITreinoPopuladoLean[]>();
+
+        let ultimoDiaConcluidoId = null;
+        if (minhasRotinas.length > 0) {
+            const rotinaAtivaId = minhasRotinas[0]._id;
+            const ultimaSessao = await Sessao.findOne({ alunoId: alunoObjectId, rotinaId: new Types.ObjectId(rotinaAtivaId), status: 'completed', diaDeTreinoId: { $ne: null } }).sort({ concluidaEm: -1 }).select('diaDeTreinoId').lean();
+            if (ultimaSessao) { ultimoDiaConcluidoId = ultimaSessao.diaDeTreinoId?.toString(); }
+        }
+
+        const hoje = new Date();
+        const inicioDaSemana = startOfWeek(hoje, { weekStartsOn: 1 });
+        const fimDaSemana = endOfWeek(hoje, { weekStartsOn: 1 });
+        const sessoesConcluidasNaSemana = await Sessao.find({ alunoId: alunoObjectId, status: 'completed', concluidaEm: { $gte: inicioDaSemana, $lte: fimDaSemana }, }).select('_id sessionDate concluidaEm tipoCompromisso').sort({ concluidaEm: 1 }).lean();
+        
+        res.status(200).json({ minhasRotinas, ultimoDiaConcluidoId, sessoesConcluidasNaSemana });
+    } catch (error) { next(error); }
+});
+
 router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); try { const rotinasDoAluno = await Treino.find({ alunoId: new Types.ObjectId(alunoId), tipo: 'individual' }).sort({ atualizadoEm: -1, criadoEm: -1 }).populate({ path: 'criadorId', select: 'nome email _id' }).populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' }).lean<ITreinoPopuladoLean[]>(); res.status(200).json(rotinasDoAluno); } catch (error) { next(error); } });
 router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; const { id: treinoId } = req.params; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); if (!mongoose.Types.ObjectId.isValid(treinoId)) return res.status(400).json({ message: "ID da rotina inválido." }); try { const rotina = await Treino.findOne({ _id: new mongoose.Types.ObjectId(treinoId), alunoId: new mongoose.Types.ObjectId(alunoId) }).populate({ path: 'criadorId', select: 'nome email _id' }).populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' }).lean<ITreinoPopuladoLean>(); if (!rotina) { return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." }); } res.status(200).json(rotina); } catch (error) { next(error); } });
-router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); try { const hoje = new Date(); const inicioDaSemana = startOfWeek(hoje, { weekStartsOn: 1 }); const fimDaSemana = endOfWeek(hoje, { weekStartsOn: 1 }); const sessoesConcluidas = await Sessao.find({ alunoId: new Types.ObjectId(alunoId), status: 'completed', concluidaEm: { $gte: inicioDaSemana, $lte: fimDaSemana }, }).select('_id sessionDate concluidaEm tipoCompromisso').sort({ concluidaEm: 1 }).lean(); res.status(200).json(sessoesConcluidas); } catch (error) { next(error); } });
-router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) { return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); } const page = parseInt(req.query.page as string) || 1; const limit = parseInt(req.query.limit as string) || 5; const skip = (page - 1) * limit; try { const query = { alunoId: new Types.ObjectId(alunoId), status: 'completed' }; const totalSessoes = await Sessao.countDocuments(query); const sessoes = await Sessao.find(query).sort({ concluidaEm: -1 }).skip(skip).limit(limit).populate({ path: 'rotinaId', select: 'titulo' }).lean(); res.status(200).json({ sessoes, currentPage: page, totalPages: Math.ceil(totalSessoes / limit), totalSessoes, }); } catch (error) { next(error); } });
 
-// <<< ROTA DE ATUALIZAÇÃO DE CARGAS COM LOGS DE DEPURAÇÃO >>>
 router.patch('/meus-treinos/:rotinaId/cargas', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
     const { rotinaId } = req.params;
     const { diaDeTreinoId, cargas } = req.body;
 
-    // <<< LOG 1: VER O QUE ESTÁ CHEGANDO >>>
-    console.log('--- [PATCH /cargas] Rota acionada ---');
-    console.log('Dados recebidos do frontend (req.body):', JSON.stringify(req.body, null, 2));
-
     if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." });
-    if (!mongoose.Types.ObjectId.isValid(rotinaId) || !mongoose.Types.ObjectId.isValid(diaDeTreinoId)) {
-        return res.status(400).json({ message: "IDs inválidos." });
-    }
-    if (!cargas || typeof cargas !== 'object' || Object.keys(cargas).length === 0) {
-        return res.status(400).json({ message: "Nenhuma carga para atualizar." });
-    }
+    if (!mongoose.Types.ObjectId.isValid(rotinaId) || !mongoose.Types.ObjectId.isValid(diaDeTreinoId)) { return res.status(400).json({ message: "IDs inválidos." }); }
+    if (!cargas || typeof cargas !== 'object' || Object.keys(cargas).length === 0) { return res.status(400).json({ message: "Nenhuma carga para atualizar." }); }
     
     try {
         const rotina = await Treino.findOne({ _id: rotinaId, alunoId });
-        if (!rotina) {
-            return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." });
-        }
+        if (!rotina) { return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." }); }
 
         const diaDeTreino = rotina.diasDeTreino.id(diaDeTreinoId);
-        if (!diaDeTreino) {
-            return res.status(404).json({ message: "Dia de treino não encontrado na rotina." });
-        }
+        if (!diaDeTreino) { return res.status(404).json({ message: "Dia de treino não encontrado na rotina." }); }
 
         let atualizacoes = 0;
-        // <<< LOG 2: VER OS IDs QUE ESTAMOS COMPARANDO >>>
-        console.log('IDs das cargas recebidas:', Object.keys(cargas));
-        
         diaDeTreino.exerciciosDoDia?.forEach(exercicio => {
             const exercicioIdString = exercicio._id.toString();
-            // <<< LOG 3: VER CADA COMPARAÇÃO >>>
-            console.log(`Verificando ID do BD: ${exercicioIdString}. Existe em 'cargas'?`, cargas.hasOwnProperty(exercicioIdString));
-            
             if (cargas[exercicioIdString] && exercicio.carga !== cargas[exercicioIdString]) {
-                console.log(`   -> ATUALIZANDO! De '${exercicio.carga}' para '${cargas[exercicioIdString]}'`);
                 exercicio.carga = cargas[exercicioIdString];
                 atualizacoes++;
             }
@@ -80,16 +83,15 @@ router.patch('/meus-treinos/:rotinaId/cargas', authenticateAlunoToken, async (re
 
         if (atualizacoes > 0) {
             await rotina.save();
-            console.log('--- FIM: Rotina salva com sucesso! ---');
             return res.status(200).json({ message: `${atualizacoes} carga(s) atualizada(s) com sucesso na ficha.` });
         }
-        
-        console.log('--- FIM: Nenhuma carga precisou ser atualizada. ---');
+
         return res.status(200).json({ message: "Nenhuma carga precisou ser atualizada." });
 
-    } catch (error) {
-        next(error);
-    }
+    } catch (error) { next(error); }
 });
+
+router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); try { const hoje = new Date(); const inicioDaSemana = startOfWeek(hoje, { weekStartsOn: 1 }); const fimDaSemana = endOfWeek(hoje, { weekStartsOn: 1 }); const sessoesConcluidas = await Sessao.find({ alunoId: new Types.ObjectId(alunoId), status: 'completed', concluidaEm: { $gte: inicioDaSemana, $lte: fimDaSemana }, }).select('_id sessionDate concluidaEm tipoCompromisso').sort({ concluidaEm: 1 }).lean(); res.status(200).json(sessoesConcluidas); } catch (error) { next(error); } });
+router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) { return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); } const page = parseInt(req.query.page as string) || 1; const limit = parseInt(req.query.limit as string) || 5; const skip = (page - 1) * limit; try { const query = { alunoId: new Types.ObjectId(alunoId), status: 'completed' }; const totalSessoes = await Sessao.countDocuments(query); const sessoes = await Sessao.find(query).sort({ concluidaEm: -1 }).skip(skip).limit(limit).populate({ path: 'rotinaId', select: 'titulo' }).lean(); res.status(200).json({ sessoes, currentPage: page, totalPages: Math.ceil(totalSessoes / limit), totalSessoes, }); } catch (error) { next(error); } });
 
 export default router;
