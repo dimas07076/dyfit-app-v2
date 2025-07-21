@@ -2,27 +2,27 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-// <<< ADIÇÃO: Importa o plugin PWA >>>
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   root: 'client',
 
-  // <<< ALTERAÇÃO: Adiciona a chamada ao plugin VitePWA >>>
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', // Atualiza o app automaticamente para o usuário
+      registerType: 'autoUpdate',
       injectRegister: 'auto',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'], // O que deve ser salvo em cache
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
+        // <<< GARANTA QUE ESTA LINHA ESTEJA PRESENTE E CORRETA >>>
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Define o limite para 5 MB
       },
       manifest: {
         name: 'DyFit',
         short_name: 'DyFit',
         description: 'Seu aplicativo de gestão de treinos personalizado.',
-        theme_color: '#ffffff', // Cor da barra de status do app
-        background_color: '#4f46e5', // Cor da tela de splash
+        theme_color: '#ffffff',
+        background_color: '#4f46e5',
         display: 'standalone',
         scope: '/',
         start_url: '/',
@@ -41,7 +41,7 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable', // Ícone adaptável para diferentes formatos de Android
+            purpose: 'any maskable',
           },
         ],
       },
