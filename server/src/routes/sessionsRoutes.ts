@@ -13,7 +13,7 @@ const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL
 // =======================================================
-
+// (Nenhuma alteração nas rotas do personal)
 router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const personalIdFromToken = req.user?.id;
@@ -47,7 +47,6 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
         next(error);
     }
 });
-
 router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const personalIdFromToken = req.user?.id;
@@ -74,7 +73,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
         next(error);
     }
 });
-
 router.put('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const personalIdFromToken = req.user?.id;
@@ -132,7 +130,6 @@ router.put('/:sessionId', authenticateToken, async (req: Request, res: Response,
         await mongoTransactionSession.endSession();
     }
 });
-
 router.delete('/:sessionId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const personalIdFromToken = req.user?.id;
@@ -148,16 +145,17 @@ router.delete('/:sessionId', authenticateToken, async (req: Request, res: Respon
     }
 });
 
+
 // =======================================================
 // ROTAS DO ALUNO
 // =======================================================
 
-// CORREÇÃO: O prefixo '/aluno' foi adicionado aqui para corresponder à requisição do frontend.
-// Rota Final esperada pelo frontend: POST /api/sessions/aluno/concluir-dia
 router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
-    const { rotinaId, diaDeTreinoId, pseAluno, comentarioAluno } = req.body;
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    const { rotinaId, diaDeTreinoId, pseAluno, comentarioAluno, duracaoSegundos, cargas } = req.body;
+    // <<< FIM DA ALTERAÇÃO >>>
 
     if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." });
     if (!rotinaId || !diaDeTreinoId) return res.status(400).json({ message: "ID da rotina e do dia de treino são obrigatórios." });
@@ -187,6 +185,10 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             diaDeTreinoIdentificador: diaDeTreino.identificadorDia,
             pseAluno: pseAluno || null,
             comentarioAluno: comentarioAluno || null,
+            // <<< INÍCIO DA ALTERAÇÃO >>>
+            duracaoSegundos: duracaoSegundos || 0,
+            cargasExecutadas: cargas || {},
+            // <<< FIM DA ALTERAÇÃO >>>
         });
         await novaSessao.save({ session: mongoTransactionSession });
         rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1;
@@ -201,8 +203,6 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
     }
 });
 
-// <<< CORREÇÃO: Adicionada a rota de feedback que faltava >>>
-// Rota Final: PATCH /api/sessions/:sessionId/feedback
 router.patch('/:sessionId/feedback', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;

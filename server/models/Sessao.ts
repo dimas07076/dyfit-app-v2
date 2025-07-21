@@ -1,7 +1,6 @@
 // server/models/Sessao.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-// <<< CORREÇÃO: Adicionado 'treino' à lista de valores permitidos >>>
 export const TIPOS_COMPROMISSO = ['avaliacao', 'checkin', 'treino_acompanhado', 'outro', 'treino_rotina', 'treino'] as const;
 export type TipoCompromisso = typeof TIPOS_COMPROMISSO[number];
 
@@ -12,6 +11,14 @@ export type OpcaoPSE = typeof OPCOES_PSE[number];
 
 interface IPopulatedAlunoLean { _id: string; nome: string; }
 interface IPopulatedRotinaLean { _id: string; titulo: string; }
+
+// <<< INÍCIO DA ALTERAÇÃO >>>
+// Interface para o mapa de cargas executadas
+interface CargasExecutadasMap {
+  [exercicioDoDiaId: string]: string;
+}
+// <<< FIM DA ALTERAÇÃO >>>
+
 
 export interface ISessaoLean {
   _id: string; 
@@ -28,6 +35,10 @@ export interface ISessaoLean {
   concluidaEm?: string | null; 
   pseAluno?: OpcaoPSE | null;
   comentarioAluno?: string | null;
+  // <<< INÍCIO DA ALTERAÇÃO >>>
+  duracaoSegundos?: number;
+  cargasExecutadas?: CargasExecutadasMap;
+  // <<< FIM DA ALTERAÇÃO >>>
   createdAt?: string;
   updatedAt?: string;
 }
@@ -46,6 +57,10 @@ export interface ISessaoDocument extends Document {
   concluidaEm?: Date | null;
   pseAluno?: OpcaoPSE | null;
   comentarioAluno?: string | null;
+  // <<< INÍCIO DA ALTERAÇÃO >>>
+  duracaoSegundos?: number;
+  cargasExecutadas?: CargasExecutadasMap;
+  // <<< FIM DA ALTERAÇÃO >>>
 }
 
 const SessaoSchema = new Schema<ISessaoDocument>(
@@ -81,7 +96,20 @@ const SessaoSchema = new Schema<ISessaoDocument>(
         trim: true,
         required: false,
         default: null,
+    },
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    duracaoSegundos: {
+        type: Number,
+        required: false,
+        default: 0
+    },
+    cargasExecutadas: {
+        type: Map,
+        of: String,
+        required: false,
+        default: {}
     }
+    // <<< FIM DA ALTERAÇÃO >>>
   },
   {
     timestamps: true, 
