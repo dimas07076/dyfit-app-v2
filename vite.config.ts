@@ -12,39 +12,21 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      
+      // <<< INÍCIO DA ALTERAÇÃO >>>
+      // Garante que o plugin PWA funcione corretamente no modo de desenvolvimento.
+      devOptions: {
+        enabled: true,
+      },
+      // <<< FIM DA ALTERAÇÃO >>>
+      
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
-        // <<< GARANTA QUE ESTA LINHA ESTEJA PRESENTE E CORRETA >>>
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Define o limite para 5 MB
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
-      manifest: {
-        name: 'DyFit',
-        short_name: 'DyFit',
-        description: 'Seu aplicativo de gestão de treinos personalizado.',
-        theme_color: '#ffffff',
-        background_color: '#4f46e5',
-        display: 'standalone',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
-      },
+      // Usaremos o manifest.json da pasta /public, então podemos remover esta seção
+      // para evitar conflitos. O plugin o lerá automaticamente.
+      // manifest: { ... } 
     })
   ],
   

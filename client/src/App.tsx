@@ -12,6 +12,10 @@ import { UserProvider, UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
+// <<< INÍCIO DA ALTERAÇÃO >>>
+import { PWAInstallProvider } from '@/context/PWAInstallContext'; // Importa o novo provedor
+// <<< FIM DA ALTERAÇÃO >>>
+
 
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -30,7 +34,6 @@ const AlunoLoginPage = lazy(() => import("@/pages/public/AlunoLoginPage"));
 const AlunoDashboardPage = lazy(() => import('@/pages/alunos/AlunoDashboardPage'));
 const AlunoFichaDetalhePage = lazy(() => import('@/pages/alunos/AlunoFichaDetalhePage'));
 const AlunoHistoricoPage = lazy(() => import('@/pages/alunos/AlunoHistoricoPage'));
-// <<< ADIÇÃO: Importa a nova página de gerenciamento de rotinas do aluno >>>
 const MeusTreinosPage = lazy(() => import('@/pages/alunos/MeusTreinosPage'));
 const ListarPersonaisPage = lazy(() => import('@/pages/admin/ListarPersonaisPage'));
 const CriarPersonalPage = lazy(() => import('@/pages/admin/CriarPersonalPage'));
@@ -92,8 +95,7 @@ function AppContent() {
 
 function AdminApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AdminProtectedRoute path="/admin" component={AdminDashboardPage} /> <AdminProtectedRoute path="/admin/personais" component={ListarPersonaisPage} /> <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} /> <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} /> <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} /> <AdminProtectedRoute path="/exercises" component={ExercisesIndex} /> <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/admin" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
 function PersonalApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <ProtectedRoute path="/" component={Dashboard} /> <ProtectedRoute path="/alunos" component={StudentsIndex} /> <ProtectedRoute path="/alunos/novo" component={NewStudent} /> <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> <ProtectedRoute path="/treinos" component={TreinosPage} /> <ProtectedRoute path="/exercises" component={ExercisesIndex} /> <ProtectedRoute path="/sessoes" component={SessionsPage} /> <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
-// <<< ALTERAÇÃO: Adiciona a rota para a nova página de gerenciamento de rotinas >>>
-function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> {/* <-- ROTA ADICIONADA AQUI */} <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
+function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
 
 function PublicRoutes() {
   return (
@@ -117,12 +119,16 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <TooltipProvider>
-          <UserProvider>
-            <AlunoProvider>
-              <Toaster />
-              <AppContent />
-            </AlunoProvider>
-          </UserProvider>
+          {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
+          <PWAInstallProvider>
+            <UserProvider>
+              <AlunoProvider>
+                <Toaster />
+                <AppContent />
+              </AlunoProvider>
+            </UserProvider>
+          </PWAInstallProvider>
+          {/* <<< FIM DA ALTERAÇÃO >>> */}
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
