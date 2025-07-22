@@ -2,8 +2,23 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
 import Aluno from '../models/Aluno.js'; 
+// <<< INÍCIO DA CORREÇÃO >>>
+// 1. Importar a função de conexão com o banco de dados.
+import dbConnect from '../lib/dbConnect.js';
+// <<< FIM DA CORREÇÃO >>>
 
 export const authenticateAlunoToken = async (req: Request, res: Response, next: NextFunction) => {
+    // <<< INÍCIO DA CORREÇÃO >>>
+    // 2. Garantir que a conexão com o banco esteja estabelecida ANTES de qualquer operação.
+    // Esta linha resolve o erro "Cannot call 'alunos.findOne()' before initial connection".
+    try {
+        await dbConnect();
+    } catch (dbError) {
+        console.error("[Auth Aluno Middleware] ERRO CRÍTICO: Falha ao conectar ao banco de dados.", dbError);
+        return res.status(500).json({ message: 'Erro interno de conexão com o serviço.' });
+    }
+    // <<< FIM DA CORREÇÃO >>>
+    
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
@@ -19,18 +34,14 @@ export const authenticateAlunoToken = async (req: Request, res: Response, next: 
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-
-        // <<< INÍCIO DA CORREÇÃO >>>
-        // Valida se o ID do aluno está presente no payload do token decodificado.
-        // Isso evita que a consulta ao banco de dados falhe se o token for válido, mas não contiver o ID.
+        
         if (!decoded.id) {
             console.warn(`[Auth Aluno Middleware] Falha: Token válido, mas sem 'id' no payload.`);
             return res.status(403).json({ message: 'Acesso proibido. Token de aluno com formato inválido.' });
         }
-        // <<< FIM DA CORREÇÃO >>>
-
-
+        
         if (decoded.role?.toLowerCase() === 'aluno') {
+            // Agora esta chamada ao banco de dados é segura, pois a conexão já foi garantida.
             const aluno = await Aluno.findById(decoded.id).select('status').lean();
 
             if (!aluno || aluno.status !== 'active') {
@@ -52,6 +63,7 @@ export const authenticateAlunoToken = async (req: Request, res: Response, next: 
         return res.status(403).json({ message: 'Acesso proibido. Esta rota é exclusiva para alunos.' });
 
     } catch (err: any) {
+        // O bloco de erro original foi mantido, mas o erro de Mongoose agora será prevenido.
         console.warn(`[Auth Aluno Middleware] Falha na verificação do token - ${err.name}: ${err.message}`);
         if (err instanceof jwt.TokenExpiredError) {
             return res.status(401).json({ message: 'Sessão de aluno expirada. Faça login novamente.', code: 'TOKEN_EXPIRED' });
