@@ -10,9 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-// <<< INÍCIO DA CORREÇÃO >>>
 import { Loader2, ArrowLeft, ListChecks, Dumbbell, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award, Eye } from 'lucide-react';
-// <<< FIM DA CORREÇÃO >>>
 import VideoPlayerModal from '@/components/dialogs/VideoPlayerModal';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, addSeconds } from 'date-fns';
@@ -121,6 +119,7 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
         </Card>
     );
 };
+// CONTINUAÇÃO...
 
 const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaIniciar: (dia: DiaDeTreinoPopulado) => void; onSelectDiaParaVer: (dia: DiaDeTreinoPopulado) => void; }> = ({ rotina, onSelectDiaParaIniciar, onSelectDiaParaVer }) => {
     
@@ -182,7 +181,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({
         queryKey: ['alunoRotinaDetalhe', rotinaIdUrl],
-        queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`),
+        queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`, undefined, 'aluno'),
         enabled: !!rotinaIdUrl && !!aluno,
     });
     
@@ -198,7 +197,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
     };
 
     const atualizarCargasFichaMutation = useMutation<any, Error, { cargas: Record<string, string> }>({
-        mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, { diaDeTreinoId: diaIdUrl, cargas, }),
+        mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, { diaDeTreinoId: diaIdUrl, cargas }, 'aluno'),
         onSuccess: () => { console.log("Cargas na ficha atualizadas com sucesso!"); queryClientHook.invalidateQueries({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl] }); },
         onError: (error) => { console.error("Erro ao atualizar cargas na ficha:", error.message); }
     });
@@ -234,7 +233,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
             toast({ title: "Erro ao Finalizar Treino", description: err.message, variant: "destructive" });
         },
         onSettled: () => { console.log("onSettled executado: Nenhuma invalidação forçada para 'minhasRotinasAluno'."); },
-        mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload),
+        mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload, 'aluno'),
         onSuccess: (data, variables) => {
             console.log("Mutação no backend bem-sucedida.");
             toast({ title: "Dia de Treino Salvo!", description: "Ótimo trabalho! Agora, conte-nos como foi." });
@@ -242,11 +241,12 @@ const AlunoFichaDetalhePage: React.FC = () => {
             setWorkoutSummary({ sessaoId: data._id, stats: { inicio: variables.dataInicio, fim: dataFim, tempoTotal: variables.payload.duracaoSegundos } });
             atualizarCargasFichaMutation.mutate({ cargas: variables.payload.cargas });
             queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
+            queryClientHook.invalidateQueries({ queryKey: ['statsProgressoAluno', aluno?.id] });
         },
     });
 
     const atualizarFeedbackSessaoMutation = useMutation<{ _id: string }, Error, { sessaoId: string; pseAluno: OpcaoPSEFrontend | null; comentarioAluno: string | null; }>({
-        mutationFn: (payload) => apiRequest('PATCH', `/api/sessions/${payload.sessaoId}/feedback`, payload),
+        mutationFn: (payload) => apiRequest('PATCH', `/api/sessions/${payload.sessaoId}/feedback`, payload, 'aluno'),
         onSuccess: () => {
             toast({ title: "Feedback Enviado!", description: "Obrigado! Redirecionando..." });
             setTimeout(() => { setWorkoutSummary(null); navigateWouter('/aluno/dashboard'); }, 1000);
@@ -256,7 +256,9 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const handleFinishWorkout = (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => {
         if (!rotinaIdUrl || !diaIdUrl) return;
-        finalizarDiaDeTreinoMutation.mutate({ payload: { rotinaId: rotinaIdUrl, diaDeTreinoId: diaIdUrl, duracaoSegundos: payload.duracao, cargas: payload.cargas, }, dataInicio: payload.dataInicio });
+        // <<< INÍCIO DA CORREÇÃO >>>
+        finalizarDiaDeTreinoMutation.mutate({ payload: { rotinaId: rotinaIdUrl, diaDeTreinoId: diaIdUrl, duracaoSegundos: payload.duracao, cargas: payload.cargas }, dataInicio: payload.dataInicio });
+        // <<< FIM DA CORREÇÃO >>>
     };
 
     const handleEnviarFeedback = (feedback: { pse: OpcaoPSEFrontend | null, comentario: string | null }) => {

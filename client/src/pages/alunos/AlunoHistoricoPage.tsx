@@ -25,7 +25,22 @@ const AlunoHistoricoPage: React.FC = () => {
   const SESSIONS_PER_PAGE = 5;
   const [sessaoSelecionada, setSessaoSelecionada] = useState<SessaoHistorico | null>(null);
 
-  const { data: historicoData, isLoading: isLoadingHistorico, error: errorHistorico, isFetching: isFetchingHistorico, } = useQuery<HistoricoSessoesResponse, Error>({ queryKey: ['alunoHistoricoSessoes', aluno?.id, currentPage, SESSIONS_PER_PAGE], queryFn: async () => { if (!aluno?.id) throw new Error("Aluno não autenticado."); return apiRequest<HistoricoSessoesResponse>( 'GET', `/api/aluno/meu-historico-sessoes?page=${currentPage}&limit=${SESSIONS_PER_PAGE}` ); }, enabled: !!aluno, placeholderData: (previousData) => previousData, });
+  const { data: historicoData, isLoading: isLoadingHistorico, error: errorHistorico, isFetching: isFetchingHistorico, } = useQuery<HistoricoSessoesResponse, Error>({
+    queryKey: ['alunoHistoricoSessoes', aluno?.id, currentPage, SESSIONS_PER_PAGE],
+    // <<< INÍCIO DA CORREÇÃO >>>
+    queryFn: async () => {
+      if (!aluno?.id) throw new Error("Aluno não autenticado.");
+      return apiRequest<HistoricoSessoesResponse>(
+        'GET',
+        `/api/aluno/meu-historico-sessoes?page=${currentPage}&limit=${SESSIONS_PER_PAGE}`,
+        undefined,
+        'aluno' // Especifica que o token de aluno deve ser usado
+      );
+    },
+    // <<< FIM DA CORREÇÃO >>>
+    enabled: !!aluno,
+    placeholderData: (previousData) => previousData,
+  });
 
   if (isLoadingHistorico && !historicoData) { return ( <div className="min-h-screen w-full flex items-center justify-center"> <div className="flex flex-col items-center"> <Loader2 className="h-10 w-10 animate-spin text-white mb-3" /> <p className="text-lg text-white">Carregando seu histórico...</p> </div> </div> ); }
   if (errorHistorico) { return ( <div className="p-4"> <div className="bg-red-800/80 border border-red-500 text-white p-4 rounded-lg flex items-center"> <AlertTriangle className="w-5 h-5 mr-3" /> <span>Erro: {errorHistorico.message}</span> </div> </div> ); }
@@ -63,7 +78,6 @@ const AlunoHistoricoPage: React.FC = () => {
                       <CardTitle className="text-lg leading-tight text-gray-900">{sessao.rotinaId?.titulo || 'Sessão Avulsa'}</CardTitle>
                       <CardDescription className="text-sm mt-1">{sessao.diaDeTreinoIdentificador || 'Detalhes não especificados'}{sessao.nomeSubFichaDia && ` - ${sessao.nomeSubFichaDia}`}</CardDescription>
                     </div>
-                    {/* <<< BOTÃO RESTAURADO AQUI >>> */}
                     {sessao.rotinaId && sessao.diaDeTreinoId && (
                       <Button variant="ghost" size="sm" className="text-xs h-8 text-indigo-600 hover:text-indigo-700" onClick={() => setSessaoSelecionada(sessao)}>
                         Ver Detalhes <Eye className="w-3 h-3 ml-1.5"/>

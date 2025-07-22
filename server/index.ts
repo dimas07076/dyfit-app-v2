@@ -19,10 +19,7 @@ import adminRoutes from './src/routes/adminRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
-// <<< INÍCIO DA CORREÇÃO >>>
-// Importar a função de conexão com o banco de dados
 import dbConnect from './lib/dbConnect.js';
-// <<< FIM DA CORREÇÃO >>>
 
 
 // --- CONFIGURAÇÃO DE AMBIENTE ---
@@ -80,8 +77,6 @@ app.use(errorHandler);
 // --- EXPORTAÇÃO E INICIALIZAÇÃO ---
 export default app;
 
-// <<< INÍCIO DA CORREÇÃO >>>
-// A lógica de inicialização agora garante que o DB conecte ANTES do servidor iniciar.
 const startServer = async () => {
   try {
     await dbConnect();
@@ -100,4 +95,3 @@ const startServer = async () => {
 };
 
 startServer();
-// <<< FIM DA CORREÇÃO >>>

@@ -48,7 +48,9 @@ export default function SessaoDetalheModal({ sessao, onClose }: SessaoDetalheMod
 
   const { data: detalhesRotina, isLoading, error, isSuccess } = useQuery<RotinaCompletaPopulado, Error>({
     queryKey: ['detalhesRotinaHistorico', sessao?.rotinaId?._id],
-    queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${sessao!.rotinaId!._id}`),
+    // <<< INÍCIO DA CORREÇÃO >>>
+    queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${sessao!.rotinaId!._id}`, undefined, 'aluno'),
+    // <<< FIM DA CORREÇÃO >>>
     enabled: isModalOpen && !!sessao?.rotinaId?._id,
   });
 
@@ -131,7 +133,6 @@ export default function SessaoDetalheModal({ sessao, onClose }: SessaoDetalheMod
                                               <PlayCircle className="w-5 h-5 text-red-500"/>
                                           </Button>
                                       ) : (
-                                        // <<< CORREÇÃO: Ícone envolvido por um span com a propriedade 'title' >>>
                                         <span title="Vídeo não disponível">
                                           <VideoOff className="w-5 h-5 text-muted-foreground" />
                                         </span>

@@ -1,24 +1,31 @@
 // client/lib/queryClient.ts
 import { QueryClient } from "@tanstack/react-query";
 // Etapa 1: Importar o AuthError que criamos no apiClient.
-import { fetchWithAuth, AuthError } from './apiClient';
+import { fetchWithAuth, AuthError, TokenType } from './apiClient';
 
 const retryDelay = (attemptIndex: number) => {
   return Math.min(1000 * 2 ** attemptIndex, 30000); 
 }
 
+// <<< INÍCIO DA ALTERAÇÃO >>>
+// Adicionamos um quarto parâmetro opcional 'tokenType' para especificar qual token usar.
 export async function apiRequest<T = unknown>(
   method: string,
   url: string,
   data?: unknown | undefined,
+  tokenType: TokenType = 'personalAdmin' // Valor padrão para manter a compatibilidade
 ): Promise<T> {
+// <<< FIM DA ALTERAÇÃO >>>
   const relativeUrl = url.startsWith('/') ? url : `/${url}`;
   const options: RequestInit = { method };
   if (data !== undefined) {
     options.body = JSON.stringify(data);
   }
   try {
-    return await fetchWithAuth<T>(relativeUrl, options);
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    // Passamos o 'tokenType' para a função fetchWithAuth.
+    return await fetchWithAuth<T>(relativeUrl, options, tokenType);
+    // <<< FIM DA ALTERAÇÃO >>>
   } catch (error) {
     throw error;
   }

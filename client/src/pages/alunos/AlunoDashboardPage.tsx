@@ -13,6 +13,7 @@ import { format, parseISO, isValid as isDateValidFn, nextDay, Day, differenceInD
 import { ptBR } from 'date-fns/locale';
 import FrequenciaSemanal from '../../components/alunos/FrequenciaSemanal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 // --- Interfaces ---
@@ -21,8 +22,12 @@ interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDe
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; dataSugeridaFormatada?: string; concluidoNestaSemana?: boolean; }
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; tipo: "modelo" | "individual"; alunoId?: { _id: string; nome: string; email?: string; } | string | null; criadorId?: { _id: string; nome: string; email?: string; } | string; tipoOrganizacaoRotina: 'diasDaSemana' | 'numerico' | 'livre'; diasDeTreino: DiaDeTreinoPopulado[]; pastaId?: { _id: string; nome: string; } | string | null; statusModelo?: "ativo" | "rascunho" | "arquivado"; ordemNaPasta?: number; dataValidade?: string | null; totalSessoesRotinaPlanejadas?: number | null; sessoesRotinaConcluidas: number; criadoEm: string; atualizadoEm?: string; }
 interface SessaoConcluidaParaFrequencia { _id: string; sessionDate: string | Date; tipoCompromisso?: string; }
+interface ProgressoStats {
+  totalTreinosConcluidos: number;
+  mediaPSE: string | number;
+  diasConsecutivos: number;
+}
 
-// <<< INÍCIO DO NOVO COMPONENTE >>>
 const DiaDetalhesModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -61,7 +66,6 @@ const DiaDetalhesModal: React.FC<{
     </Dialog>
   );
 };
-// <<< FIM DO NOVO COMPONENTE >>>
 
 const weekDayMap: { [key: string]: Day } = { 'domingo': 0, 'segunda-feira': 1, 'terca-feira': 2, 'quarta-feira': 3, 'quinta-feira': 4, 'sexta-feira': 5, 'sabado': 6 };
 const getNextDateForWeekday = (weekdayName: string): Date | null => {
@@ -70,7 +74,6 @@ const getNextDateForWeekday = (weekdayName: string): Date | null => {
     if (targetDayIndex === undefined) { return null; }
     return nextDay(new Date(), targetDayIndex as Day);
 };
-// CONTINUAÇÃO...
 
 const AlunoDashboardPage: React.FC = () => {
   const { aluno } = useAluno();
@@ -79,18 +82,26 @@ const AlunoDashboardPage: React.FC = () => {
     if (aluno) { return localStorage.getItem(`activeRotinaId_${aluno.id}`); }
     return null;
   });
-  // <<< INÍCIO DA ALTERAÇÃO >>>
-  // Novo estado para controlar o modal de detalhes
   const [diaParaVerDetalhes, setDiaParaVerDetalhes] = useState<DiaDeTreinoPopulado | null>(null);
-  // <<< FIM DA ALTERAÇÃO >>>
 
   const { data: minhasRotinas, isLoading: isLoadingRotinas, error: errorRotinas } = useQuery<RotinaDeTreinoAluno[], Error>({
     queryKey: ['minhasRotinasAluno', aluno?.id],
     queryFn: async () => {
       if (!aluno?.id) throw new Error("Aluno não autenticado.");
-      const rotinasDoAluno = await apiRequest<RotinaDeTreinoAluno[]>('GET', '/api/aluno/meus-treinos');
+      // <<< INÍCIO DA CORREÇÃO >>>
+      const rotinasDoAluno = await apiRequest<RotinaDeTreinoAluno[]>('GET', '/api/aluno/meus-treinos', undefined, 'aluno');
+      // <<< FIM DA CORREÇÃO >>>
       return rotinasDoAluno.sort((a, b) => new Date(b.atualizadoEm || b.criadoEm).getTime() - new Date(a.atualizadoEm || a.criadoEm).getTime());
     },
+    enabled: !!aluno,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: statsProgresso, isLoading: isLoadingStats } = useQuery<ProgressoStats, Error>({
+    queryKey: ['statsProgressoAluno', aluno?.id],
+    // <<< INÍCIO DA CORREÇÃO >>>
+    queryFn: () => apiRequest<ProgressoStats>('GET', '/api/aluno/stats-progresso', undefined, 'aluno'),
+    // <<< FIM DA CORREÇÃO >>>
     enabled: !!aluno,
     staleTime: 1000 * 60 * 5,
   });
@@ -130,7 +141,9 @@ const AlunoDashboardPage: React.FC = () => {
     queryKey: ['frequenciaSemanalAluno', aluno?.id],
     queryFn: async () => {
       if (!aluno?.id) throw new Error("Aluno não autenticado.");
-      return apiRequest<SessaoConcluidaParaFrequencia[]>('GET', '/api/aluno/minhas-sessoes-concluidas-na-semana');
+      // <<< INÍCIO DA CORREÇÃO >>>
+      return apiRequest<SessaoConcluidaParaFrequencia[]>('GET', '/api/aluno/minhas-sessoes-concluidas-na-semana', undefined, 'aluno');
+      // <<< FIM DA CORREÇÃO >>>
     },
     enabled: !!aluno,
     staleTime: 1000 * 60 * 1,
@@ -177,7 +190,7 @@ const AlunoDashboardPage: React.FC = () => {
 
   const { proximoDiaSugerido, alertaRotina } = getProximoDiaEAlerta();
 
-  if (isLoadingRotinas || isLoadingFrequencia || !aluno) {
+  if (isLoadingRotinas || isLoadingFrequencia || !aluno || isLoadingStats) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-400">
         <Loader2 className="h-10 w-10 animate-spin text-white" />
@@ -248,7 +261,6 @@ const AlunoDashboardPage: React.FC = () => {
           <CardFooter className="flex-col items-stretch gap-3 pt-4">
             {rotinaAtiva && proximoDiaSugerido && !alertaRotina?.mensagem.includes("expirou") && !alertaRotina?.mensagem.includes("concluiu") ? (
               <>
-                {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
                 <div className="flex flex-col sm:flex-row gap-2">
                     <Button variant="outline" className="w-full sm:w-auto" onClick={() => setDiaParaVerDetalhes(proximoDiaSugerido)}>
                         <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
@@ -261,7 +273,6 @@ const AlunoDashboardPage: React.FC = () => {
                     <Replace className="w-4 h-4 mr-2" />
                     Escolher outro treino
                 </Button>
-                {/* <<< FIM DA ALTERAÇÃO >>> */}
               </>
             ) : (
                 <Button size="lg" className="w-full font-bold text-base bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => navigate('/aluno/meus-treinos')}>
@@ -296,18 +307,37 @@ const AlunoDashboardPage: React.FC = () => {
                 </div>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-600">Total de Treinos Concluídos</span>
-                    <span className="font-bold text-lg text-gray-800">{sessoesConcluidasNaSemanaGeral?.length || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-600">Média de PSE</span>
-                    <span className="font-bold text-lg text-gray-400">N/D</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-600">Dias Consecutivos</span>
-                    <span className="font-bold text-lg text-gray-400">N/D</span>
-                </div>
+                {isLoadingStats ? (
+                    <>
+                        <div className="flex justify-between items-center p-3">
+                            <Skeleton className="h-5 w-40" />
+                            <Skeleton className="h-6 w-10" />
+                        </div>
+                        <div className="flex justify-between items-center p-3">
+                            <Skeleton className="h-5 w-24" />
+                            <Skeleton className="h-6 w-10" />
+                        </div>
+                        <div className="flex justify-between items-center p-3">
+                            <Skeleton className="h-5 w-32" />
+                            <Skeleton className="h-6 w-10" />
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span className="text-gray-600">Total de Treinos Concluídos</span>
+                            <span className="font-bold text-lg text-gray-800">{statsProgresso?.totalTreinosConcluidos ?? 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span className="text-gray-600">Média de PSE</span>
+                            <span className="font-bold text-lg text-gray-800">{statsProgresso?.mediaPSE ?? 'N/D'}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span className="text-gray-600">Dias Consecutivos</span>
+                            <span className="font-bold text-lg text-gray-800">{statsProgresso?.diasConsecutivos ?? 0}</span>
+                        </div>
+                    </>
+                )}
             </CardContent>
             <CardFooter>
                 <Button variant="outline" className="w-full border-gray-300 text-gray-700" disabled>
@@ -337,8 +367,6 @@ const AlunoDashboardPage: React.FC = () => {
         </Card>
       </div>
       
-      {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
-      {/* Renderização do novo modal de detalhes */}
       <DiaDetalhesModal
         isOpen={!!diaParaVerDetalhes}
         onClose={() => setDiaParaVerDetalhes(null)}
@@ -350,7 +378,6 @@ const AlunoDashboardPage: React.FC = () => {
         }}
         diaDeTreino={diaParaVerDetalhes}
       />
-      {/* <<< FIM DA ALTERAÇÃO >>> */}
     </div>
   );
 };
