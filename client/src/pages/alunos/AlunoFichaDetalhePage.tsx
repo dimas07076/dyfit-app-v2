@@ -21,7 +21,7 @@ import { WorkoutExerciseCard } from '@/components/alunos/WorkoutExerciseCard';
 interface ExercicioDetalhePopulado { _id: string; nome: string; urlVideo?: string; }
 interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; }
-interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; diasDeTreino: DiaDeTreinoPopulado[]; dataValidade?: string | null; }
+interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; diasDeTreino: DiaDeTreinoPopulado[]; dataValidade?: string | null; sessoesRotinaConcluidas: number; }
 type ExercicioRenderizavel = Omit<ExercicioEmDiaDeTreinoPopulado, 'exercicioId'> & { _id: string; exercicioDetalhes: ExercicioDetalhePopulado | null; };
 const OPCOES_PSE_FRONTEND = [ 'Muito Leve', 'Leve', 'Moderado', 'Intenso', 'Muito Intenso', 'Máximo Esforço'] as const;
 type OpcaoPSEFrontend = typeof OPCOES_PSE_FRONTEND[number];
@@ -187,7 +187,6 @@ const AlunoFichaDetalhePage: React.FC = () => {
     const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl], queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`), enabled: !!rotinaIdUrl && !!aluno, });
     const diaDeTreinoAtivo = useMemo(() => { if (!rotinaDetalhes || !diaIdUrl) return null; return rotinaDetalhes.diasDeTreino.find(d => d._id === diaIdUrl) || null; }, [rotinaDetalhes, diaIdUrl]);
 
-    // NOVA MUTATION: para atualizar as cargas na ficha
     const atualizarCargasFichaMutation = useMutation<any, Error, { cargas: Record<string, string> }>({
         mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, {
             diaDeTreinoId: diaIdUrl,
@@ -202,25 +201,65 @@ const AlunoFichaDetalhePage: React.FC = () => {
         }
     });
 
-    const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload, dataInicio: Date }>({
+    const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload, dataInicio: Date }, { previousRotinas: RotinaDeTreinoAluno[] | undefined }>({
+        onMutate: async () => {
+            console.log("Iniciando mutação otimista...");
+            await queryClientHook.cancelQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
+
+            const previousRotinas = queryClientHook.getQueryData<RotinaDeTreinoAluno[]>(['minhasRotinasAluno', aluno?.id]);
+
+            if (previousRotinas) {
+                const novasRotinas = previousRotinas.map(rotina => {
+                    if (rotina._id === rotinaIdUrl) {
+                        const sessoesConcluidasAtualizado = (rotina.sessoesRotinaConcluidas || 0) + 1;
+                        
+                        const diaConcluidoIndex = rotina.diasDeTreino.findIndex(dia => dia._id === diaIdUrl);
+                        if (diaConcluidoIndex > -1) {
+                            const diaConcluido = rotina.diasDeTreino.splice(diaConcluidoIndex, 1)[0];
+                            rotina.diasDeTreino.push(diaConcluido);
+                        }
+
+                        console.log(`Atualização otimista: Rotina ${rotina.titulo} agora tem ${sessoesConcluidasAtualizado} sessões concluídas.`);
+                        return { ...rotina, sessoesRotinaConcluidas: sessoesConcluidasAtualizado };
+                    }
+                    return rotina;
+                });
+                queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], novasRotinas);
+            }
+            return { previousRotinas };
+        },
+        // <<< INÍCIO DA CORREÇÃO >>>
+        // Corrigimos a assinatura da função para corresponder ao uso real,
+        // usando underscores para indicar parâmetros não utilizados.
+        onError: (err, _newTodo, context) => {
+            console.error("Mutação otimista falhou. Revertendo cache.");
+            if (context?.previousRotinas) {
+                queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], context.previousRotinas);
+            }
+            toast({ title: "Erro ao Finalizar Treino", description: err.message, variant: "destructive" });
+        },
+        // <<< FIM DA CORREÇÃO >>>
+        onSettled: () => {
+            queryClientHook.invalidateQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
+        },
         mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload),
         onSuccess: (data, variables) => {
+            console.log("Mutação no backend bem-sucedida.");
             toast({ title: "Dia de Treino Salvo!", description: "Ótimo trabalho! Agora, conte-nos como foi." });
+
             const dataFim = addSeconds(variables.dataInicio, variables.payload.duracaoSegundos);
             setWorkoutSummary({ sessaoId: data._id, stats: { inicio: variables.dataInicio, fim: dataFim, tempoTotal: variables.payload.duracaoSegundos } });
             
             atualizarCargasFichaMutation.mutate({ cargas: variables.payload.cargas });
+            queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
         },
-        onError: (error) => toast({ title: "Erro ao Finalizar Treino", description: error.message, variant: "destructive" }),
     });
 
     const atualizarFeedbackSessaoMutation = useMutation<{ _id: string }, Error, { sessaoId: string; pseAluno: OpcaoPSEFrontend | null; comentarioAluno: string | null; }>({
         mutationFn: (payload) => apiRequest('PATCH', `/api/sessions/${payload.sessaoId}/feedback`, payload),
         onSuccess: () => {
-            toast({ title: "Feedback Enviado!", description: "Obrigado!" });
+            toast({ title: "Feedback Enviado!", description: "Obrigado! Redirecionando..." });
             setWorkoutSummary(null);
-            queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
-            queryClientHook.invalidateQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
             setTimeout(() => { navigateWouter('/aluno/dashboard'); }, 1000);
         },
         onError: (error) => toast({ title: "Erro ao Enviar Feedback", description: error.message, variant: "destructive" }),
@@ -228,10 +267,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const handleFinishWorkout = (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => {
         if (!rotinaIdUrl || !diaIdUrl) return;
-        finalizarDiaDeTreinoMutation.mutate({
-            payload: { rotinaId: rotinaIdUrl, diaDeTreinoId: diaIdUrl, duracaoSegundos: payload.duracao, cargas: payload.cargas, },
-            dataInicio: payload.dataInicio
-        });
+        finalizarDiaDeTreinoMutation.mutate({ payload: { rotinaId: rotinaIdUrl, diaDeTreinoId: diaIdUrl, duracaoSegundos: payload.duracao, cargas: payload.cargas, }, dataInicio: payload.dataInicio });
     };
 
     const handleEnviarFeedback = (feedback: { pse: OpcaoPSEFrontend | null, comentario: string | null }) => {

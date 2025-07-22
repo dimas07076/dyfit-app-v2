@@ -1,0 +1,3 @@
+# Ignorar arquivos e diretórios relacionados ao Drizzle que não são para produção
+drizzle.config.ts
+/migrations

@@ -13,7 +13,7 @@ import { format, parseISO, isValid as isDateValidFn, nextDay, Day, differenceInD
 import { ptBR } from 'date-fns/locale';
 import FrequenciaSemanal from '../../components/alunos/FrequenciaSemanal';
 
-// --- Interfaces e Helpers (sem alterações) ---
+// --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; grupoMuscular?: string; urlVideo?: string; descricao?: string; categoria?: string; tipo?: string; }
 interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string; series?: string; repeticoes?: string; carga?: string; descanso?: string; observacoes?: string; ordemNoDia: number; concluido?: boolean; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; dataSugeridaFormatada?: string; concluidoNestaSemana?: boolean; }
@@ -31,38 +31,136 @@ const getNextDateForWeekday = (weekdayName: string): Date | null => {
 const AlunoDashboardPage: React.FC = () => {
   const { aluno } = useAluno();
   const [, navigate] = useLocation();
-
-  // --- Lógica de busca de dados e estados (sem alterações) ---
   const [activeRotinaId, setActiveRotinaId] = useState<string | null>(() => {
     if (aluno) { return localStorage.getItem(`activeRotinaId_${aluno.id}`); }
     return null;
   });
-  const { data: minhasRotinas, isLoading: isLoadingRotinas, error: errorRotinas } = useQuery<RotinaDeTreinoAluno[], Error>({ queryKey: ['minhasRotinasAluno', aluno?.id], queryFn: async () => { if (!aluno?.id) throw new Error("Aluno não autenticado."); const rotinasDoAluno = await apiRequest<RotinaDeTreinoAluno[]>('GET', '/api/aluno/meus-treinos'); return rotinasDoAluno.sort((a, b) => new Date(b.atualizadoEm || b.criadoEm).getTime() - new Date(a.atualizadoEm || a.criadoEm).getTime()); }, enabled: !!aluno, staleTime: 1000 * 60 * 5, });
-  useEffect(() => { if (!aluno) return; const handleSyncActiveRotina = () => { if (minhasRotinas && minhasRotinas.length > 0) { const currentId = localStorage.getItem(`activeRotinaId_${aluno.id}`); const rotinaExiste = minhasRotinas.some(r => r._id === currentId); if (!currentId || !rotinaExiste) { const defaultActiveId = minhasRotinas[0]._id; localStorage.setItem(`activeRotinaId_${aluno.id}`, defaultActiveId); setActiveRotinaId(defaultActiveId); } else { setActiveRotinaId(currentId); } } }; handleSyncActiveRotina(); const handleStorageChange = (event: StorageEvent) => { if (event.key === `activeRotinaId_${aluno.id}`) { setActiveRotinaId(event.newValue); } }; window.addEventListener('storage', handleStorageChange); return () => { window.removeEventListener('storage', handleStorageChange); }; }, [minhasRotinas, aluno]);
-  const rotinaAtiva = useMemo(() => { if (!minhasRotinas || !activeRotinaId) return null; return minhasRotinas.find(r => r._id === activeRotinaId) || minhasRotinas[0] || null; }, [minhasRotinas, activeRotinaId]);
-  const { data: sessoesConcluidasNaSemanaGeral, isLoading: isLoadingFrequencia } = useQuery<SessaoConcluidaParaFrequencia[], Error>({ queryKey: ['frequenciaSemanalAluno', aluno?.id], queryFn: async () => { if (!aluno?.id) throw new Error("Aluno não autenticado."); return apiRequest<SessaoConcluidaParaFrequencia[]>('GET', '/api/aluno/minhas-sessoes-concluidas-na-semana'); }, enabled: !!aluno, staleTime: 1000 * 60 * 1, });
-  const { proximoDiaSugerido, alertaRotina } = useMemo(() => { if (!rotinaAtiva || !rotinaAtiva.diasDeTreino || rotinaAtiva.diasDeTreino.length === 0) { return { proximoDiaSugerido: null, alertaRotina: { tipo: 'warning', mensagem: 'Sua rotina ativa está vazia. Fale com seu personal ou escolha outra rotina.' } }; } const diasDaRotinaComData = [...rotinaAtiva.diasDeTreino].map(dia => { let dataSugeridaFormatada; if (rotinaAtiva.tipoOrganizacaoRotina === 'diasDaSemana' && dia.identificadorDia) { const nextDate = getNextDateForWeekday(dia.identificadorDia); if (nextDate) { dataSugeridaFormatada = format(nextDate, "EEEE, dd/MM", { locale: ptBR }); } } return { ...dia, dataSugeridaFormatada }; }).sort((a, b) => a.ordemNaRotina - b.ordemNaRotina); let alerta: { tipo: 'warning' | 'info'; mensagem: string } | null = null; if (rotinaAtiva.dataValidade) { const dataValidadeDate = parseISO(rotinaAtiva.dataValidade); const hoje = new Date(); if (isDateValidFn(dataValidadeDate)) { const diasParaExpirar = differenceInDays(dataValidadeDate, hoje); if (diasParaExpirar < 0) { alerta = { tipo: 'warning', mensagem: 'Esta rotina expirou! Fale com seu personal para obter uma nova.' }; } else if (diasParaExpirar <= 7) { alerta = { tipo: 'warning', mensagem: `Atenção: Sua rotina expira em ${diasParaExpirar + 1} dia(s)!` }; } } } if (!alerta && rotinaAtiva.totalSessoesRotinaPlanejadas && rotinaAtiva.sessoesRotinaConcluidas >= rotinaAtiva.totalSessoesRotinaPlanejadas) { alerta = { tipo: 'info', mensagem: 'Parabéns, você concluiu esta rotina! Fale com seu personal para os próximos passos.' }; } const proximoDia = diasDaRotinaComData[0] || null; return { proximoDiaSugerido: proximoDia, alertaRotina: alerta }; }, [rotinaAtiva]);
 
-  if (isLoadingRotinas || isLoadingFrequencia || !aluno) { 
-    return ( <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-400"> <Loader2 className="h-10 w-10 animate-spin text-white" /> <span className="ml-4 text-lg text-white">Carregando seu painel...</span> </div> );
-  }
-  if (errorRotinas) { 
-      return ( <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white"> <Alert variant="destructive" className="bg-red-800/80 border-red-500 text-white"> <AlertTitle>Erro de Conexão</AlertTitle> <AlertDescription>Não foi possível carregar suas rotinas de treino. Por favor, tente novamente mais tarde.</AlertDescription> </Alert> </div> );
+  const { data: minhasRotinas, isLoading: isLoadingRotinas, error: errorRotinas } = useQuery<RotinaDeTreinoAluno[], Error>({
+    queryKey: ['minhasRotinasAluno', aluno?.id],
+    queryFn: async () => {
+      if (!aluno?.id) throw new Error("Aluno não autenticado.");
+      const rotinasDoAluno = await apiRequest<RotinaDeTreinoAluno[]>('GET', '/api/aluno/meus-treinos');
+      return rotinasDoAluno.sort((a, b) => new Date(b.atualizadoEm || b.criadoEm).getTime() - new Date(a.atualizadoEm || a.criadoEm).getTime());
+    },
+    enabled: !!aluno,
+    // <<< INÍCIO DA CORREÇÃO >>>
+    // Revertemos o staleTime para um valor razoável (o original de 5 minutos).
+    // Isso melhora a performance ao evitar chamadas de rede desnecessárias.
+    // A atualização dos dados é garantida pelo `refetchQueries` que implementamos
+    // no arquivo AlunoFichaDetalhePage.tsx, que é a solução correta e mais precisa.
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    // <<< FIM DA CORREÇÃO >>>
+  });
+
+  useEffect(() => {
+    if (!aluno) return; // Alterado para aluno em vez de aluno.id para evitar erro se aluno for null
+
+    const handleSyncActiveRotina = () => {
+      if (minhasRotinas && minhasRotinas.length > 0) {
+        const currentId = localStorage.getItem(`activeRotinaId_${aluno.id}`);
+        const rotinaExiste = minhasRotinas.some(r => r._id === currentId);
+        if (!currentId || !rotinaExiste) {
+          const defaultActiveId = minhasRotinas[0]._id;
+          localStorage.setItem(`activeRotinaId_${aluno.id}`, defaultActiveId);
+          setActiveRotinaId(defaultActiveId);
+        } else {
+          setActiveRotinaId(currentId);
+        }
+      }
+    };
+
+    handleSyncActiveRotina();
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === `activeRotinaId_${aluno.id}`) {
+        setActiveRotinaId(event.newValue);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [minhasRotinas, aluno]);
+
+  const rotinaAtiva = useMemo(() => {
+    if (!minhasRotinas || !activeRotinaId) return null;
+    return minhasRotinas.find(r => r._id === activeRotinaId) || minhasRotinas[0] || null;
+  }, [minhasRotinas, activeRotinaId]);
+
+  const { data: sessoesConcluidasNaSemanaGeral, isLoading: isLoadingFrequencia } = useQuery<SessaoConcluidaParaFrequencia[], Error>({
+    queryKey: ['frequenciaSemanalAluno', aluno?.id],
+    queryFn: async () => {
+      if (!aluno?.id) throw new Error("Aluno não autenticado.");
+      return apiRequest<SessaoConcluidaParaFrequencia[]>('GET', '/api/aluno/minhas-sessoes-concluidas-na-semana');
+    },
+    enabled: !!aluno,
+    staleTime: 1000 * 60 * 1,
+  });
+
+  const { proximoDiaSugerido, alertaRotina } = useMemo(() => {
+    if (!rotinaAtiva || !rotinaAtiva.diasDeTreino || rotinaAtiva.diasDeTreino.length === 0) {
+      return { proximoDiaSugerido: null, alertaRotina: { tipo: 'warning', mensagem: 'Sua rotina ativa está vazia. Fale com seu personal ou escolha outra rotina.' } };
+    }
+    const diasDaRotinaComData = [...rotinaAtiva.diasDeTreino].map(dia => {
+      let dataSugeridaFormatada;
+      if (rotinaAtiva.tipoOrganizacaoRotina === 'diasDaSemana' && dia.identificadorDia) {
+        const nextDate = getNextDateForWeekday(dia.identificadorDia);
+        if (nextDate) {
+          dataSugeridaFormatada = format(nextDate, "EEEE, dd/MM", { locale: ptBR });
+        }
+      }
+      return { ...dia, dataSugeridaFormatada };
+    }).sort((a, b) => a.ordemNaRotina - b.ordemNaRotina);
+
+    let alerta: { tipo: 'warning' | 'info'; mensagem: string } | null = null;
+    if (rotinaAtiva.dataValidade) {
+      const dataValidadeDate = parseISO(rotinaAtiva.dataValidade);
+      const hoje = new Date();
+      if (isDateValidFn(dataValidadeDate)) {
+        const diasParaExpirar = differenceInDays(dataValidadeDate, hoje);
+        if (diasParaExpirar < 0) {
+          alerta = { tipo: 'warning', mensagem: 'Esta rotina expirou! Fale com seu personal para obter uma nova.' };
+        } else if (diasParaExpirar <= 7) {
+          alerta = { tipo: 'warning', mensagem: `Atenção: Sua rotina expira em ${diasParaExpirar + 1} dia(s)!` };
+        }
+      }
+    }
+    if (!alerta && rotinaAtiva.totalSessoesRotinaPlanejadas && rotinaAtiva.sessoesRotinaConcluidas >= rotinaAtiva.totalSessoesRotinaPlanejadas) {
+      alerta = { tipo: 'info', mensagem: 'Parabéns, você concluiu esta rotina! Fale com seu personal para os próximos passos.' };
+    }
+    const proximoDia = diasDaRotinaComData[0] || null;
+    return { proximoDiaSugerido: proximoDia, alertaRotina: alerta };
+  }, [rotinaAtiva]);
+
+  if (isLoadingRotinas || isLoadingFrequencia || !aluno) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-400">
+        <Loader2 className="h-10 w-10 animate-spin text-white" />
+        <span className="ml-4 text-lg text-white">Carregando seu painel...</span>
+      </div>
+    );
   }
 
-  // --- RENDERIZAÇÃO DO NOVO DASHBOARD ESTILIZADO ---
+  if (errorRotinas) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
+        <Alert variant="destructive" className="bg-red-800/80 border-red-500 text-white">
+          <AlertTitle>Erro de Conexão</AlertTitle>
+          <AlertDescription>Não foi possível carregar suas rotinas de treino. Por favor, tente novamente mais tarde.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+  
   return (
-    // Removido o fundo gradiente e o padding daqui, pois serão controlados pelo MainLayout
     <div className="min-h-screen text-white"> 
-      {/* Cabeçalho */}
       <div className="mb-6">
           <h1 className="text-3xl font-bold">Olá, {aluno.nome?.split(' ')[0] || 'Aluno'}!</h1>
           <p className="text-lg mt-1 opacity-90">Pronto para o seu próximo desafio?</p>
       </div>
-
       <div className="space-y-6">
-        
-        {/* Card: Treino do Dia (Estilizado) */}
         <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -81,7 +179,6 @@ const AlunoDashboardPage: React.FC = () => {
                     <AlertDescription>{alertaRotina.mensagem}</AlertDescription>
                 </Alert>
             )}
-
             {rotinaAtiva && proximoDiaSugerido && !alertaRotina?.mensagem.includes("expirou") && !alertaRotina?.mensagem.includes("concluiu") ? (
                 <>
                     <div>
@@ -125,8 +222,6 @@ const AlunoDashboardPage: React.FC = () => {
             )}
           </CardFooter>
         </Card>
-
-        {/* Outros Cards (Estilizados) */}
         <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
             <CardHeader>
                 <div className="flex items-center gap-3">
@@ -144,7 +239,6 @@ const AlunoDashboardPage: React.FC = () => {
                 </Button>
             </CardFooter>
         </Card>
-
         <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
             <CardHeader>
                 <div className="flex items-center gap-3">
@@ -173,7 +267,6 @@ const AlunoDashboardPage: React.FC = () => {
                 </Button>
             </CardFooter>
         </Card>
-
         <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
             <CardHeader>
                 <div className="flex items-center gap-3">
