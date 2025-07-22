@@ -1,5 +1,5 @@
 // client/src/pages/alunos/AlunoDashboardPage.tsx
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAluno } from '../../context/AlunoContext';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../../components/ui/card';
@@ -44,17 +44,11 @@ const AlunoDashboardPage: React.FC = () => {
       return rotinasDoAluno.sort((a, b) => new Date(b.atualizadoEm || b.criadoEm).getTime() - new Date(a.atualizadoEm || a.criadoEm).getTime());
     },
     enabled: !!aluno,
-    // <<< INÍCIO DA CORREÇÃO >>>
-    // Revertemos o staleTime para um valor razoável (o original de 5 minutos).
-    // Isso melhora a performance ao evitar chamadas de rede desnecessárias.
-    // A atualização dos dados é garantida pelo `refetchQueries` que implementamos
-    // no arquivo AlunoFichaDetalhePage.tsx, que é a solução correta e mais precisa.
-    staleTime: 1000 * 60 * 5, // 5 minutos
-    // <<< FIM DA CORREÇÃO >>>
+    staleTime: 1000 * 60 * 5,
   });
 
   useEffect(() => {
-    if (!aluno) return; // Alterado para aluno em vez de aluno.id para evitar erro se aluno for null
+    if (!aluno) return;
 
     const handleSyncActiveRotina = () => {
       if (minhasRotinas && minhasRotinas.length > 0) {
@@ -84,11 +78,6 @@ const AlunoDashboardPage: React.FC = () => {
     };
   }, [minhasRotinas, aluno]);
 
-  const rotinaAtiva = useMemo(() => {
-    if (!minhasRotinas || !activeRotinaId) return null;
-    return minhasRotinas.find(r => r._id === activeRotinaId) || minhasRotinas[0] || null;
-  }, [minhasRotinas, activeRotinaId]);
-
   const { data: sessoesConcluidasNaSemanaGeral, isLoading: isLoadingFrequencia } = useQuery<SessaoConcluidaParaFrequencia[], Error>({
     queryKey: ['frequenciaSemanalAluno', aluno?.id],
     queryFn: async () => {
@@ -98,10 +87,19 @@ const AlunoDashboardPage: React.FC = () => {
     enabled: !!aluno,
     staleTime: 1000 * 60 * 1,
   });
+  
+  // <<< INÍCIO DA ALTERAÇÃO >>>
+  // Lógica removida dos hooks 'useMemo' e calculada diretamente.
+  
+  // 1. Cálculo da rotinaAtiva
+  const rotinaAtiva = (minhasRotinas && activeRotinaId) 
+    ? minhasRotinas.find(r => r._id === activeRotinaId) || minhasRotinas[0] || null
+    : null;
 
-  const { proximoDiaSugerido, alertaRotina } = useMemo(() => {
+  // 2. Função para calcular o próximo dia sugerido e alertas
+  const getProximoDiaEAlerta = () => {
     if (!rotinaAtiva || !rotinaAtiva.diasDeTreino || rotinaAtiva.diasDeTreino.length === 0) {
-      return { proximoDiaSugerido: null, alertaRotina: { tipo: 'warning', mensagem: 'Sua rotina ativa está vazia. Fale com seu personal ou escolha outra rotina.' } };
+      return { proximoDiaSugerido: null, alertaRotina: { tipo: 'warning' as const, mensagem: 'Sua rotina ativa está vazia. Fale com seu personal ou escolha outra rotina.' } };
     }
     const diasDaRotinaComData = [...rotinaAtiva.diasDeTreino].map(dia => {
       let dataSugeridaFormatada;
@@ -121,18 +119,24 @@ const AlunoDashboardPage: React.FC = () => {
       if (isDateValidFn(dataValidadeDate)) {
         const diasParaExpirar = differenceInDays(dataValidadeDate, hoje);
         if (diasParaExpirar < 0) {
-          alerta = { tipo: 'warning', mensagem: 'Esta rotina expirou! Fale com seu personal para obter uma nova.' };
+          alerta = { tipo: 'warning' as const, mensagem: 'Esta rotina expirou! Fale com seu personal para obter uma nova.' };
         } else if (diasParaExpirar <= 7) {
-          alerta = { tipo: 'warning', mensagem: `Atenção: Sua rotina expira em ${diasParaExpirar + 1} dia(s)!` };
+          alerta = { tipo: 'warning' as const, mensagem: `Atenção: Sua rotina expira em ${diasParaExpirar + 1} dia(s)!` };
         }
       }
     }
     if (!alerta && rotinaAtiva.totalSessoesRotinaPlanejadas && rotinaAtiva.sessoesRotinaConcluidas >= rotinaAtiva.totalSessoesRotinaPlanejadas) {
-      alerta = { tipo: 'info', mensagem: 'Parabéns, você concluiu esta rotina! Fale com seu personal para os próximos passos.' };
+      alerta = { tipo: 'info' as const, mensagem: 'Parabéns, você concluiu esta rotina! Fale com seu personal para os próximos passos.' };
     }
+    // A atualização otimista garante que o dia concluído foi para o final da lista,
+    // então o próximo treino é sempre o primeiro elemento do array ordenado pela 'ordemNaRotina'.
     const proximoDia = diasDaRotinaComData[0] || null;
     return { proximoDiaSugerido: proximoDia, alertaRotina: alerta };
-  }, [rotinaAtiva]);
+  };
+
+  const { proximoDiaSugerido, alertaRotina } = getProximoDiaEAlerta();
+  // <<< FIM DA ALTERAÇÃO >>>
+
 
   if (isLoadingRotinas || isLoadingFrequencia || !aluno) {
     return (
