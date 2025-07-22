@@ -7,11 +7,13 @@ import { Progress } from '../../components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/queryClient';
-import { Loader2, AlertTriangle, PlayCircle, Zap, History, Dumbbell, TrendingUp, ClipboardList, BookOpenCheck, Replace } from 'lucide-react';
+import { Loader2, AlertTriangle, PlayCircle, Zap, History, Dumbbell, TrendingUp, ClipboardList, BookOpenCheck, Replace, Eye } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { format, parseISO, isValid as isDateValidFn, nextDay, Day, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import FrequenciaSemanal from '../../components/alunos/FrequenciaSemanal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
 
 // --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; grupoMuscular?: string; urlVideo?: string; descricao?: string; categoria?: string; tipo?: string; }
@@ -20,6 +22,47 @@ interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFi
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; tipo: "modelo" | "individual"; alunoId?: { _id: string; nome: string; email?: string; } | string | null; criadorId?: { _id: string; nome: string; email?: string; } | string; tipoOrganizacaoRotina: 'diasDaSemana' | 'numerico' | 'livre'; diasDeTreino: DiaDeTreinoPopulado[]; pastaId?: { _id: string; nome: string; } | string | null; statusModelo?: "ativo" | "rascunho" | "arquivado"; ordemNaPasta?: number; dataValidade?: string | null; totalSessoesRotinaPlanejadas?: number | null; sessoesRotinaConcluidas: number; criadoEm: string; atualizadoEm?: string; }
 interface SessaoConcluidaParaFrequencia { _id: string; sessionDate: string | Date; tipoCompromisso?: string; }
 
+// <<< INÍCIO DO NOVO COMPONENTE >>>
+const DiaDetalhesModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onStart: () => void;
+  diaDeTreino: DiaDeTreinoPopulado | null;
+}> = ({ isOpen, onClose, onStart, diaDeTreino }) => {
+  if (!diaDeTreino) return null;
+
+  const exercicios = diaDeTreino.exerciciosDoDia
+    .filter(ex => ex.exercicioId && typeof ex.exercicioId === 'object')
+    .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{diaDeTreino.identificadorDia}{diaDeTreino.nomeSubFicha && ` - ${diaDeTreino.nomeSubFicha}`}</DialogTitle>
+          <DialogDescription>Lista de exercícios para este dia.</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto pr-4 my-4">
+          <ul className="space-y-3">
+            {exercicios.map(ex => (
+              <li key={ex._id} className="text-sm p-2 bg-slate-50 rounded-md">
+                {(ex.exercicioId as ExercicioDetalhePopulado).nome}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>
+          <Button type="button" onClick={onStart}>
+            <PlayCircle className="mr-2 h-4 w-4" /> Iniciar Treino
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+// <<< FIM DO NOVO COMPONENTE >>>
+
 const weekDayMap: { [key: string]: Day } = { 'domingo': 0, 'segunda-feira': 1, 'terca-feira': 2, 'quarta-feira': 3, 'quinta-feira': 4, 'sexta-feira': 5, 'sabado': 6 };
 const getNextDateForWeekday = (weekdayName: string): Date | null => {
     const lowerWeekdayName = weekdayName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace("-feira", "");
@@ -27,6 +70,7 @@ const getNextDateForWeekday = (weekdayName: string): Date | null => {
     if (targetDayIndex === undefined) { return null; }
     return nextDay(new Date(), targetDayIndex as Day);
 };
+// CONTINUAÇÃO...
 
 const AlunoDashboardPage: React.FC = () => {
   const { aluno } = useAluno();
@@ -35,6 +79,10 @@ const AlunoDashboardPage: React.FC = () => {
     if (aluno) { return localStorage.getItem(`activeRotinaId_${aluno.id}`); }
     return null;
   });
+  // <<< INÍCIO DA ALTERAÇÃO >>>
+  // Novo estado para controlar o modal de detalhes
+  const [diaParaVerDetalhes, setDiaParaVerDetalhes] = useState<DiaDeTreinoPopulado | null>(null);
+  // <<< FIM DA ALTERAÇÃO >>>
 
   const { data: minhasRotinas, isLoading: isLoadingRotinas, error: errorRotinas } = useQuery<RotinaDeTreinoAluno[], Error>({
     queryKey: ['minhasRotinasAluno', aluno?.id],
@@ -88,15 +136,10 @@ const AlunoDashboardPage: React.FC = () => {
     staleTime: 1000 * 60 * 1,
   });
   
-  // <<< INÍCIO DA ALTERAÇÃO >>>
-  // Lógica removida dos hooks 'useMemo' e calculada diretamente.
-  
-  // 1. Cálculo da rotinaAtiva
   const rotinaAtiva = (minhasRotinas && activeRotinaId) 
     ? minhasRotinas.find(r => r._id === activeRotinaId) || minhasRotinas[0] || null
     : null;
 
-  // 2. Função para calcular o próximo dia sugerido e alertas
   const getProximoDiaEAlerta = () => {
     if (!rotinaAtiva || !rotinaAtiva.diasDeTreino || rotinaAtiva.diasDeTreino.length === 0) {
       return { proximoDiaSugerido: null, alertaRotina: { tipo: 'warning' as const, mensagem: 'Sua rotina ativa está vazia. Fale com seu personal ou escolha outra rotina.' } };
@@ -128,15 +171,11 @@ const AlunoDashboardPage: React.FC = () => {
     if (!alerta && rotinaAtiva.totalSessoesRotinaPlanejadas && rotinaAtiva.sessoesRotinaConcluidas >= rotinaAtiva.totalSessoesRotinaPlanejadas) {
       alerta = { tipo: 'info' as const, mensagem: 'Parabéns, você concluiu esta rotina! Fale com seu personal para os próximos passos.' };
     }
-    // A atualização otimista garante que o dia concluído foi para o final da lista,
-    // então o próximo treino é sempre o primeiro elemento do array ordenado pela 'ordemNaRotina'.
     const proximoDia = diasDaRotinaComData[0] || null;
     return { proximoDiaSugerido: proximoDia, alertaRotina: alerta };
   };
 
   const { proximoDiaSugerido, alertaRotina } = getProximoDiaEAlerta();
-  // <<< FIM DA ALTERAÇÃO >>>
-
 
   if (isLoadingRotinas || isLoadingFrequencia || !aluno) {
     return (
@@ -209,14 +248,20 @@ const AlunoDashboardPage: React.FC = () => {
           <CardFooter className="flex-col items-stretch gap-3 pt-4">
             {rotinaAtiva && proximoDiaSugerido && !alertaRotina?.mensagem.includes("expirou") && !alertaRotina?.mensagem.includes("concluiu") ? (
               <>
-                <Button size="lg" className="w-full font-bold text-base bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => navigate(`/aluno/ficha/${rotinaAtiva._id}?diaId=${proximoDiaSugerido._id}`)}>
-                    <PlayCircle className="w-5 h-5 mr-2" />
-                    Iniciar Treino do Dia
-                </Button>
+                {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => setDiaParaVerDetalhes(proximoDiaSugerido)}>
+                        <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
+                    </Button>
+                    <Button size="lg" className="w-full sm:flex-1 font-bold text-base bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => navigate(`/aluno/ficha/${rotinaAtiva._id}?diaId=${proximoDiaSugerido._id}`)}>
+                        <PlayCircle className="w-5 h-5 mr-2" /> Iniciar Treino
+                    </Button>
+                </div>
                 <Button variant="link" className="text-sm text-gray-600 hover:text-indigo-600 h-auto" onClick={() => navigate(`/aluno/ficha/${rotinaAtiva._id}`)}>
                     <Replace className="w-4 h-4 mr-2" />
                     Escolher outro treino
                 </Button>
+                {/* <<< FIM DA ALTERAÇÃO >>> */}
               </>
             ) : (
                 <Button size="lg" className="w-full font-bold text-base bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => navigate('/aluno/meus-treinos')}>
@@ -291,6 +336,21 @@ const AlunoDashboardPage: React.FC = () => {
             </CardFooter>
         </Card>
       </div>
+      
+      {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
+      {/* Renderização do novo modal de detalhes */}
+      <DiaDetalhesModal
+        isOpen={!!diaParaVerDetalhes}
+        onClose={() => setDiaParaVerDetalhes(null)}
+        onStart={() => {
+            if (diaParaVerDetalhes && rotinaAtiva) {
+                navigate(`/aluno/ficha/${rotinaAtiva._id}?diaId=${diaParaVerDetalhes._id}`);
+                setDiaParaVerDetalhes(null);
+            }
+        }}
+        diaDeTreino={diaParaVerDetalhes}
+      />
+      {/* <<< FIM DA ALTERAÇÃO >>> */}
     </div>
   );
 };
