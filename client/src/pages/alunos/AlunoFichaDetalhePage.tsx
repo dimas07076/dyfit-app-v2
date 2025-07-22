@@ -1,5 +1,5 @@
 // Caminho: ./client/src/pages/alunos/AlunoFichaDetalhePage.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, Link as WouterLink, useLocation, useSearch } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, ArrowLeft, ListChecks, Dumbbell, Star, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+// <<< INÍCIO DA CORREÇÃO >>>
+import { Loader2, ArrowLeft, ListChecks, Dumbbell, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award, Eye } from 'lucide-react';
+// <<< FIM DA CORREÇÃO >>>
 import VideoPlayerModal from '@/components/dialogs/VideoPlayerModal';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, addSeconds } from 'date-fns';
@@ -29,32 +31,136 @@ interface ConcluirSessaoPayload { rotinaId: string; diaDeTreinoId: string; pseAl
 interface ConcluirSessaoResponse { _id: string; }
 // --- Fim das Interfaces ---
 
-// --- Subcomponentes (mantidos completos) ---
+// --- Subcomponentes ---
 interface FeedbackModalProps { isOpen: boolean; onClose: () => void; onSubmit: (feedback: { pse: OpcaoPSEFrontend | null, comentario: string | null }) => void; isSubmitting: boolean; stats: { inicio: Date; fim: Date; tempoTotal: number; }; }
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, onSubmit, isSubmitting, stats }) => {
     const [pse, setPse] = useState<OpcaoPSEFrontend | ''>('');
     const [comentario, setComentario] = useState('');
     const formatTime = (seconds: number) => { const m = Math.floor(seconds / 60).toString().padStart(2, '0'); const s = (seconds % 60).toString().padStart(2, '0'); return `${m}m ${s}s`; };
     const handleSubmit = () => { onSubmit({ pse: pse || null, comentario: comentario.trim() || null }); };
-    return (<Dialog open={isOpen} onOpenChange={onClose}><DialogContent className="sm:max-w-[480px]"><DialogHeader className="text-center items-center"><div className="bg-green-100 rounded-full p-3 w-fit mb-4"><Award className="w-8 h-8 text-green-600" /></div><DialogTitle className="text-2xl font-bold">Parabéns!</DialogTitle><DialogDescription>Você concluiu seu treino!</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-4 py-4 text-center border-y my-4"><div><p className="text-sm text-gray-500">Início</p><p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p></div><div><p className="text-sm text-gray-500">Fim</p><p className="font-semibold">{format(stats.fim, 'HH:mm')}</p></div><div className="col-span-2"><p className="text-sm text-gray-500">Tempo de Treino</p><p className="font-semibold">{formatTime(stats.tempoTotal)}</p></div></div><div className="grid gap-4"><Label htmlFor="pse">O que você achou dessa atividade?</Label><Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent></Select><Label htmlFor="comentario">Se quiser, deixe seu comentário aqui:</Label><Textarea id="comentario" placeholder="..." value={comentario} onChange={(e) => setComentario(e.target.value)} /></div><DialogFooter className="mt-4"><Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">{isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}Concluir</Button></DialogFooter></DialogContent></Dialog>);
+    return (<Dialog open={isOpen} onOpenChange={onClose}><DialogContent className="sm:max-w-md"><DialogHeader className="text-center items-center"><div className="bg-green-100 rounded-full p-3 w-fit mb-4"><Award className="w-8 h-8 text-green-600" /></div><DialogTitle className="text-2xl font-bold">Parabéns!</DialogTitle><DialogDescription>Você concluiu seu treino!</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-4 py-4 text-center border-y my-4"><div><p className="text-sm text-gray-500">Início</p><p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p></div><div><p className="text-sm text-gray-500">Fim</p><p className="font-semibold">{format(stats.fim, 'HH:mm')}</p></div><div className="col-span-2"><p className="text-sm text-gray-500">Tempo de Treino</p><p className="font-semibold">{formatTime(stats.tempoTotal)}</p></div></div><div className="grid gap-4"><Label htmlFor="pse">O que você achou dessa atividade?</Label><Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent></Select><Label htmlFor="comentario">Se quiser, deixe seu comentário aqui:</Label><Textarea id="comentario" placeholder="..." value={comentario} onChange={(e) => setComentario(e.target.value)} /></div><DialogFooter className="mt-4"><Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">{isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}Concluir</Button></DialogFooter></DialogContent></Dialog>);
 };
 const AlunoFichaDetalhePageWrapper: React.FC = () => ( <WorkoutPlayerProvider> <AlunoFichaDetalhePage /> </WorkoutPlayerProvider> );
-const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; isFinishing: boolean; }> = ({ diaAtivo, onFinishWorkout, isFinishing }) => {
-    const { startWorkout, stopWorkout, isWorkoutActive, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad } = useWorkoutPlayer();
+
+const PreWorkoutDialog: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void; diaDeTreino: DiaDeTreinoPopulado; }> = ({ isOpen, onClose, onConfirm, diaDeTreino }) => (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Pronto para começar?</DialogTitle>
+                <DialogDescription>Você está prestes a iniciar o treino: <span className="font-bold">{diaDeTreino.identificadorDia}{diaDeTreino.nomeSubFicha && ` - ${diaDeTreino.nomeSubFicha}`}</span></DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="sm:justify-between gap-2">
+                <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                <Button type="button" onClick={onConfirm}><PlayCircle className="mr-2 h-4 w-4" /> Iniciar Treino</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+);
+
+const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTreino: DiaDeTreinoPopulado; }> = ({ isOpen, onClose, diaDeTreino }) => {
+    const exercicios = diaDeTreino.exerciciosDoDia
+        .filter(ex => ex.exercicioId && typeof ex.exercicioId === 'object')
+        .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{diaDeTreino.identificadorDia}{diaDeTreino.nomeSubFicha && ` - ${diaDeTreino.nomeSubFicha}`}</DialogTitle>
+                    <DialogDescription>Lista de exercícios para este dia.</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto pr-4 my-4">
+                    <ul className="space-y-3">
+                        {exercicios.map(ex => (
+                            <li key={ex._id} className="text-sm p-2 bg-slate-50 rounded-md">{(ex.exercicioId as ExercicioDetalhePopulado).nome}</li>
+                        ))}
+                    </ul>
+                </div>
+                <DialogFooter>
+                    <Button type="button" onClick={onClose}>Fechar</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: string; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; isFinishing: boolean; }> = ({ diaAtivo, rotinaId, onFinishWorkout, isFinishing }) => {
+    const { startWorkout, stopWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad } = useWorkoutPlayer();
     const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
-    const [dataInicio, setDataInicio] = useState<Date | null>(null);
+    const [dataInicio] = useState<Date>(() => new Date());
+
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
-    const handleStartWorkout = () => { setDataInicio(new Date()); startWorkout(exerciciosParaRenderizar.map(e => ({ _id: e._id, exercicioDetalhes: e.exercicioDetalhes, descanso: e.descanso }))); };
-    const handleStopAndFinish = () => { const cargas = exerciciosParaRenderizar.reduce((acc, ex) => { acc[ex._id] = getExerciseLoad(ex._id); return acc; }, {} as Record<string, string>); onFinishWorkout({ duracao: elapsedTime, cargas, dataInicio: dataInicio! }); stopWorkout(); }
+
+    useEffect(() => {
+        const exercicios = diaAtivo.exerciciosDoDia
+            .map((ex): { _id: string, exercicioDetalhes: ExercicioDetalhePopulado | null, descanso?: string } | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { _id: ex._id, exercicioDetalhes: ex.exercicioId, descanso: ex.descanso } : null)
+            .filter((ex): ex is { _id: string, exercicioDetalhes: ExercicioDetalhePopulado | null, descanso?: string } => ex !== null)
+            .sort((a, b) => (a as any).ordemNoDia - (b as any).ordemNoDia);
+        startWorkout(exercicios);
+    }, [startWorkout, diaAtivo]);
+
+    const handleStopAndFinish = () => {
+        const cargas = exerciciosParaRenderizar.reduce((acc, ex) => { acc[ex._id] = getExerciseLoad(ex._id); return acc; }, {} as Record<string, string>);
+        onFinishWorkout({ duracao: elapsedTime, cargas, dataInicio });
+        stopWorkout();
+    };
+    
     const formatTime = (seconds: number) => { const h = Math.floor(seconds / 3600).toString().padStart(2, '0'); const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0'); const s = (seconds % 60).toString().padStart(2, '0'); return h !== '00' ? `${h}:${m}:${s}` : `${m}:${s}`; };
     const abrirVideo = (url?: string) => { if (!url) return; setVideoModalUrl(url.includes("watch?v=") ? url.replace("watch?v=", "embed/") : url); };
-    if (!isWorkoutActive) { return <div className="text-center p-4 flex flex-col items-center justify-center h-full"> <h2 className="text-xl font-bold text-gray-800">Pronto para começar?</h2> <p className="text-gray-600 mb-6">Dia: {diaAtivo.identificadorDia}</p> <Button size="lg" className="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg" onClick={handleStartWorkout}><PlayCircle className="mr-2" /> Iniciar Treino</Button> </div>; }
-    return (<div><div className="sticky top-0 bg-white/80 backdrop-blur-sm z-10 p-4 rounded-b-xl border-b mb-4"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">{diaAtivo.identificadorDia}</h3><div className="flex items-center gap-2 font-mono text-lg bg-gray-800 text-white px-3 py-1 rounded-lg"><Timer size={20} /><span>{formatTime(elapsedTime)}</span></div></div><p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p></div><div className="space-y-3 px-4 pb-4">{exerciciosParaRenderizar.map(ex => <WorkoutExerciseCard key={ex._id} exercise={ex} isActive={ex._id === activeExerciseId} isCompleted={completedExercises.has(ex._id)} onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} />)}</div><div className="p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} disabled={isFinishing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg"> {isFinishing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Zap className="w-5 h-5 mr-2" />} Finalizar e Salvar Treino </Button></div><VideoPlayerModal videoUrl={videoModalUrl} onClose={() => setVideoModalUrl(null)} /></div>);
-}
-const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno }> = ({ rotina }) => {
-    const [, navigateWouter] = useLocation();
-    const proximoDiaSugerido = useMemo(() => rotina.diasDeTreino?.sort((a,b) => a.ordemNaRotina - b.ordemNaRotina)[0] || null, [rotina.diasDeTreino]);
-    return (<div><div className="mb-6"><WouterLink href="/aluno/meus-treinos"><Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg"><ArrowLeft className="w-4 h-4 mr-2" />Voltar para Fichas</Button></WouterLink></div><Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0"><CardHeader><CardTitle className="text-2xl sm:text-3xl font-bold text-indigo-700 flex items-center gap-3"><ListChecks className="w-8 h-8" />{rotina.titulo}</CardTitle>{rotina.descricao && <CardDescription className="pt-1">{rotina.descricao}</CardDescription>}{rotina.dataValidade && (<p className="text-sm text-muted-foreground pt-2 flex items-center gap-2"><Calendar className="w-4 h-4" /> Válida até: {format(parseISO(rotina.dataValidade), 'dd/MM/yyyy')}</p>)}</CardHeader><CardContent>{proximoDiaSugerido && (<Card className="mb-6 bg-indigo-50 border-indigo-200"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-indigo-700"><Star className="w-5 h-5" /> Treino Sugerido</CardTitle></CardHeader><CardContent><p className="text-xl font-semibold text-gray-800">{proximoDiaSugerido.identificadorDia}{proximoDiaSugerido.nomeSubFicha && ` - ${proximoDiaSugerido.nomeSubFicha}`}</p><p className="text-sm text-gray-600">{proximoDiaSugerido.exerciciosDoDia.length} exercícios neste dia.</p></CardContent><CardFooter><Button size="lg" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => navigateWouter(`/aluno/ficha/${rotina._id}?diaId=${proximoDiaSugerido._id}`)}><PlayCircle className="w-5 h-5 mr-2" /> Visualizar Treino</Button></CardFooter></Card>)}<h3 className="text-xl font-semibold mb-4 mt-2 flex items-center text-gray-800"><Dumbbell className="w-5 h-5 mr-2" /> Outros Dias da Rotina </h3><div className="space-y-3">{rotina.diasDeTreino.filter(dia => dia._id !== proximoDiaSugerido?._id).map(dia => (<button key={dia._id} onClick={() => navigateWouter(`/aluno/ficha/${rotina._id}?diaId=${dia._id}`)} className="group w-full text-left p-4 border border-slate-200 rounded-xl flex justify-between items-center bg-white hover:bg-slate-50 hover:border-indigo-400 transition-all duration-200 shadow-sm"><div><p className="font-semibold text-gray-800">{dia.identificadorDia}{dia.nomeSubFicha && ` - ${dia.nomeSubFicha}`}</p><p className="text-xs text-gray-500">{dia.exerciciosDoDia.length} exercícios</p></div><PlayCircle className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" /></button>))}</div></CardContent></Card></div>);
+    
+    return (
+        <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0 h-full flex flex-col">
+            <CardHeader className="flex-shrink-0">
+                <WouterLink href={`/aluno/ficha/${rotinaId}`}><Button variant="outline" size="sm" className="mb-2"><XCircle className="w-4 h-4 mr-2" /> Cancelar Treino</Button></WouterLink>
+                <div className="flex justify-between items-center pt-2"><h3 className="font-bold text-lg">{diaAtivo.identificadorDia}</h3><div className="flex items-center gap-2 font-mono text-lg bg-gray-800 text-white px-3 py-1 rounded-lg"><Timer size={20} /><span>{formatTime(elapsedTime)}</span></div></div>
+                <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
+            </CardHeader>
+            <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">{exerciciosParaRenderizar.map(ex => <WorkoutExerciseCard key={ex._id} exercise={ex} isActive={ex._id === activeExerciseId} isCompleted={completedExercises.has(ex._id)} onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} />)}</CardContent>
+            <CardFooter className="flex-shrink-0 p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} disabled={isFinishing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg">{isFinishing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Zap className="w-5 h-5 mr-2" />} Finalizar e Salvar Treino</Button></CardFooter>
+            <VideoPlayerModal videoUrl={videoModalUrl} onClose={() => setVideoModalUrl(null)} />
+        </Card>
+    );
+};
+
+const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaIniciar: (dia: DiaDeTreinoPopulado) => void; onSelectDiaParaVer: (dia: DiaDeTreinoPopulado) => void; }> = ({ rotina, onSelectDiaParaIniciar, onSelectDiaParaVer }) => {
+    
+    const diasDeTreinoOrdenados = useMemo(() => 
+        [...(rotina.diasDeTreino || [])].sort((a, b) => a.ordemNaRotina - b.ordemNaRotina), 
+    [rotina.diasDeTreino]);
+
+    return (
+        <div>
+            <div className="mb-6"><WouterLink href="/aluno/dashboard"><Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg"><ArrowLeft className="w-4 h-4 mr-2" />Voltar ao Painel</Button></WouterLink></div>
+            <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
+                <CardHeader><CardTitle className="text-2xl sm:text-3xl font-bold text-indigo-700 flex items-center gap-3"><ListChecks className="w-8 h-8" />{rotina.titulo}</CardTitle>{rotina.descricao && <CardDescription className="pt-1">{rotina.descricao}</CardDescription>}{rotina.dataValidade && (<p className="text-sm text-muted-foreground pt-2 flex items-center gap-2"><Calendar className="w-4 h-4" /> Válida até: {format(parseISO(rotina.dataValidade), 'dd/MM/yyyy')}</p>)}</CardHeader>
+                <CardContent>
+                    <h3 className="text-xl font-semibold mb-4 mt-2 flex items-center text-gray-800"><Dumbbell className="w-5 h-5 mr-2" /> Dias da Rotina </h3>
+                    <div className="space-y-3">
+                        {diasDeTreinoOrdenados.map(dia => (
+                            <Card key={dia._id} className="w-full text-left bg-white hover:bg-slate-50 transition-colors duration-200 shadow-sm">
+                                <CardContent className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{dia.identificadorDia}{dia.nomeSubFicha && ` - ${dia.nomeSubFicha}`}</p>
+                                            <p className="text-xs text-gray-500">{dia.exerciciosDoDia.length} exercícios</p>
+                                        </div>
+                                        <div className="flex gap-2 flex-shrink-0">
+                                            <Button size="icon" variant="outline" onClick={() => onSelectDiaParaVer(dia)} aria-label="Ver detalhes do treino">
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                            <Button size="icon" onClick={() => onSelectDiaParaIniciar(dia)} aria-label="Iniciar treino">
+                                                <PlayCircle className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
 };
 
 // ============================================================================
@@ -71,9 +177,25 @@ const AlunoFichaDetalhePage: React.FC = () => {
     const queryClientHook = useQueryClient();
 
     const [workoutSummary, setWorkoutSummary] = useState<{ sessaoId: string; stats: { inicio: Date; fim: Date; tempoTotal: number; } } | null>(null);
+    const [diaParaIniciar, setDiaParaIniciar] = useState<DiaDeTreinoPopulado | null>(null);
+    const [diaParaVer, setDiaParaVer] = useState<DiaDeTreinoPopulado | null>(null);
 
-    const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl], queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`), enabled: !!rotinaIdUrl && !!aluno, });
-    const diaDeTreinoAtivo = useMemo(() => { if (!rotinaDetalhes || !diaIdUrl) return null; return rotinaDetalhes.diasDeTreino.find(d => d._id === diaIdUrl) || null; }, [rotinaDetalhes, diaIdUrl]);
+    const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({
+        queryKey: ['alunoRotinaDetalhe', rotinaIdUrl],
+        queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`),
+        enabled: !!rotinaIdUrl && !!aluno,
+    });
+    
+    const diaDeTreinoAtivo = useMemo(() => {
+        if (!rotinaDetalhes || !diaIdUrl) return null;
+        return rotinaDetalhes.diasDeTreino.find(d => d._id === diaIdUrl) || null;
+    }, [rotinaDetalhes, diaIdUrl]);
+
+    const handleConfirmStartWorkout = () => {
+        if (!diaParaIniciar || !rotinaIdUrl) return;
+        navigateWouter(`/aluno/ficha/${rotinaIdUrl}?diaId=${diaParaIniciar._id}`);
+        setDiaParaIniciar(null);
+    };
 
     const atualizarCargasFichaMutation = useMutation<any, Error, { cargas: Record<string, string> }>({
         mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, { diaDeTreinoId: diaIdUrl, cargas, }),
@@ -86,36 +208,19 @@ const AlunoFichaDetalhePage: React.FC = () => {
             console.log("Iniciando mutação otimista...");
             await queryClientHook.cancelQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
             const previousRotinas = queryClientHook.getQueryData<RotinaDeTreinoAluno[]>(['minhasRotinasAluno', aluno?.id]);
-
             if (previousRotinas) {
                 const novasRotinas = previousRotinas.map(rotina => {
                     if (rotina._id === rotinaIdUrl) {
-                        // <<< INÍCIO DA CORREÇÃO >>>
-                        // Lógica robusta para atualizar a ordem, simulando o backend.
                         const diasAtuais = rotina.diasDeTreino;
                         if (!diasAtuais || diasAtuais.length === 0) return rotina;
-                        
-                        // 1. Encontrar a ordem máxima atual.
                         const maxOrdem = Math.max(...diasAtuais.map(d => d.ordemNaRotina));
-
-                        // 2. Mapear para um novo array, alterando a 'ordemNaRotina' do dia concluído.
                         const diasDeTreinoAtualizados = diasAtuais.map(dia => {
-                            if (dia._id === diaIdUrl) {
-                                // 3. Atribui uma nova ordem que o coloca no final da fila.
-                                return { ...dia, ordemNaRotina: maxOrdem + 1 };
-                            }
+                            if (dia._id === diaIdUrl) { return { ...dia, ordemNaRotina: maxOrdem + 1 }; }
                             return dia;
                         });
-
                         const sessoesConcluidasAtualizado = (rotina.sessoesRotinaConcluidas || 0) + 1;
                         console.log(`Atualização otimista: Rotina ${rotina.titulo} agora tem ${sessoesConcluidasAtualizado} sessões concluídas. Dia ${diaIdUrl} movido para ordem ${maxOrdem + 1}.`);
-                        
-                        return { 
-                            ...rotina, 
-                            sessoesRotinaConcluidas: sessoesConcluidasAtualizado,
-                            diasDeTreino: diasDeTreinoAtualizados
-                        };
-                        // <<< FIM DA CORREÇÃO >>>
+                        return { ...rotina, sessoesRotinaConcluidas: sessoesConcluidasAtualizado, diasDeTreino: diasDeTreinoAtualizados };
                     }
                     return rotina;
                 });
@@ -125,26 +230,17 @@ const AlunoFichaDetalhePage: React.FC = () => {
         },
         onError: (err, _newTodo, context) => {
             console.error("Mutação otimista falhou. Revertendo cache.");
-            if (context?.previousRotinas) {
-                queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], context.previousRotinas);
-            }
+            if (context?.previousRotinas) { queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], context.previousRotinas); }
             toast({ title: "Erro ao Finalizar Treino", description: err.message, variant: "destructive" });
         },
-        onSettled: () => {
-            // Nenhuma invalidação aqui para confiar na atualização otimista
-            // e evitar race conditions com o backend.
-            console.log("onSettled executado: Nenhuma invalidação forçada para 'minhasRotinasAluno'.");
-        },
+        onSettled: () => { console.log("onSettled executado: Nenhuma invalidação forçada para 'minhasRotinasAluno'."); },
         mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload),
         onSuccess: (data, variables) => {
             console.log("Mutação no backend bem-sucedida.");
             toast({ title: "Dia de Treino Salvo!", description: "Ótimo trabalho! Agora, conte-nos como foi." });
-
             const dataFim = addSeconds(variables.dataInicio, variables.payload.duracaoSegundos);
             setWorkoutSummary({ sessaoId: data._id, stats: { inicio: variables.dataInicio, fim: dataFim, tempoTotal: variables.payload.duracaoSegundos } });
-            
             atualizarCargasFichaMutation.mutate({ cargas: variables.payload.cargas });
-            // Invalida a query de frequência para atualizar o componente no dashboard.
             queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
         },
     });
@@ -153,8 +249,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
         mutationFn: (payload) => apiRequest('PATCH', `/api/sessions/${payload.sessaoId}/feedback`, payload),
         onSuccess: () => {
             toast({ title: "Feedback Enviado!", description: "Obrigado! Redirecionando..." });
-            setWorkoutSummary(null);
-            setTimeout(() => { navigateWouter('/aluno/dashboard'); }, 1000);
+            setTimeout(() => { setWorkoutSummary(null); navigateWouter('/aluno/dashboard'); }, 1000);
         },
         onError: (error) => toast({ title: "Erro ao Enviar Feedback", description: error.message, variant: "destructive" }),
     });
@@ -173,17 +268,28 @@ const AlunoFichaDetalhePage: React.FC = () => {
     if (errorRotina) return <div>Erro: {errorRotina.message}</div>;
     if (!rotinaDetalhes) return <div>Rotina não encontrada.</div>;
 
+    const renderContent = () => {
+        if (diaIdUrl && diaDeTreinoAtivo) {
+            return <WorkoutExecutionView diaAtivo={diaDeTreinoAtivo} rotinaId={rotinaIdUrl!} onFinishWorkout={handleFinishWorkout} isFinishing={finalizarDiaDeTreinoMutation.isPending} />;
+        }
+        return <SummaryView rotina={rotinaDetalhes} onSelectDiaParaIniciar={setDiaParaIniciar} onSelectDiaParaVer={setDiaParaVer} />;
+    };
+
     return (
         <div className="h-full">
-            {diaIdUrl && diaDeTreinoAtivo ? (
-                <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0 h-full flex flex-col">
-                    <CardHeader className="flex-shrink-0"><WouterLink href={`/aluno/ficha/${rotinaIdUrl}`}><Button variant="outline" size="sm" className="mb-2"><XCircle className="w-4 h-4 mr-2" /> Cancelar Treino</Button></WouterLink></CardHeader>
-                    <CardContent className="flex-grow overflow-y-auto p-0"><WorkoutExecutionView diaAtivo={diaDeTreinoAtivo} onFinishWorkout={handleFinishWorkout} isFinishing={finalizarDiaDeTreinoMutation.isPending} /></CardContent>
-                </Card>
-            ) : (
-                <SummaryView rotina={rotinaDetalhes} />
+            {renderContent()}
+
+            {diaParaIniciar && (
+                <PreWorkoutDialog isOpen={!!diaParaIniciar} onClose={() => setDiaParaIniciar(null)} onConfirm={handleConfirmStartWorkout} diaDeTreino={diaParaIniciar} />
             )}
-            {workoutSummary && ( <FeedbackModal isOpen={!!workoutSummary} onClose={() => setWorkoutSummary(null)} onSubmit={handleEnviarFeedback} isSubmitting={atualizarFeedbackSessaoMutation.isPending} stats={workoutSummary.stats} /> )}
+
+            {diaParaVer && (
+                <DiaDetalhesModal isOpen={!!diaParaVer} onClose={() => setDiaParaVer(null)} diaDeTreino={diaParaVer} />
+            )}
+
+            {workoutSummary && (
+                <FeedbackModal isOpen={!!workoutSummary} onClose={() => setWorkoutSummary(null)} onSubmit={handleEnviarFeedback} isSubmitting={atualizarFeedbackSessaoMutation.isPending} stats={workoutSummary.stats} />
+            )}
         </div>
     );
 };
