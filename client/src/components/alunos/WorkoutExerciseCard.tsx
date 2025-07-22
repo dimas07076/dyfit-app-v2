@@ -26,15 +26,12 @@ interface WorkoutExerciseCardProps {
   onOpenVideo: (url: string) => void;
 }
 
-// <<< INÍCIO DA CORREÇÃO >>>
-// A definição do componente foi corrigida para desestruturar as props corretamente.
 export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
   exercise,
   isActive,
   isCompleted,
   onOpenVideo,
 }) => {
-// <<< FIM DA CORREÇÃO >>>
   const { completeExercise, uncompleteExercise, updateExerciseLoad, getExerciseLoad } = useWorkoutPlayer();
   
   const [load, setLoad] = useState(() => getExerciseLoad(exercise._id) || exercise.carga || '');
@@ -89,9 +86,12 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
           >
             {isCompleted ? <RotateCw size={16} /> : null}
           </button>
-          <p className="font-semibold text-gray-800 truncate" title={exerciseName}>
+          {/* <<< INÍCIO DA CORREÇÃO >>> */}
+          {/* Trocamos 'truncate' por 'whitespace-normal' para permitir a quebra de linha */}
+          <p className="font-semibold text-gray-800 whitespace-normal" title={exerciseName}>
             {exerciseName}
           </p>
+          {/* <<< FIM DA CORREÇÃO >>> */}
         </div>
         <div className="flex items-center gap-2">
             {exercise.exercicioDetalhes?.urlVideo && (
