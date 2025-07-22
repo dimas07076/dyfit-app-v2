@@ -69,7 +69,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setTokenAluno(token);
         localStorage.setItem(ALUNO_TOKEN_KEY, token);
         localStorage.setItem(ALUNO_DATA_KEY, JSON.stringify(alunoData));
-        console.log("Contexto Aluno: Dados do aluno definidos a partir do token:", alunoData);
+        // O log original foi removido para não poluir o console a cada verificação
         return alunoData;
       } else {
         console.error("Contexto Aluno: Payload do token de aluno inválido:", decodedToken);
@@ -90,19 +90,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [setAlunoFromToken]);
 
   const checkAlunoSession = useCallback(() => {
-    console.log("Contexto Aluno: Verificando sessão do aluno...");
     setIsLoadingAluno(true);
     const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
     if (storedToken) {
       setAlunoFromToken(storedToken);
-    } else {
-      console.log("Contexto Aluno: Nenhum token de aluno encontrado no localStorage.");
     }
     setIsLoadingAluno(false);
   }, [setAlunoFromToken]);
 
   useEffect(() => {
     checkAlunoSession();
+    // O log de "Verificando sessão" foi movido para dentro de checkAlunoSession para ser mais preciso
   }, [checkAlunoSession]);
 
   useEffect(() => {
@@ -116,32 +114,44 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [logoutAluno]);
-
-  // <<< INÍCIO DA CORREÇÃO >>>
-  // Adiciona o listener para o evento 'auth-failed', replicando a lógica do UserContext.
+  
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log("[AlunoContext] Evento 'auth-failed' recebido:", customEvent.detail);
-
-      // Verifica se o evento é um erro de autorização (401) e se é para o aluno
       if (customEvent.detail && customEvent.detail.status === 401) {
         if (customEvent.detail.forAluno && aluno) {
-          console.warn("[AlunoContext] Falha de autenticação (401) para Aluno detectada. Fazendo logout...");
-          logoutAluno(); // Executa o logout do aluno
+          logoutAluno();
         }
       }
     };
-
     window.addEventListener('auth-failed', handleAuthFailed);
-    console.log("[AlunoContext] Event listener para 'auth-failed' adicionado.");
-
     return () => {
       window.removeEventListener('auth-failed', handleAuthFailed);
-      console.log("[AlunoContext] Event listener para 'auth-failed' removido.");
     };
   }, [aluno, logoutAluno]);
-  // <<< FIM DA CORREÇÃO >>>
+
+  // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA ---
+  useEffect(() => {
+    // Esta função será chamada sempre que o estado de visibilidade da página mudar.
+    const handleVisibilityChange = () => {
+      // Verificamos o estado apenas quando a página se torna visível.
+      if (document.visibilityState === 'visible') {
+        console.log("[AlunoContext] App tornou-se visível. Revalidando a sessão do aluno...");
+        // Reutilizamos a mesma função de verificação de sessão que é usada no carregamento inicial.
+        checkAlunoSession();
+      }
+    };
+
+    // Adiciona o event listener ao documento.
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Retorna uma função de limpeza para remover o listener quando o componente for desmontado.
+    // Isso evita vazamentos de memória.
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkAlunoSession]); // A dependência garante que a função mais recente de checkAlunoSession seja usada.
+  // --- FIM DA ETAPA 3 ---
 
   return (
     <AlunoContext.Provider value={{ aluno, tokenAluno, isLoadingAluno, loginAluno, logoutAluno, checkAlunoSession }}>

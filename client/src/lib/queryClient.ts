@@ -1,15 +1,11 @@
 // client/lib/queryClient.ts
 import { QueryClient } from "@tanstack/react-query";
-import { fetchWithAuth } from './apiClient';
+// Etapa 1: Importar o AuthError que criamos no apiClient.
+import { fetchWithAuth, AuthError } from './apiClient';
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
-// Função de atraso para as retentativas (delay "exponencial" com um teto)
-// Isso dá tempo para a conexão de rede se restabelecer.
 const retryDelay = (attemptIndex: number) => {
-  // Tenta após 1s, depois 2s, depois 4s... com um máximo de 30s de espera.
   return Math.min(1000 * 2 ** attemptIndex, 30000); 
 }
-// <<< FIM DA ALTERAÇÃO >>>
 
 export async function apiRequest<T = unknown>(
   method: string,
@@ -28,27 +24,32 @@ export async function apiRequest<T = unknown>(
   }
 }
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
-// Adicionamos configurações padrão globais para todas as queries da aplicação.
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Por 2 minutos, os dados são considerados "frescos". O React Query
-      // os servirá do cache instantaneamente sem fazer uma nova chamada de rede.
-      // Isso torna a volta ao app muito mais rápida.
       staleTime: 1000 * 60 * 2, // 2 minutos
 
-      // Se uma query falhar (ex: por erro de rede ao voltar pro app),
-      // ela tentará automaticamente mais 2 vezes antes de mostrar um erro.
-      retry: 2, 
+      // Etapa 2: Transformar a opção 'retry' em uma função inteligente.
+      // Esta função recebe o número de tentativas e o objeto de erro.
+      retry: (failureCount, error) => {
+        // Se o erro for uma instância do nosso AuthError, a função retorna 'false'.
+        // Isso diz ao React Query: "Não tente novamente. Esta é uma falha de autenticação."
+        if (error instanceof AuthError) {
+          return false;
+        }
 
-      // Define o atraso entre as tentativas, dando tempo para a conexão voltar.
+        // Para qualquer outro tipo de erro (ex: falha de rede), mantemos a lógica original.
+        // Tenta novamente até 2 vezes (total de 3 tentativas).
+        if (failureCount < 2) {
+          return true;
+        }
+
+        return false;
+      }, 
+
       retryDelay: retryDelay,
 
-      // Mantemos isso como true, pois é o comportamento padrão e desejável.
-      // O staleTime já previne chamadas desnecessárias.
       refetchOnWindowFocus: true, 
     },
   },
 });
-// <<< FIM DA ALTERAÇÃO >>>
