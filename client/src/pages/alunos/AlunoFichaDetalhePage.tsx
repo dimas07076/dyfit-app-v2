@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, ArrowLeft, ListChecks, Dumbbell, Star, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award, Eye } from 'lucide-react';
+// <<< INÍCIO DA CORREÇÃO >>>
+import { Loader2, ArrowLeft, ListChecks, Dumbbell, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award, Eye } from 'lucide-react';
+// <<< FIM DA CORREÇÃO >>>
 import VideoPlayerModal from '@/components/dialogs/VideoPlayerModal';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, addSeconds } from 'date-fns';
@@ -36,10 +38,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, onSubmit
     const [comentario, setComentario] = useState('');
     const formatTime = (seconds: number) => { const m = Math.floor(seconds / 60).toString().padStart(2, '0'); const s = (seconds % 60).toString().padStart(2, '0'); return `${m}m ${s}s`; };
     const handleSubmit = () => { onSubmit({ pse: pse || null, comentario: comentario.trim() || null }); };
-    // <<< INÍCIO DA CORREÇÃO DE ESTILO >>>
-    // Diminuindo a largura máxima do modal para um visual mais compacto
     return (<Dialog open={isOpen} onOpenChange={onClose}><DialogContent className="sm:max-w-md"><DialogHeader className="text-center items-center"><div className="bg-green-100 rounded-full p-3 w-fit mb-4"><Award className="w-8 h-8 text-green-600" /></div><DialogTitle className="text-2xl font-bold">Parabéns!</DialogTitle><DialogDescription>Você concluiu seu treino!</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-4 py-4 text-center border-y my-4"><div><p className="text-sm text-gray-500">Início</p><p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p></div><div><p className="text-sm text-gray-500">Fim</p><p className="font-semibold">{format(stats.fim, 'HH:mm')}</p></div><div className="col-span-2"><p className="text-sm text-gray-500">Tempo de Treino</p><p className="font-semibold">{formatTime(stats.tempoTotal)}</p></div></div><div className="grid gap-4"><Label htmlFor="pse">O que você achou dessa atividade?</Label><Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent></Select><Label htmlFor="comentario">Se quiser, deixe seu comentário aqui:</Label><Textarea id="comentario" placeholder="..." value={comentario} onChange={(e) => setComentario(e.target.value)} /></div><DialogFooter className="mt-4"><Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">{isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}Concluir</Button></DialogFooter></DialogContent></Dialog>);
-    // <<< FIM DA CORREÇÃO DE ESTILO >>>
 };
 const AlunoFichaDetalhePageWrapper: React.FC = () => ( <WorkoutPlayerProvider> <AlunoFichaDetalhePage /> </WorkoutPlayerProvider> );
 
@@ -58,8 +57,6 @@ const PreWorkoutDialog: React.FC<{ isOpen: boolean; onClose: () => void; onConfi
     </Dialog>
 );
 
-// <<< INÍCIO DO NOVO COMPONENTE >>>
-// Modal para visualizar os detalhes de um dia de treino
 const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTreino: DiaDeTreinoPopulado; }> = ({ isOpen, onClose, diaDeTreino }) => {
     const exercicios = diaDeTreino.exerciciosDoDia
         .filter(ex => ex.exercicioId && typeof ex.exercicioId === 'object')
@@ -86,18 +83,14 @@ const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTr
         </Dialog>
     );
 };
-// <<< FIM DO NOVO COMPONENTE >>>
-// CONTINUAÇÃO...
 
 const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: string; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; isFinishing: boolean; }> = ({ diaAtivo, rotinaId, onFinishWorkout, isFinishing }) => {
-    // <<< INÍCIO DA CORREÇÃO DO TIMER >>>
     const { startWorkout, stopWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad } = useWorkoutPlayer();
     const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
     const [dataInicio] = useState<Date>(() => new Date());
 
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
 
-    // O timer agora é iniciado aqui, no momento em que o componente é montado.
     useEffect(() => {
         const exercicios = diaAtivo.exerciciosDoDia
             .map((ex): { _id: string, exercicioDetalhes: ExercicioDetalhePopulado | null, descanso?: string } | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { _id: ex._id, exercicioDetalhes: ex.exercicioId, descanso: ex.descanso } : null)
@@ -105,7 +98,6 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
             .sort((a, b) => (a as any).ordemNoDia - (b as any).ordemNoDia);
         startWorkout(exercicios);
     }, [startWorkout, diaAtivo]);
-    // <<< FIM DA CORREÇÃO DO TIMER >>>
 
     const handleStopAndFinish = () => {
         const cargas = exerciciosParaRenderizar.reduce((acc, ex) => { acc[ex._id] = getExerciseLoad(ex._id); return acc; }, {} as Record<string, string>);
@@ -131,33 +123,38 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
 };
 
 const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaIniciar: (dia: DiaDeTreinoPopulado) => void; onSelectDiaParaVer: (dia: DiaDeTreinoPopulado) => void; }> = ({ rotina, onSelectDiaParaIniciar, onSelectDiaParaVer }) => {
-    const proximoDiaSugerido = useMemo(() => rotina.diasDeTreino?.sort((a, b) => a.ordemNaRotina - b.ordemNaRotina)[0] || null, [rotina.diasDeTreino]);
+    
+    const diasDeTreinoOrdenados = useMemo(() => 
+        [...(rotina.diasDeTreino || [])].sort((a, b) => a.ordemNaRotina - b.ordemNaRotina), 
+    [rotina.diasDeTreino]);
 
     return (
         <div>
-            <div className="mb-6"><WouterLink href="/aluno/meus-treinos"><Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg"><ArrowLeft className="w-4 h-4 mr-2" />Voltar para Fichas</Button></WouterLink></div>
+            <div className="mb-6"><WouterLink href="/aluno/dashboard"><Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg"><ArrowLeft className="w-4 h-4 mr-2" />Voltar ao Painel</Button></WouterLink></div>
             <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
                 <CardHeader><CardTitle className="text-2xl sm:text-3xl font-bold text-indigo-700 flex items-center gap-3"><ListChecks className="w-8 h-8" />{rotina.titulo}</CardTitle>{rotina.descricao && <CardDescription className="pt-1">{rotina.descricao}</CardDescription>}{rotina.dataValidade && (<p className="text-sm text-muted-foreground pt-2 flex items-center gap-2"><Calendar className="w-4 h-4" /> Válida até: {format(parseISO(rotina.dataValidade), 'dd/MM/yyyy')}</p>)}</CardHeader>
                 <CardContent>
-                    {proximoDiaSugerido && (
-                        <Card className="mb-6 bg-indigo-50 border-indigo-200">
-                            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-indigo-700"><Star className="w-5 h-5" /> Treino Sugerido</CardTitle></CardHeader>
-                            <CardContent><p className="text-xl font-semibold text-gray-800">{proximoDiaSugerido.identificadorDia}{proximoDiaSugerido.nomeSubFicha && ` - ${proximoDiaSugerido.nomeSubFicha}`}</p><p className="text-sm text-gray-600">{proximoDiaSugerido.exerciciosDoDia.length} exercícios neste dia.</p></CardContent>
-                            {/* <<< INÍCIO DA ALTERAÇÃO DOS BOTÕES >>> */}
-                            <CardFooter className="flex-col sm:flex-row gap-2">
-                                <Button variant="outline" className="w-full sm:w-auto" onClick={() => onSelectDiaParaVer(proximoDiaSugerido)}><Eye className="w-4 h-4 mr-2" /> Ver Detalhes</Button>
-                                <Button size="lg" className="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" onClick={() => onSelectDiaParaIniciar(proximoDiaSugerido)}><PlayCircle className="w-5 h-5 mr-2" /> Iniciar Treino</Button>
-                            </CardFooter>
-                            {/* <<< FIM DA ALTERAÇÃO DOS BOTÕES >>> */}
-                        </Card>
-                    )}
-                    <h3 className="text-xl font-semibold mb-4 mt-2 flex items-center text-gray-800"><Dumbbell className="w-5 h-5 mr-2" /> Outros Dias da Rotina </h3>
+                    <h3 className="text-xl font-semibold mb-4 mt-2 flex items-center text-gray-800"><Dumbbell className="w-5 h-5 mr-2" /> Dias da Rotina </h3>
                     <div className="space-y-3">
-                        {rotina.diasDeTreino.filter(dia => dia._id !== proximoDiaSugerido?._id).map(dia => (
-                            <button key={dia._id} onClick={() => onSelectDiaParaIniciar(dia)} className="group w-full text-left p-4 border border-slate-200 rounded-xl flex justify-between items-center bg-white hover:bg-slate-50 hover:border-indigo-400 transition-all duration-200 shadow-sm">
-                                <div><p className="font-semibold text-gray-800">{dia.identificadorDia}{dia.nomeSubFicha && ` - ${dia.nomeSubFicha}`}</p><p className="text-xs text-gray-500">{dia.exerciciosDoDia.length} exercícios</p></div>
-                                <PlayCircle className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                            </button>
+                        {diasDeTreinoOrdenados.map(dia => (
+                            <Card key={dia._id} className="w-full text-left bg-white hover:bg-slate-50 transition-colors duration-200 shadow-sm">
+                                <CardContent className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{dia.identificadorDia}{dia.nomeSubFicha && ` - ${dia.nomeSubFicha}`}</p>
+                                            <p className="text-xs text-gray-500">{dia.exerciciosDoDia.length} exercícios</p>
+                                        </div>
+                                        <div className="flex gap-2 flex-shrink-0">
+                                            <Button size="icon" variant="outline" onClick={() => onSelectDiaParaVer(dia)} aria-label="Ver detalhes do treino">
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                            <Button size="icon" onClick={() => onSelectDiaParaIniciar(dia)} aria-label="Iniciar treino">
+                                                <PlayCircle className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         ))}
                     </div>
                 </CardContent>
@@ -165,7 +162,6 @@ const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaInicia
         </div>
     );
 };
-// CONTINUAÇÃO...
 
 // ============================================================================
 // LÓGICA PRINCIPAL DA PÁGINA
@@ -197,9 +193,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const handleConfirmStartWorkout = () => {
         if (!diaParaIniciar || !rotinaIdUrl) return;
-        // Navega para a URL de execução do treino
         navigateWouter(`/aluno/ficha/${rotinaIdUrl}?diaId=${diaParaIniciar._id}`);
-        // Fecha o modal de confirmação
         setDiaParaIniciar(null);
     };
 
