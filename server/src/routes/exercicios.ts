@@ -2,13 +2,12 @@
 import express, { Request, Response, Router, NextFunction } from "express";
 import mongoose from "mongoose";
 import Exercicio, { IExercicio } from "../../models/Exercicio.js";
-import Treino from "../../models/Treino.js"; // <<< ADIÇÃO: Importa o modelo Treino
+import Treino from "../../models/Treino.js";
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
 
 const router: Router = express.Router();
 
-// ... (todas as outras rotas GET, POST, PUT, favorite permanecem inalteradas)
 // Função auxiliar de filtro
 const buildFilterQuery = (baseFilter: mongoose.FilterQuery<IExercicio>, req: Request): mongoose.FilterQuery<IExercicio> => {
     const query: mongoose.FilterQuery<IExercicio> = { ...baseFilter };
@@ -17,47 +16,60 @@ const buildFilterQuery = (baseFilter: mongoose.FilterQuery<IExercicio>, req: Req
     if (categoria && typeof categoria === 'string' && categoria !== 'all') query.categoria = categoria;
     return query;
 };
-// GET /app
-router.get("/app", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+
+// <<< CONSOLIDAÇÃO: Nova rota GET /biblioteca para todos os tipos de filtro >>>
+router.get("/biblioteca", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   await dbConnect();
   const userId = req.user?.id; 
+
   try {
-    const filterQuery = buildFilterQuery({ isCustom: false }, req); 
-    const exerciciosApp = await Exercicio.find(filterQuery).lean();
-    const exerciciosComFavorito = exerciciosApp.map(ex => ({
+    if (!userId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+
+    const { tipo } = req.query; // 'todos', 'app', 'meus', 'favoritos'
+    let baseFilter: mongoose.FilterQuery<IExercicio> = {};
+
+    switch (tipo) {
+      case 'app':
+        baseFilter.isCustom = { $ne: true }; // Exercícios do App (não personalizados)
+        break;
+      case 'meus':
+        baseFilter.isCustom = true; // Exercícios personalizados
+        baseFilter.creatorId = new mongoose.Types.ObjectId(userId); // Apenas os do usuário logado
+        break;
+      case 'favoritos':
+        baseFilter.favoritedBy = new mongoose.Types.ObjectId(userId); // Exercícios favoritados pelo usuário
+        break;
+      case 'todos':
+      default:
+        // Retorna todos os exercícios do App + os personalizados do usuário logado
+        baseFilter.$or = [
+          { isCustom: { $ne: true } },
+          { isCustom: true, creatorId: new mongoose.Types.ObjectId(userId) }
+        ];
+        break;
+    }
+
+    const finalFilterQuery = buildFilterQuery(baseFilter, req);
+    
+    // Busca os exercícios com os filtros aplicados
+    const exercicios = await Exercicio.find(finalFilterQuery).lean();
+
+    // Adiciona a flag isFavoritedByCurrentUser para cada exercício
+    const exerciciosComFavorito = exercicios.map(ex => ({
       ...ex,
       isFavoritedByCurrentUser: ex.favoritedBy?.some(favId => favId.equals(new mongoose.Types.ObjectId(userId))) ?? false
     }));
+
     res.status(200).json(exerciciosComFavorito);
-  } catch (error) { next(error); }
+  } catch (error) {
+    console.error("Erro ao buscar exercícios da biblioteca:", error);
+    next(error);
+  }
 });
-// GET /meus
-router.get("/meus", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect();
-  const creatorId = req.user?.id;
-  try {
-    if (!creatorId) return res.status(401).json({ erro: "Usuário não autenticado." });
-    const filterQuery = buildFilterQuery({ creatorId: new mongoose.Types.ObjectId(creatorId), isCustom: true }, req);
-    const exercicios = await Exercicio.find(filterQuery).lean();
-    const exerciciosComFavorito = exercicios.map(ex => ({
-      ...ex,
-      isFavoritedByCurrentUser: ex.favoritedBy?.some(favId => favId.equals(new mongoose.Types.ObjectId(creatorId))) ?? false
-    }));
-    res.status(200).json(exerciciosComFavorito);
-  } catch (error) { next(error); }
-});
-// GET /favoritos
-router.get("/favoritos", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect();
-  const userId = req.user?.id;
-  try {
-    if (!userId) return res.status(401).json({ erro: "Usuário não autenticado." });
-    const filterQuery = buildFilterQuery({ favoritedBy: new mongoose.Types.ObjectId(userId) }, req);
-    const favoritos = await Exercicio.find(filterQuery).lean();
-    const exerciciosComFavorito = favoritos.map(ex => ({ ...ex, isFavoritedByCurrentUser: true }));
-    res.status(200).json(exerciciosComFavorito);
-  } catch (error) { next(error); }
-});
+
+// As rotas GET /app, /meus, /favoritos foram consolidadas na rota /biblioteca e podem ser removidas se não houver outro uso.
+// Se ainda houver outros usos específicos, elas podem ser mantidas, mas a rota /biblioteca é a principal para o modal.
+
 // POST / - Criar um novo exercício
 router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
