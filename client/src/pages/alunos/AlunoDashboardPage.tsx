@@ -192,7 +192,8 @@ const AlunoDashboardPage: React.FC = () => {
 
   if (isLoadingRotinas || isLoadingFrequencia || !aluno || isLoadingStats) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-400">
+      // Alterado de "flex h-screen w-full" para "fixed inset-0 z-50 flex" para criar um overlay verdadeiro
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-400">
         <Loader2 className="h-10 w-10 animate-spin text-white" />
         <span className="ml-4 text-lg text-white">Carregando seu painel...</span>
       </div>
@@ -209,7 +210,6 @@ const AlunoDashboardPage: React.FC = () => {
       </div>
     );
   }
-  
   return (
     <div className="min-h-screen text-white"> 
       <div className="mb-6">

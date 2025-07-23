@@ -153,9 +153,7 @@ router.delete('/:sessionId', authenticateToken, async (req: Request, res: Respon
 router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
-    // <<< INÍCIO DA ALTERAÇÃO >>>
     const { rotinaId, diaDeTreinoId, pseAluno, comentarioAluno, duracaoSegundos, cargas } = req.body;
-    // <<< FIM DA ALTERAÇÃO >>>
 
     if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." });
     if (!rotinaId || !diaDeTreinoId) return res.status(400).json({ message: "ID da rotina e do dia de treino são obrigatórios." });
@@ -173,6 +171,24 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             await mongoTransactionSession.abortTransaction();
             return res.status(404).json({ message: "Dia de treino não encontrado nesta rotina." });
         }
+
+        // Lógica para reordenar os dias de treino
+        // 1. Encontrar o índice do dia de treino concluído
+        const diaConcluidoIndex = rotina.diasDeTreino.findIndex(d => d._id.toString() === diaDeTreinoId);
+
+        if (diaConcluidoIndex > -1) {
+            // 2. Remover o dia de treino concluído da sua posição atual
+            const [diaMovido] = rotina.diasDeTreino.splice(diaConcluidoIndex, 1);
+            // 3. Adicionar o dia de treino ao final do array
+            rotina.diasDeTreino.push(diaMovido);
+
+            // Opcional: Atualizar a ordemNaRotina para refletir a nova posição
+            // Isso pode ser útil se a ordemNaRotina for usada para ordenação no frontend
+            rotina.diasDeTreino.forEach((dia, index) => {
+                dia.ordemNaRotina = index;
+            });
+        }
+
         const novaSessao = new Sessao({
             personalId: rotina.criadorId,
             alunoId: new Types.ObjectId(alunoId),
@@ -185,14 +201,14 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             diaDeTreinoIdentificador: diaDeTreino.identificadorDia,
             pseAluno: pseAluno || null,
             comentarioAluno: comentarioAluno || null,
-            // <<< INÍCIO DA ALTERAÇÃO >>>
             duracaoSegundos: duracaoSegundos || 0,
             cargasExecutadas: cargas || {},
-            // <<< FIM DA ALTERAÇÃO >>>
         });
         await novaSessao.save({ session: mongoTransactionSession });
+        
         rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1;
-        await rotina.save({ session: mongoTransactionSession });
+        await rotina.save({ session: mongoTransactionSession }); // Salva a rotina com a nova ordem dos dias
+        
         await mongoTransactionSession.commitTransaction();
         res.status(201).json({ message: "Dia de treino concluído com sucesso!", _id: novaSessao._id, status: novaSessao.status, concluidaEm: novaSessao.concluidaEm });
     } catch (error) {
