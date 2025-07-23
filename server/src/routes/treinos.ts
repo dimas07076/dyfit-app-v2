@@ -55,7 +55,7 @@ router.get("/:id", authenticateToken, async (req: Request, res: Response, next: 
             });
 
         if (!rotina) {
-            return res.status(404).json({ mensagem: "Rotina não encontrada ou você не tem permissão." });
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
         }
 
         res.status(200).json(rotina);
@@ -71,7 +71,8 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
     const criadorId = req.user?.id;
     if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
 
-    const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId) };
+    // Garante que isCopied seja false por padrão para novas criações
+    const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
     const novaRotina = new Treino(dadosRotina);
     await novaRotina.save();
 
@@ -109,7 +110,8 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
             criadorId: new Types.ObjectId(criadorId),
             alunoId: new Types.ObjectId(alunoId),
             pastaId: null,
-            titulo: `${modeloRestante.titulo} (Ficha de Aluno)`,
+            titulo: modeloRestante.titulo, // Remove o sufixo "(Ficha de Aluno)"
+            isCopied: true, // <<< NOVO: Marca como cópia ao associar modelo >>>
             diasDeTreino: diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
@@ -122,7 +124,6 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
                         series: ex.series,
                         repeticoes: ex.repeticoes,
                         carga: ex.carga,
-                        // CORREÇÃO: Adicionando a propriedade 'descanso' aqui para ser copiada
                         descanso: ex.descanso, 
                         observacoes: ex.observacoes,
                         ordemNoDia: ex.ordemNoDia,
@@ -145,6 +146,77 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
         res.status(201).json(fichaPopulada);
     } catch (error) {
         console.error("Erro ao associar modelo de treino ao aluno:", error);
+        next(error);
+    }
+});
+
+// <<< ADIÇÃO: Nova rota para copiar uma rotina individual e transformá-la em modelo >>>
+router.post("/copiar-para-modelo/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const criadorId = req.user?.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ mensagem: "ID da rotina inválido." });
+        }
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+
+        // Encontra a rotina individual original
+        const rotinaOriginal = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId), tipo: 'individual' });
+
+        if (!rotinaOriginal) {
+            return res.status(404).json({ mensagem: "Rotina individual não encontrada ou você não tem permissão para copiá-la." });
+        }
+
+        // Cria uma cópia profunda da rotina
+        const { _id, criadoEm, atualizadoEm, alunoId, ...restanteDaRotina } = rotinaOriginal.toObject();
+
+        const novaRotinaModeloData = {
+            ...restanteDaRotina,
+            tipo: 'modelo' as const, // Define o tipo como 'modelo'
+            alunoId: null, // Remove a associação com o aluno
+            pastaId: null, // Remove a associação com pasta (opcional, pode ser ajustado)
+            titulo: restanteDaRotina.titulo, // Remove o sufixo "(Cópia Modelo)"
+            isCopied: true, // <<< NOVO: Marca como cópia ao converter para modelo >>>
+            diasDeTreino: restanteDaRotina.diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
+                identificadorDia: dia.identificadorDia,
+                nomeSubFicha: dia.nomeSubFicha,
+                ordemNaRotina: dia.ordemNaRotina,
+                exerciciosDoDia: dia.exerciciosDoDia?.map((ex): IExercicioEmDiaDeTreinoPlain => {
+                    const exercicioIdValue = typeof ex.exercicioId === 'object' && ex.exercicioId?._id
+                        ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
+                    return {
+                        exercicioId: new Types.ObjectId(exercicioIdValue),
+                        series: ex.series,
+                        repeticoes: ex.repeticoes,
+                        carga: ex.carga,
+                        descanso: ex.descanso,
+                        observacoes: ex.observacoes,
+                        ordemNoDia: ex.ordemNoDia,
+                        concluido: false
+                    };
+                }) ?? []
+            })) ?? []
+        };
+
+        const novaRotinaModelo = new Treino(novaRotinaModeloData);
+        await novaRotinaModelo.save();
+
+        const rotinaPopulada = await Treino.findById(novaRotinaModelo._id)
+            .populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+                path: 'diasDeTreino',
+                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+            });
+
+        res.status(201).json(rotinaPopulada);
+
+    } catch (error) {
+        console.error("Erro ao copiar rotina para modelo:", error);
         next(error);
     }
 });

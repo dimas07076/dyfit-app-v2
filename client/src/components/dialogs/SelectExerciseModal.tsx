@@ -1,5 +1,5 @@
 // client/src/components/dialogs/SelectExerciseModal.tsx
-import { useState, useEffect, useMemo } from 'react'; // 'React' foi removido
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ export default function SelectExerciseModal({ isOpen, onClose, onExercisesSelect
 
   return (
     <Dialog open={isOpen} onOpenChange={(openState) => !openState && onClose()}>
+      {/* Ajustes para responsividade: sm:max-w-3xl agora é w-[95vw] h-[90vh] para mobile, e flex-col para empilhar conteúdo */}
       <DialogContent className="sm:max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle>Selecionar Exercício(s) da Biblioteca</DialogTitle>
@@ -71,13 +72,29 @@ export default function SelectExerciseModal({ isOpen, onClose, onExercisesSelect
             </TabsList>
           </Tabs>
         </div>
-        <div className="flex flex-wrap gap-3 items-center bg-muted p-4 border-y mx-6 shrink-0">
-           <Input placeholder="Buscar por nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow sm:flex-grow-0 sm:w-48 bg-background"/>
-           <Select onValueChange={setGrupoSelecionado} value={grupoSelecionado}><SelectTrigger className="w-full sm:w-[180px] bg-background"><SelectValue placeholder="Grupo muscular" /></SelectTrigger><SelectContent><SelectItem value={ALL_FILTER_VALUE}>Todos os Grupos</SelectItem>{grupos.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select>
-           <Select onValueChange={setCategoriaSelecionada} value={categoriaSelecionada}><SelectTrigger className="w-full sm:w-[180px] bg-background"><SelectValue placeholder="Categoria" /></SelectTrigger><SelectContent><SelectItem value={ALL_FILTER_VALUE}>Todas as Categorias</SelectItem>{categorias.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
-           <Button variant="ghost" onClick={limparFiltrosDeTela} size="sm"><FilterX className="w-4 h-4 mr-1" />Limpar</Button>
+        {/* Layout dos filtros ajustado para mobile: flex-col em telas pequenas, e flex-wrap em telas maiores */}
+        <div className="flex flex-col sm:flex-row gap-3 items-center bg-muted p-4 border-y mx-6 shrink-0">
+           <Input placeholder="Buscar por nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:flex-grow sm:w-48 bg-background"/>
+           <Select onValueChange={setGrupoSelecionado} value={grupoSelecionado}>
+             <SelectTrigger className="w-full sm:w-[180px] bg-background"><SelectValue placeholder="Grupo muscular" /></SelectTrigger>
+             <SelectContent>
+               <SelectItem value={ALL_FILTER_VALUE}>Todos os Grupos</SelectItem>
+               {grupos.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+             </SelectContent>
+           </Select>
+           <Select onValueChange={setCategoriaSelecionada} value={categoriaSelecionada}>
+             <SelectTrigger className="w-full sm:w-[180px] bg-background"><SelectValue placeholder="Categoria" /></SelectTrigger>
+             <SelectContent>
+               <SelectItem value={ALL_FILTER_VALUE}>Todas as Categorias</SelectItem>
+               {categorias.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+             </SelectContent>
+           </Select>
+           <Button variant="ghost" onClick={limparFiltrosDeTela} size="sm" className="w-full sm:w-auto">
+             <FilterX className="w-4 h-4 mr-1" />Limpar
+           </Button>
         </div>
-        <div className="flex-grow overflow-y-auto px-6 pt-4 pb-2">
+        {/* Área de rolagem dos exercícios com altura flexível */}
+        <div className="flex-grow overflow-hidden px-6 pt-4 pb-2"> {/* Alterado overflow-y-auto para overflow-hidden e ScrollArea gerencia a rolagem */}
           <ScrollArea className="h-full">
             {isLoading ? <div className="flex justify-center items-center h-full min-h-[200px]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
             : exerciciosFiltradosEOrdenados.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">Nenhum exercício encontrado.</p>
@@ -85,17 +102,22 @@ export default function SelectExerciseModal({ isOpen, onClose, onExercisesSelect
                 const isSelected = exerciciosSelecionados.some(sel => sel._id === ex._id);
                 return (
                   <div key={ex._id} onClick={() => handleToggleSelecaoExercicio(ex)} className={`p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors ${isSelected ? "bg-primary/10 border-primary ring-2 ring-primary" : "hover:bg-muted/50"}`}>
-                      <div><p className={`font-medium ${isSelected ? 'text-primary' : ''}`}>{ex.nome}</p><span className="text-xs text-muted-foreground">{ex.grupoMuscular || 'N/A'}</span></div>
+                      <div>
+                        <p className={`font-medium ${isSelected ? 'text-primary' : ''}`}>{ex.nome}</p>
+                        <span className="text-xs text-muted-foreground">{ex.grupoMuscular || 'N/A'}</span>
+                      </div>
                       {isSelected && <CheckCircle className="w-5 h-5 text-primary shrink-0" />}
                   </div>
                 );})}
               </div>}
           </ScrollArea>
         </div>
-        <DialogFooter className="p-6 pt-4 border-t shrink-0">
+        <DialogFooter className="p-6 pt-4 border-t shrink-0 flex flex-col sm:flex-row items-center sm:justify-between gap-2"> {/* Ajuste para mobile */}
             <p className="text-sm text-muted-foreground mr-auto">{exerciciosSelecionados.length} selecionado(s)</p>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSubmitSelecao} disabled={exerciciosSelecionados.length === 0}>Adicionar</Button>
+            <div className="flex gap-2 w-full sm:w-auto"> {/* Botões em uma linha no desktop, empilhados no mobile */}
+              <Button variant="outline" onClick={onClose} className="flex-grow">Cancelar</Button>
+              <Button onClick={handleSubmitSelecao} disabled={exerciciosSelecionados.length === 0} className="flex-grow">Adicionar</Button>
+            </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

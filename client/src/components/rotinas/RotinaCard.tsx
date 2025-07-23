@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon } from 'lucide-react';
+import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy } from 'lucide-react'; // Importado BookCopy
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 import type { Pasta } from '@/pages/treinos/index';
 
@@ -19,6 +19,7 @@ interface RotinaCardProps {
   onAssign: (rotinaId: string, rotinaTitulo: string) => void;
   onMoveToFolder: (rotinaId: string, pastaId: string) => void;
   onRemoveFromFolder: (rotinaId: string) => void;
+  onConvertToModel: (rotina: RotinaListagemItem) => void; // Nova prop para converter para modelo
 }
 
 export const RotinaCard: React.FC<RotinaCardProps> = ({ 
@@ -30,7 +31,8 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   onDelete, 
   onAssign,
   onMoveToFolder,
-  onRemoveFromFolder
+  onRemoveFromFolder,
+  onConvertToModel // Nova prop
 }) => {
   const isModelo = rotina.tipo === 'modelo';
   const diasDeTreinoCount = Array.isArray(rotina.diasDeTreino) ? rotina.diasDeTreino.length : 0;
@@ -124,6 +126,16 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         <div className="flex justify-end">
           <ActionButton title="Visualizar" onClick={() => onView(rotina)}><Eye className="h-4 w-4 text-slate-500" /></ActionButton>
           {isModelo && <ActionButton title="Atribuir a Aluno" onClick={() => onAssign(rotina._id, rotina.titulo)}><CopyPlus className="h-4 w-4 text-slate-500" /></ActionButton>}
+          {/* Novo botão para converter rotina individual em modelo */}
+          {!isModelo && (
+            <ActionButton 
+              title="Tornar Modelo" 
+              onClick={() => onConvertToModel(rotina)} // Chama a nova prop
+              className="text-primary/80 hover:text-primary" // Estilo para destacar
+            >
+              <BookCopy className="h-4 w-4" /> {/* Ícone de livro/cópia */}
+            </ActionButton>
+          )}
           <ActionButton title="Editar" onClick={() => onEdit(rotina)}><Edit className="h-4 w-4 text-slate-500" /></ActionButton>
           <ActionButton title="Excluir" onClick={() => onDelete(rotina)} className="text-red-500/80 hover:text-red-500"><Trash2 className="h-4 w-4" /></ActionButton>
         </div>

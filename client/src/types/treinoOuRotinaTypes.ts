@@ -61,4 +61,5 @@ export interface RotinaListagemItem {
     isExpirada?: boolean;
     progressoRotina?: string;
     __v?: number;
+    isCopied?: boolean; // <<< NOVO CAMPO: Indica se a rotina é uma cópia >>>
 }

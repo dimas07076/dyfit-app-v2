@@ -88,6 +88,7 @@ export interface ITreino extends Document {
   atualizadoEm: Date;
   isConcluida?: boolean;
   progressoRotina?: string;
+  isCopied?: boolean; // <<< NOVO CAMPO: Indica se a rotina é uma cópia >>>
 }
 
 // <<< CORREÇÃO PRINCIPAL: Adicionado EXPORT aqui >>>
@@ -111,6 +112,7 @@ export interface ITreinoPopuladoLean {
     atualizadoEm?: string | Date;
     isConcluida?: boolean;
     progressoRotina?: string;
+    isCopied?: boolean; // <<< NOVO CAMPO: Indica se a rotina é uma cópia >>>
 }
 
 // <<< MANTIDO EXPORTADO: O frontend também usa este tipo com o nome RotinaListagemItem >>>
@@ -152,6 +154,7 @@ const TreinoSchema = new Schema<ITreino>({
   sessoesRotinaConcluidas: { type: Number, default: 0 },
   criadoEm: { type: Date, default: Date.now },
   atualizadoEm: { type: Date, default: Date.now },
+  isCopied: { type: Boolean, default: false }, // <<< NOVO CAMPO NO SCHEMA >>>
 });
 
 TreinoSchema.pre('save', function (next) {

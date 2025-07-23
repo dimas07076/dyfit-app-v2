@@ -33,7 +33,8 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
   fichaModeloId,
   fichaModeloTitulo,
 }) => {
-  const [selectedAlunoId, setSelectedAlunoId] = useState<string | undefined>(undefined);
+  // Inicializa selectedAlunoId como uma string vazia para manter o Select controlado
+  const [selectedAlunoId, setSelectedAlunoId] = useState<string>(""); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useTanstackQueryClient();
@@ -54,7 +55,8 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedAlunoId(undefined);
+      // Garante que o valor seja resetado para uma string vazia ao abrir o modal
+      setSelectedAlunoId(""); 
     }
   }, [isOpen, fichaModeloId]);
 
@@ -99,6 +101,7 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
     }
   };
 
+  // Se o modal não estiver aberto ou faltarem dados essenciais, não renderiza
   if (!isOpen || !fichaModeloId || !fichaModeloTitulo) {
     return null;
   }
@@ -130,12 +133,13 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
                 <p className="text-sm text-muted-foreground">Nenhum aluno cadastrado para selecionar.</p>
             ) : (
               <Select
-                value={selectedAlunoId}
+                value={selectedAlunoId} // O valor agora é sempre uma string
                 onValueChange={setSelectedAlunoId}
                 disabled={isSubmitting}
               >
                 <SelectTrigger id="aluno-select-associar" className="w-full">
-                  <SelectValue placeholder="Escolha um aluno..." />
+                  {/* O placeholder será exibido quando selectedAlunoId for "" */}
+                  <SelectValue placeholder="Escolha um aluno..." /> 
                 </SelectTrigger>
                 <SelectContent>
                   {alunos.map((aluno) => (
@@ -155,6 +159,7 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
           </Button>
           <Button
             onClick={handleSubmit}
+            // A condição !selectedAlunoId agora funcionará corretamente com ""
             disabled={isSubmitting || isLoadingAlunos || !selectedAlunoId || alunos.length === 0}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
