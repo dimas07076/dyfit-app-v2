@@ -119,8 +119,14 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
                         ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
                     return {
                         exercicioId: new Types.ObjectId(exercicioIdValue),
-                        series: ex.series, repeticoes: ex.repeticoes, carga: ex.carga,
-                        observacoes: ex.observacoes, ordemNoDia: ex.ordemNoDia, concluido: false
+                        series: ex.series,
+                        repeticoes: ex.repeticoes,
+                        carga: ex.carga,
+                        // CORREÇÃO: Adicionando a propriedade 'descanso' aqui para ser copiada
+                        descanso: ex.descanso, 
+                        observacoes: ex.observacoes,
+                        ordemNoDia: ex.ordemNoDia,
+                        concluido: false
                     };
                 }) ?? []
             })) ?? []

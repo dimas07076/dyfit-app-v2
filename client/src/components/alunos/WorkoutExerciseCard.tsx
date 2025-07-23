@@ -86,12 +86,9 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
           >
             {isCompleted ? <RotateCw size={16} /> : null}
           </button>
-          {/* <<< INÍCIO DA CORREÇÃO >>> */}
-          {/* Trocamos 'truncate' por 'whitespace-normal' para permitir a quebra de linha */}
           <p className="font-semibold text-gray-800 whitespace-normal" title={exerciseName}>
             {exerciseName}
           </p>
-          {/* <<< FIM DA CORREÇÃO >>> */}
         </div>
         <div className="flex items-center gap-2">
             {exercise.exercicioDetalhes?.urlVideo && (
@@ -113,7 +110,8 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
                 <p className="text-sm text-gray-500">Descanso</p>
                 <div className='flex items-center justify-center gap-1'>
                   <Clock size={16} className="text-gray-500" />
-                  <p className="font-bold text-lg">{exercise.descanso || '0s'}</p>
+                  {/* CORREÇÃO: Exibe o valor do descanso ou '-' se estiver vazio/nulo */}
+                  <p className="font-bold text-lg">{exercise.descanso && exercise.descanso.trim() !== '' ? exercise.descanso : '-'}</p>
                 </div>
               </div>
             </div>
