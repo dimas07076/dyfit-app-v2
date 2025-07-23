@@ -163,18 +163,18 @@ export default function TreinosPage() {
                                     <AccordionTrigger className="px-4 py-3 hover:no-underline font-semibold text-lg">
                                         <div className="flex-grow flex items-center gap-3"><Folder className="h-5 w-5 text-primary"/> {pasta.nome} <Badge variant="secondary">{pasta.rotinas.length}</Badge></div>
                                         {/* Ajuste para evitar aninhamento de botões */}
-                                        <div className="flex-shrink-0 flex items-center gap-1"> {/* Removido onClick={(e) => e.stopPropagation()} daqui, pois os spans internos já cuidam disso */}
+                                        <div className="flex-shrink-0 flex items-center gap-1">
                                             <span 
                                                 className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-7 w-7 cursor-pointer" 
-                                                onClick={(e) => { e.stopPropagation(); handleOpenPastaModal(pasta); }} // Adicionado stopPropagation aqui
-                                                title="Editar Pasta" // Adicionado title para acessibilidade
+                                                onClick={(e) => { e.stopPropagation(); handleOpenPastaModal(pasta); }}
+                                                title="Editar Pasta"
                                             >
                                                 <Edit className="h-4 w-4"/>
                                             </span>
                                             <span 
                                                 className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-7 w-7 text-red-500 cursor-pointer" 
-                                                onClick={(e) => { e.stopPropagation(); handleDeletePastaClick(pasta); }} // Adicionado stopPropagation aqui
-                                                title="Excluir Pasta" // Adicionado title para acessibilidade
+                                                onClick={(e) => { e.stopPropagation(); handleDeletePastaClick(pasta); }}
+                                                title="Excluir Pasta"
                                             >
                                                 <Trash2 className="h-4 w-4"/>
                                             </span>
@@ -212,7 +212,15 @@ export default function TreinosPage() {
             </Tabs>
             
             <RotinaFormModal open={isRotinaModalOpen} onClose={() => setIsRotinaModalOpen(false)} onSuccess={() => {}} alunos={alunos} rotinaParaEditar={rotinaParaEditar} />
-            <RotinaViewModal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} rotina={rotinaParaVisualizar} onEdit={handleOpenEditModal} onAssign={handleAssignClick} onPlayVideo={handlePlayVideo} />
+            <RotinaViewModal 
+                isOpen={isViewModalOpen} 
+                onClose={() => setIsViewModalOpen(false)} 
+                rotina={rotinaParaVisualizar} 
+                onEdit={handleOpenEditModal} 
+                onAssign={handleAssignClick} 
+                onPlayVideo={handlePlayVideo} 
+                onConvertToModel={handleConvertToModelClick} // Passa a nova função para o RotinaViewModal
+            />
             {isAssociarModeloModalOpen && rotinaModeloParaAssociar && <AssociarModeloAlunoModal isOpen={isAssociarModeloModalOpen} onClose={() => setIsAssociarModeloModalOpen(false)} fichaModeloId={rotinaModeloParaAssociar.id} fichaModeloTitulo={rotinaModeloParaAssociar.titulo}/>}
             <PastaFormModal isOpen={isPastaModalOpen} onClose={() => {setIsPastaModalOpen(false); setPastaParaEditar(null);}} onSuccessCallback={handlePastaSuccess} initialData={pastaParaEditar} />
             

@@ -71,7 +71,8 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
     const criadorId = req.user?.id;
     if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
 
-    const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId) };
+    // Garante que isCopied seja false por padrão para novas criações
+    const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
     const novaRotina = new Treino(dadosRotina);
     await novaRotina.save();
 
@@ -109,7 +110,8 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
             criadorId: new Types.ObjectId(criadorId),
             alunoId: new Types.ObjectId(alunoId),
             pastaId: null,
-            titulo: `${modeloRestante.titulo} (Ficha de Aluno)`,
+            titulo: modeloRestante.titulo, // Remove o sufixo "(Ficha de Aluno)"
+            isCopied: true, // <<< NOVO: Marca como cópia ao associar modelo >>>
             diasDeTreino: diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
@@ -122,7 +124,6 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
                         series: ex.series,
                         repeticoes: ex.repeticoes,
                         carga: ex.carga,
-                        // CORREÇÃO: Adicionando a propriedade 'descanso' aqui para ser copiada
                         descanso: ex.descanso, 
                         observacoes: ex.observacoes,
                         ordemNoDia: ex.ordemNoDia,
@@ -178,7 +179,8 @@ router.post("/copiar-para-modelo/:id", authenticateToken, async (req: Request, r
             tipo: 'modelo' as const, // Define o tipo como 'modelo'
             alunoId: null, // Remove a associação com o aluno
             pastaId: null, // Remove a associação com pasta (opcional, pode ser ajustado)
-            titulo: `${restanteDaRotina.titulo} (Cópia Modelo)`, // Adiciona um sufixo ao título
+            titulo: restanteDaRotina.titulo, // Remove o sufixo "(Cópia Modelo)"
+            isCopied: true, // <<< NOVO: Marca como cópia ao converter para modelo >>>
             diasDeTreino: restanteDaRotina.diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,

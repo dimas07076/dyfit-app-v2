@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dumbbell, Edit, CopyPlus, User, Folder, Info, Clock, PlayCircle } from 'lucide-react';
+import { Dumbbell, Edit, CopyPlus, User, Folder, Info, Clock, PlayCircle, BookCopy } from 'lucide-react'; // Importado BookCopy
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -17,6 +17,7 @@ interface RotinaViewModalProps {
   onEdit: (rotina: RotinaListagemItem) => void;
   onAssign: (rotinaId: string, rotinaTitulo: string) => void;
   onPlayVideo: (url: string) => void;
+  onConvertToModel: (rotina: RotinaListagemItem) => void; // Nova prop para converter para modelo
 }
 
 const formatDate = (dateString?: string | Date) => {
@@ -28,7 +29,7 @@ const formatDate = (dateString?: string | Date) => {
     }
 };
 
-const RotinaViewModal: React.FC<RotinaViewModalProps> = ({ isOpen, onClose, rotina, onEdit, onAssign, onPlayVideo }) => {
+const RotinaViewModal: React.FC<RotinaViewModalProps> = ({ isOpen, onClose, rotina, onEdit, onAssign, onPlayVideo, onConvertToModel }) => {
   if (!isOpen || !rotina) return null;
 
   const isModelo = rotina.tipo === 'modelo';
@@ -61,6 +62,12 @@ const RotinaViewModal: React.FC<RotinaViewModalProps> = ({ isOpen, onClose, roti
                   {isModelo ? <Folder className="h-3 w-3 mr-1.5"/> : <User className="h-3 w-3 mr-1.5"/>}
                   {isModelo ? 'Modelo' : 'Individual'}
                 </Badge>
+                {/* Nova etiqueta "Rotina Copiada" visível apenas para o personal */}
+                {rotina.isCopied && (
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-transparent dark:bg-blue-900/50 dark:text-blue-300">
+                    Rotina Copiada
+                  </Badge>
+                )}
               </div>
               {!isModelo && <div className="font-medium"><strong>Aluno:</strong> {alunoNome}</div>}
               <div><strong>Dias de Treino:</strong> {rotina.diasDeTreino?.length || 0}</div>
@@ -138,6 +145,15 @@ const RotinaViewModal: React.FC<RotinaViewModalProps> = ({ isOpen, onClose, roti
 
         <DialogFooter className="p-4 border-t flex-wrap justify-end gap-2">
           {isModelo && <Button onClick={() => onAssign(rotina._id, rotina.titulo)} className="bg-green-600 hover:bg-green-700"><CopyPlus className="w-4 h-4 mr-2"/>Usar este Modelo</Button>}
+          {/* Novo botão "Tornar Modelo" para rotinas individuais */}
+          {!isModelo && (
+            <Button 
+              onClick={() => onConvertToModel(rotina)} 
+              className="bg-blue-600 hover:bg-blue-700 text-white" // Estilo para destacar
+            >
+              <BookCopy className="w-4 h-4 mr-2"/>Tornar Modelo
+            </Button>
+          )}
           <Button variant="outline" onClick={() => onEdit(rotina)}><Edit className="w-4 h-4 mr-2"/>Editar Rotina</Button>
           <Button variant="secondary" onClick={onClose}>Fechar</Button>
         </DialogFooter>
