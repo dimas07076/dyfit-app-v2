@@ -95,7 +95,8 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
 
   const handleFinalSubmit = () => {
     const payload = {
-        ...step1Data, ...step2Data,
+        ...step1Data,
+        ...step2Data,
         diasDeTreino: diasDeTreino.map(dia => ({
             _id: dia._id, identificadorDia: dia.identificadorDia, nomeSubFicha: dia.nomeSubFicha, ordemNaRotina: dia.ordemNaRotina,
             exerciciosDoDia: dia.exerciciosDoDia.map(ex => ({
@@ -105,6 +106,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
             }))
         }))
     };
+    console.log("Payload enviado:", payload); // Log para depuração
     mutation.mutate(payload);
   };
   
@@ -120,6 +122,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
+      {/* Ajustes para responsividade: sm:max-w-4xl agora é w-[95vw] h-[90vh] para mobile, e flex-col para empilhar conteúdo */}
       <DialogContent className="sm:max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle>{isEditing ? "Editar Rotina" : "Nova Rotina"}</DialogTitle>
@@ -139,23 +142,79 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
              {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => setDiaFormValues(s => ({...s, identificadorDia: v}))}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => setDiaFormValues(s => ({...s, identificadorDia: e.target.value}))} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => setDiaFormValues(s => ({...s, nomeSubFicha: e.target.value}))} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => setShowDiaForm(false)}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
              {!showDiaForm && (<Button variant="outline" className="w-full border-dashed border-primary text-primary hover:text-primary hover:bg-primary/5" onClick={handleShowDiaForm}><PlusCircle className="mr-2 h-4 w-4"/> Adicionar Dia de Treino</Button>)}
           </div>}
-          {step === 3 && ( <div className="grid grid-cols-1 md:grid-cols-3 h-full max-h-full overflow-hidden animate-in fade-in-50"> <div className="md:col-span-1 border-r dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 overflow-y-auto"> <h3 className="font-semibold mb-3">Dias de Treino</h3><div className="space-y-2">{diasDeTreino.map(dia => (<Button key={dia.tempId} variant={diaAtivo === dia.tempId ? 'secondary' : 'ghost'} className="w-full justify-start text-left h-auto py-2" onClick={() => setDiaAtivo(dia.tempId)}><span className="flex flex-col"><span>{dia.identificadorDia}</span>{dia.nomeSubFicha && <span className="text-xs font-normal opacity-70">{dia.nomeSubFicha}</span>}</span></Button>))}</div> </div> <div className="md:col-span-2 p-4 overflow-y-auto"> {diaAtivo && diasDeTreino.find(d => d.tempId === diaAtivo) ? ( <div className="space-y-4"><h3 className="font-semibold">Exercícios do Dia: {diasDeTreino.find(d => d.tempId === diaAtivo)?.identificadorDia}</h3>{(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).map((ex, index) => {
-              // <<< CORREÇÃO DE ROBUSTEZ: Verifica se o exercício não é nulo antes de renderizar >>>
-              if (!ex.exercicioId) {
-                  return (
-                      <Card key={index} className="p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500">
-                          <p className="text-red-600 dark:text-red-400 text-sm flex items-center">
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Este exercício foi removido e não pode ser editado.
-                          </p>
-                      </Card>
-                  );
-              }
-              return ( <Card key={(ex as any)._id || (ex as any).tempIdExercicio || index} className="p-3 bg-white dark:bg-slate-800/60 shadow-sm border-l-4 border-primary/50"><div className="flex justify-between items-start mb-2"><p className="font-medium text-sm">{(typeof ex.exercicioId === 'object' && ex.exercicioId.nome) || 'Exercício'}</p><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/70 hover:text-destructive shrink-0" onClick={() => handleRemoveExercicio(diaAtivo, index)}><XCircle className="w-4 h-4" /></Button></div><div className="grid grid-cols-2 sm:grid-cols-4 gap-2"><Input placeholder="Séries" value={ex.series || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'series', e.target.value)} /><Input placeholder="Reps" value={ex.repeticoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'repeticoes', e.target.value)} /><Input placeholder="Carga" value={ex.carga || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'carga', e.target.value)} /><Input placeholder="Descanso" value={ex.descanso || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'descanso', e.target.value)} /></div><Textarea placeholder="Observações..." value={ex.observacoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'observacoes', e.target.value)} className="mt-2 text-xs" rows={1} /></Card>)
-          })}<Button variant="outline" className="w-full border-dashed" onClick={() => handleOpenSelectExerciseModal(diaAtivo)}><ListPlus className="mr-2 h-4 w-4" />Adicionar Exercício</Button></div>) : <div className="text-center text-muted-foreground pt-20 flex flex-col items-center"><p className="font-semibold">Nenhum dia selecionado</p><p className="text-sm">Selecione um dia de treino à esquerda.</p></div>} </div> </div> )}
+          {step === 3 && (
+            <div className="flex flex-col md:flex-row h-full max-h-full overflow-hidden"> {/* Alterado para flex-col em mobile e md:flex-row em desktop */}
+              <div className="md:col-span-1 border-b md:border-b-0 md:border-r dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 overflow-y-auto w-full md:w-1/3 lg:w-1/4 shrink-0"> {/* Ajustes de largura e borda para mobile/desktop */}
+                <h3 className="font-semibold mb-3">Dias de Treino</h3>
+                <div className="space-y-2">
+                  {diasDeTreino.map(dia => (
+                    <Button
+                      key={dia.tempId}
+                      variant={diaAtivo === dia.tempId ? 'secondary' : 'ghost'}
+                      className="w-full justify-start text-left h-auto py-2"
+                      onClick={() => setDiaAtivo(dia.tempId)}
+                    >
+                      <span className="flex flex-col">
+                        <span>{dia.identificadorDia}</span>
+                        {dia.nomeSubFicha && <span className="text-xs font-normal opacity-70">{dia.nomeSubFicha}</span>}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="md:col-span-2 p-4 overflow-y-auto flex-grow"> {/* flex-grow para ocupar o espaço restante */}
+                {diaAtivo && diasDeTreino.find(d => d.tempId === diaAtivo) ? (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold">Exercícios do Dia: {diasDeTreino.find(d => d.tempId === diaAtivo)?.identificadorDia}</h3>
+                    {(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).map((ex, index) => {
+                      // <<< CORREÇÃO DE ROBUSTEZ: Verifica se o exercício não é nulo antes de renderizar >>>
+                      if (!ex.exercicioId) {
+                          return (
+                              <Card key={index} className="p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500">
+                                  <p className="text-red-600 dark:text-red-400 text-sm flex items-center">
+                                      <AlertTriangle className="h-4 w-4 mr-2" />
+                                      Este exercício foi removido e não pode ser editado.
+                                  </p>
+                              </Card>
+                          );
+                      }
+                      return (
+                        <Card key={(ex as any)._id || (ex as any).tempIdExercicio || index} className="p-3 bg-white dark:bg-slate-800/60 shadow-sm border-l-4 border-primary/50">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="font-medium text-sm">{(typeof ex.exercicioId === 'object' && ex.exercicioId.nome) || 'Exercício'}</p>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/70 hover:text-destructive shrink-0" onClick={() => handleRemoveExercicio(diaAtivo, index)}>
+                              <XCircle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          {/* Grid de inputs responsivo: 2 colunas em mobile, 4 em sm */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <Input placeholder="Séries" value={ex.series || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'series', e.target.value)} />
+                            <Input placeholder="Reps" value={ex.repeticoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'repeticoes', e.target.value)} />
+                            <Input placeholder="Carga" value={ex.carga || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'carga', e.target.value)} />
+                            <Input placeholder="Descanso" value={ex.descanso || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'descanso', e.target.value)} />
+                          </div>
+                          <Textarea placeholder="Observações..." value={ex.observacoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'observacoes', e.target.value)} className="mt-2 text-xs" rows={1} />
+                        </Card>
+                      )
+                    })}
+                    <Button variant="outline" className="w-full border-dashed" onClick={() => handleOpenSelectExerciseModal(diaAtivo)}>
+                      <ListPlus className="mr-2 h-4 w-4" />Adicionar Exercício
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground pt-20 flex flex-col items-center">
+                    <p className="font-semibold">Nenhum dia selecionado</p>
+                    <p className="text-sm">Selecione um dia de treino à esquerda.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter className="p-4 border-t flex justify-between shrink-0">
-          <div>{step > 1 && <Button variant="outline" onClick={prevStep}><ArrowLeft className="mr-2 h-4 w-4"/> Voltar</Button>}</div>
+          <div>
+            {step > 1 && <Button variant="outline" onClick={prevStep}><ArrowLeft className="mr-2 h-4 w-4"/> Voltar</Button>}
+          </div>
           <div>
             {step < 3 && <Button onClick={nextStep} disabled={step === 2 && diasDeTreino.length === 0}>Próximo <ArrowRight className="ml-2 h-4 w-4"/></Button>}
             {step === 3 && <Button onClick={handleFinalSubmit} disabled={mutation.isPending}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {isEditing ? "Salvar Alterações" : "Criar Rotina"}</Button>}
