@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Check, PlayCircle, Clock, Weight, ChevronDown, RotateCw } from 'lucide-react';
 import { useWorkoutPlayer } from '@/context/WorkoutPlayerContext';
 import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importa componentes de Dialog
 
 interface ExercicioRenderizavel {
   _id: string;
@@ -35,17 +36,18 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
   const { completeExercise, uncompleteExercise, updateExerciseLoad, getExerciseLoad } = useWorkoutPlayer();
   
   const [load, setLoad] = useState(() => getExerciseLoad(exercise._id) || exercise.carga || '');
-  
   const [isExpanded, setIsExpanded] = useState(isActive);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Novo estado para controlar o modal de edição
+  const [currentLoadInput, setCurrentLoadInput] = useState(load); // Estado para o input dentro do modal
 
   useEffect(() => {
     setIsExpanded(isActive);
   }, [isActive]);
   
-  const handleLoadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newLoad = e.target.value;
-    setLoad(newLoad);
-    updateExerciseLoad(exercise._id, newLoad);
+  // A lógica de handleLoadChange será movida para o modal, mas a função de atualização do contexto permanece
+  const handleUpdateLoad = (newLoadValue: string) => {
+    setLoad(newLoadValue);
+    updateExerciseLoad(exercise._id, newLoadValue);
   };
   
   const handleCompleteClick = () => {
@@ -57,6 +59,23 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
   }
 
   const exerciseName = exercise.exercicioDetalhes?.nome || 'Exercício Removido';
+
+  // Função para abrir o modal de edição
+  const openEditModal = () => {
+    setCurrentLoadInput(load); // Define o valor atual do input do modal para o valor salvo
+    setIsEditModalOpen(true);
+  };
+
+  // Função para fechar o modal de edição
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+  };
+
+  // Função para salvar a carga do modal
+  const handleSaveLoad = () => {
+    handleUpdateLoad(currentLoadInput); // Atualiza a carga no estado e no contexto
+    closeEditModal(); // Fecha o modal
+  };
   
   return (
     <Card
@@ -110,14 +129,28 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
                 <p className="text-sm text-gray-500">Descanso</p>
                 <div className='flex items-center justify-center gap-1'>
                   <Clock size={16} className="text-gray-500" />
-                  {/* CORREÇÃO: Exibe o valor do descanso ou '-' se estiver vazio/nulo */}
                   <p className="font-bold text-lg">{exercise.descanso && exercise.descanso.trim() !== '' ? exercise.descanso : '-'}</p>
                 </div>
               </div>
             </div>
+            {/* Seção de Carga - Modificada para incluir o botão "Editar" e o modal */}
             <div className="space-y-2">
-              <label htmlFor={`load-${exercise._id}`} className="text-sm font-medium text-gray-700 flex items-center gap-2"><Weight size={16} /> Carga Utilizada (kg)</label>
-              <Input id={`load-${exercise._id}`} type="number" placeholder="Ex: 20" value={load} onChange={handleLoadChange} className="bg-white" disabled={isCompleted} />
+                <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Weight size={16} /> Carga Utilizada (kg)</label>
+                    {/* Exibe a carga atual e o botão de edição */}
+                    <div className="flex items-center gap-2">
+                        <p className="font-bold text-lg text-gray-800">{load || '-'}</p>
+                        {!isCompleted && ( // O botão editar só aparece se o exercício não estiver concluído
+                            <Button 
+                                variant="link" 
+                                className="text-blue-600 hover:text-blue-800 p-0 h-auto underline" 
+                                onClick={openEditModal}
+                            >
+                                Editar
+                            </Button>
+                        )}
+                    </div>
+                </div>
             </div>
             {!isCompleted && (
               <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleCompleteClick}>
@@ -127,6 +160,37 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
           </div>
         </CardContent>
       )}
+
+      {/* Modal de Edição de Carga */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Atualizar Carga Utilizada</DialogTitle>
+            <DialogDescription>
+              Insira a carga utilizada para este exercício.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="currentLoad" className="text-right">
+                Carga (kg)
+              </label>
+              <Input
+                id="currentLoad"
+                type="number"
+                placeholder="Ex: 20"
+                value={currentLoadInput}
+                onChange={(e) => setCurrentLoadInput(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditModal}>Cancelar</Button>
+            <Button onClick={handleSaveLoad}>Atualizar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
