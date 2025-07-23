@@ -7,7 +7,6 @@ const retryDelay = (attemptIndex: number) => {
   return Math.min(1000 * 2 ** attemptIndex, 30000); 
 }
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
 // Adicionamos um quarto parâmetro opcional 'tokenType' para especificar qual token usar.
 export async function apiRequest<T = unknown>(
   method: string,
@@ -15,17 +14,14 @@ export async function apiRequest<T = unknown>(
   data?: unknown | undefined,
   tokenType: TokenType = 'personalAdmin' // Valor padrão para manter a compatibilidade
 ): Promise<T> {
-// <<< FIM DA ALTERAÇÃO >>>
   const relativeUrl = url.startsWith('/') ? url : `/${url}`;
   const options: RequestInit = { method };
   if (data !== undefined) {
     options.body = JSON.stringify(data);
   }
   try {
-    // <<< INÍCIO DA ALTERAÇÃO >>>
     // Passamos o 'tokenType' para a função fetchWithAuth.
     return await fetchWithAuth<T>(relativeUrl, options, tokenType);
-    // <<< FIM DA ALTERAÇÃO >>>
   } catch (error) {
     throw error;
   }
@@ -42,6 +38,18 @@ export const queryClient = new QueryClient({
         // Se o erro for uma instância do nosso AuthError, a função retorna 'false'.
         // Isso diz ao React Query: "Não tente novamente. Esta é uma falha de autenticação."
         if (error instanceof AuthError) {
+          // Adicionado tratamento específico para códigos de erro de autenticação
+          if (error.code === 'TOKEN_NOT_PROVIDED' || error.code === 'TOKEN_EXPIRED') {
+            // Se o token não foi fornecido ou expirou, não tentar novamente e redirecionar
+            // Nota: O redirecionamento real para a página de login deve ser feito
+            // por um listener global para o evento 'auth-failed' ou no componente de login.
+            // Aqui, apenas impedimos o retry.
+            console.warn(`[React Query Retry] Autenticação falhou com código: ${error.code}. Não retentando.`);
+            return false; 
+          }
+          // Para outros AuthErrors (ex: INVALID_TOKEN, UNAUTHORIZED_ROLE, INVALID_CREDENTIALS)
+          // também não retentamos, pois são erros que exigem ação do usuário (login correto, permissão).
+          console.warn(`[React Query Retry] Erro de autenticação não retentável com código: ${error.code}`);
           return false;
         }
 

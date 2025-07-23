@@ -39,12 +39,14 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
         const user: IPersonalTrainer | null = await PersonalTrainer.findOne({ email: email.toLowerCase() }).select('+passwordHash +role');
         
         if (!user || !user._id) {
-            return res.status(401).json({ message: 'Credenciais inválidas.' });
+            // Adicionado código de erro para credenciais inválidas
+            return res.status(401).json({ message: 'Credenciais inválidas.', code: 'INVALID_CREDENTIALS' });
         }
         
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Credenciais inválidas.' });
+            // Adicionado código de erro para credenciais inválidas
+            return res.status(401).json({ message: 'Credenciais inválidas.', code: 'INVALID_CREDENTIALS' });
         }
         
         const firstName = user.nome.split(' ')[0] || '';
@@ -81,10 +83,16 @@ router.post('/aluno/login', async (req: Request, res: Response, next: NextFuncti
     try {
         // <<< ALTERAÇÃO: Agora buscamos o status junto com o hash da senha >>>
         const aluno: IAluno | null = await Aluno.findOne({ email: email.toLowerCase() }).select('+passwordHash +status');
-        if (!aluno || !aluno._id) return res.status(401).json({ message: 'Credenciais inválidas.' });
+        if (!aluno || !aluno._id) {
+            // Adicionado código de erro para credenciais inválidas
+            return res.status(401).json({ message: 'Credenciais inválidas.', code: 'INVALID_CREDENTIALS' });
+        }
         
         const isPasswordValid = await aluno.comparePassword(password);
-        if (!isPasswordValid) return res.status(401).json({ message: 'Credenciais inválidas.' });
+        if (!isPasswordValid) {
+            // Adicionado código de erro para credenciais inválidas
+            return res.status(401).json({ message: 'Credenciais inválidas.', code: 'INVALID_CREDENTIALS' });
+        }
 
         // <<< ADIÇÃO: Verificação de status ANTES de gerar o token >>>
         if (aluno.status !== 'active') {

@@ -8,7 +8,8 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
     if (!token) {
         console.log("[Auth Middleware] Falha: Token não fornecido no cabeçalho.");
-        return res.status(401).json({ message: 'Acesso não autorizado. Token não fornecido.' });
+        // Adicionado código de erro específico para token não fornecido
+        return res.status(401).json({ message: 'Acesso não autorizado. Token não fornecido.', code: 'TOKEN_NOT_PROVIDED' });
     }
 
     const JWT_SECRET = process.env.JWT_SECRET as Secret;
@@ -20,7 +21,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-        // <<< CORREÇÃO DEFINITIVA: Converte a role para minúsculo antes de comparar >>>
+        // Converte a role para minúsculo antes de comparar
         const userRole = decoded.role?.toLowerCase();
 
         if (userRole === 'personal' || userRole === 'admin') {
@@ -38,16 +39,20 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
         
         // Se o token for válido, mas a role for de Aluno ou outra inesperada, nega o acesso.
         console.warn(`[Auth Middleware] Falha: Token válido, mas com role não autorizada ('${decoded.role}') para esta rota.`);
-        return res.status(403).json({ message: 'Acesso proibido. Você não tem permissão para acessar este recurso.' });
+        // Adicionado código de erro específico para role não autorizada
+        return res.status(403).json({ message: 'Acesso proibido. Você não tem permissão para acessar este recurso.', code: 'UNAUTHORIZED_ROLE' });
 
     } catch (err: any) {
         console.warn(`[Auth Middleware] Falha na verificação do token - ${err.name}: ${err.message}`);
         if (err instanceof jwt.TokenExpiredError) {
+            // Código de erro para token expirado já existia
             return res.status(401).json({ message: 'Sessão expirada. Faça login novamente.', code: 'TOKEN_EXPIRED' });
         }
         if (err instanceof jwt.JsonWebTokenError) {
-            return res.status(403).json({ message: 'Acesso proibido. Token inválido.' });
+            // Adicionado código de erro específico para token inválido (genérico)
+            return res.status(403).json({ message: 'Acesso proibido. Token inválido.', code: 'INVALID_TOKEN' });
         }
-        return res.status(500).json({ message: 'Erro interno ao processar o token.' });
+        // Código de erro genérico para outros erros de processamento do token
+        return res.status(500).json({ message: 'Erro interno ao processar o token.', code: 'TOKEN_PROCESSING_ERROR' });
     }
 };
