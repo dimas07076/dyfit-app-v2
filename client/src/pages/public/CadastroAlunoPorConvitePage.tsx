@@ -27,7 +27,6 @@ const formSchema = z.object({
   goal: z.string().min(1, "Objetivo é obrigatório."),
   weight: z.string().min(1, "Peso é obrigatório.").refine(val => !isNaN(parseFloat(val.replace(',', '.'))), "Deve ser um número."),
   height: z.string().min(1, "Altura é obrigatória.").refine(val => /^\d+$/.test(val), "Deve ser um número inteiro."),
-  // A data de início não precisa mais de validação, pois será definida automaticamente
   startDate: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "As senhas não coincidem.",
@@ -42,12 +41,14 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [emailConvidado, setEmailConvidado] = useState<string | null>(null);
+  const [personalName, setPersonalName] = useState<string | null>(null);
 
   const { isLoading: isValidating, isError, error: validationError } = useQuery({
     queryKey: ['validateAlunoInvite', token],
     queryFn: async () => {
-      const data = await apiRequest<{ email: string }>('GET', `/api/public/convite-aluno/${token}`);
+      const data = await apiRequest<{ email: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
       setEmailConvidado(data.email);
+      setPersonalName(data.personalName);
       return data;
     },
     enabled: !!token,
@@ -56,7 +57,6 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    // <<< CORREÇÃO AQUI: Data de início agora é a data atual >>>
     defaultValues: {
       nome: "", password: "", confirmPassword: "", phone: "", birthDate: "",
       goal: "", weight: "", height: "", startDate: new Date().toISOString().split('T')[0]
@@ -90,30 +90,130 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   if (isError) return <ErrorMessage title="Convite Inválido" message={validationError?.message || "O link de convite que você usou é inválido ou já expirou."} />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Finalize seu Cadastro</CardTitle>
-          <CardDescription>Bem-vindo(a) ao DyFit! Complete seus dados para acessar a plataforma.</CardDescription>
+    // Fundo da página ajustado para um cinza muito claro
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-lg bg-white text-gray-800 shadow-lg"> {/* Card branco com texto escuro */}
+        <CardHeader className="text-center pb-4">
+          {/* Logo da aplicação - caminho atualizado */}
+          <img 
+            src="/logodyfit.png" // Caminho relativo para a logo na pasta public
+            alt="DyFit Logo"
+            className="mx-auto mb-4 h-12 w-auto"
+          />
+          <CardTitle className="text-2xl font-bold text-primary">Bem-vindo(a) ao DyFit!</CardTitle> {/* Título com a cor primária */}
+          {personalName && (
+            <CardDescription className="text-lg text-gray-600 mt-2"> {/* Texto mais escuro */}
+              Seu personal, <span className="font-semibold text-primary">{personalName}</span>, te convidou para fazer parte da nossa plataforma. Prepare-se para uma jornada incrível rumo aos seus objetivos!
+            </CardDescription>
+          )}
+          {!personalName && (
+            <CardDescription className="text-gray-600"> {/* Texto mais escuro */}
+              Complete seus dados para acessar a plataforma.
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input value={emailConvidado || ''} disabled /></FormControl></FormItem>
-                <FormField control={form.control} name="nome" render={({ field }) => ( <FormItem><FormLabel>Nome Completo*</FormLabel><FormControl><Input placeholder="Seu nome completo" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Crie uma Senha*</FormLabel><FormControl><Input type="password" placeholder="Mínimo de 6 caracteres" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirme sua Senha*</FormLabel><FormControl><Input type="password" placeholder="Repita a senha" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="birthDate" render={({ field }) => ( <FormItem><FormLabel>Data de Nascimento*</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="gender" render={({ field }) => ( <FormItem><FormLabel>Gênero*</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="goal" render={({ field }) => ( <FormItem><FormLabel>Objetivo Principal*</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="Hipertrofia">Hipertrofia</SelectItem><SelectItem value="Emagrecimento">Emagrecimento</SelectItem><SelectItem value="Outros">Outros</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="weight" render={({ field }) => ( <FormItem><FormLabel>Peso (kg)*</FormLabel><FormControl><Input placeholder="Ex: 75.5" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="height" render={({ field }) => ( <FormItem><FormLabel>Altura (cm)*</FormLabel><FormControl><Input placeholder="Ex: 178" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                {/* <<< CORREÇÃO AQUI: Campo de data desabilitado >>> */}
-                <FormField control={form.control} name="startDate" render={({ field }) => ( <FormItem><FormLabel>Data de Início</FormLabel><FormControl><Input type="date" {...field} disabled /></FormControl><FormMessage /></FormItem> )} />
+                <FormItem>
+                  <FormLabel className="text-gray-700">Email</FormLabel> {/* Label mais escuro */}
+                  <FormControl><Input value={emailConvidado || ''} disabled className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl> {/* Input claro */}
+                </FormItem>
+                <FormField control={form.control} name="nome" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Nome Completo*</FormLabel>
+                    <FormControl><Input placeholder="Seu nome completo" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="password" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Crie uma Senha*</FormLabel>
+                    <FormControl><Input type="password" placeholder="Mínimo de 6 caracteres" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="confirmPassword" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Confirme sua Senha*</FormLabel>
+                    <FormControl><Input type="password" placeholder="Repita a senha" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="phone" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Telefone</FormLabel>
+                    <FormControl><Input placeholder="(00) 00000-0000" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="birthDate" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Data de Nascimento*</FormLabel>
+                    <FormControl><Input type="date" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="gender" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Gênero*</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-white text-gray-800 border-gray-300">
+                        <SelectItem value="masculino">Masculino</SelectItem>
+                        <SelectItem value="feminino">Feminino</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="goal" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Objetivo Principal*</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-white text-gray-800 border-gray-300">
+                        <SelectItem value="Hipertrofia">Hipertrofia</SelectItem>
+                        <SelectItem value="Emagrecimento">Emagrecimento</SelectItem>
+                        <SelectItem value="Outros">Outros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="weight" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Peso (kg)*</FormLabel>
+                    <FormControl><Input placeholder="Ex: 75.5" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="height" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Altura (cm)*</FormLabel>
+                    <FormControl><Input placeholder="Ex: 178" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
+                <FormField control={form.control} name="startDate" render={({ field }) => ( 
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Data de Início</FormLabel>
+                    <FormControl><Input type="date" {...field} disabled className="bg-gray-50 border-gray-300 text-gray-800" /></FormControl>
+                    <FormMessage />
+                  </FormItem> 
+                )} />
               </div>
-              <Button type="submit" className="w-full mt-6" disabled={registerMutation.isPending}>
+              <Button type="submit" className="w-full mt-6 bg-primary text-primary-foreground hover:bg-primary/90" disabled={registerMutation.isPending}> {/* Botão primário padrão */}
                 {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Finalizar Cadastro
               </Button>

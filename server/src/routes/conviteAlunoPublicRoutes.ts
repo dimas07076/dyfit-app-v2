@@ -2,14 +2,15 @@
 import express, { Request, Response, NextFunction } from 'express';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import Aluno from '../../models/Aluno.js';
+import PersonalTrainer from '../../models/PersonalTrainer.js'; // Importa o modelo PersonalTrainer
 import mongoose from 'mongoose';
-import dbConnect from '../../lib/dbConnect.js'; // <<< IMPORTAÇÃO ADICIONADA
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
 
 // GET /api/public/convite-aluno/:token - Valida o token do convite
 router.get('/:token', async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     try {
         const { token } = req.params;
         const convite = await ConviteAluno.findOne({ token, status: 'pendente' });
@@ -22,7 +23,15 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
             return res.status(404).json({ erro: 'Convite inválido ou expirado.' });
         }
 
-        res.status(200).json({ email: convite.emailConvidado });
+        // Busca o personal trainer que criou o convite
+        const personal = await PersonalTrainer.findById(convite.criadoPor).select('nome');
+
+        if (!personal) {
+            return res.status(404).json({ erro: 'Personal trainer associado ao convite não encontrado.' });
+        }
+
+        // Retorna o e-mail do aluno e o nome do personal
+        res.status(200).json({ email: convite.emailConvidado, personalName: personal.nome });
 
     } catch (error) {
         next(error);
@@ -31,7 +40,7 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
 
 // POST /api/public/convite-aluno/registrar - Finaliza o cadastro do aluno
 router.post('/registrar', async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect(); // <<< CHAMADA ADICIONADA
+    await dbConnect();
     try {
         const { token, nome, password, ...outrosDados } = req.body;
 
