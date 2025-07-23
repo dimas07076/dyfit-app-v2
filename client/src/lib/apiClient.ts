@@ -2,13 +2,16 @@
 
 // Etapa 1: Definir uma classe de erro customizada para falhas de autenticação.
 export class AuthError extends Error {
-  constructor(message = 'Authentication failed') {
+  // Adicionamos uma propriedade 'code' para armazenar o código de erro específico
+  public code?: string; 
+
+  constructor(message = 'Authentication failed', code?: string) {
     super(message);
     this.name = 'AuthError';
+    this.code = code; // Atribui o código de erro
   }
 }
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
 // Adicionamos um tipo para o tokenType para maior segurança de código
 export type TokenType = 'personalAdmin' | 'aluno';
 
@@ -30,7 +33,6 @@ export const fetchWithAuth = async <T = any>(
             token = localStorage.getItem('authToken');
         }
     }
-// <<< FIM DA ALTERAÇÃO >>>
 
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
@@ -72,18 +74,22 @@ export const fetchWithAuth = async <T = any>(
       }
       
       if (!response.ok) {
+        // Captura a mensagem e o código de erro do backend, se existirem
         const errorMessage = data?.message || data?.mensagem || data?.erro || `Erro ${response.status}: ${response.statusText || 'Ocorreu um erro na comunicação.'}`;
+        const errorCode = data?.code; // Captura o código de erro enviado pelo backend
 
         if (response.status === 401 || response.status === 403) {
-            // Evento customizado agora usa o tokenType explícito
+            // Dispara um evento customizado para o tratamento global de autenticação
             window.dispatchEvent(new CustomEvent('auth-failed', { 
               detail: { 
                 status: response.status,
                 forAluno: tokenType === 'aluno', 
-                forPersonalAdmin: tokenType === 'personalAdmin'
+                forPersonalAdmin: tokenType === 'personalAdmin',
+                code: errorCode // Passa o código de erro para o evento
               } 
             }));
-            throw new AuthError(errorMessage);
+            // Lança AuthError com a mensagem e o código de erro
+            throw new AuthError(errorMessage, errorCode); 
         }
         
         throw new Error(errorMessage);
