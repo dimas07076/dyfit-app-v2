@@ -1,5 +1,5 @@
 // client/src/pages/public/CadastroAlunoPorConvitePage.tsx
-import React, { useState } from 'react';
+import React, { useState } from 'react'; // 'useEffect' removido daqui
 import { useLocation, useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -18,6 +18,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 const formSchema = z.object({
+  email: z.string().email("Por favor, insira um e-mail válido.").optional(),
   nome: z.string().min(3, "Nome completo é obrigatório."),
   password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres."),
   confirmPassword: z.string(),
@@ -31,6 +32,13 @@ const formSchema = z.object({
 }).refine(data => data.password === data.confirmPassword, {
   message: "As senhas não coincidem.",
   path: ["confirmPassword"],
+}).refine(data => {
+    // Torna o e-mail obrigatório apenas se não for fornecido pela API
+    if (!data.email) return false;
+    return true;
+}, {
+    message: "O e-mail é obrigatório.",
+    path: ["email"],
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -43,24 +51,27 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const [emailConvidado, setEmailConvidado] = useState<string | null>(null);
   const [personalName, setPersonalName] = useState<string | null>(null);
 
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "", nome: "", password: "", confirmPassword: "", phone: "", birthDate: "",
+      goal: "", weight: "", height: "", startDate: new Date().toISOString().split('T')[0]
+    },
+  });
+
   const { isLoading: isValidating, isError, error: validationError } = useQuery({
     queryKey: ['validateAlunoInvite', token],
     queryFn: async () => {
-      const data = await apiRequest<{ email: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
-      setEmailConvidado(data.email);
+      const data = await apiRequest<{ email?: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
+      if (data.email) {
+        setEmailConvidado(data.email);
+        form.setValue('email', data.email); // Pré-popula o formulário com o e-mail
+      }
       setPersonalName(data.personalName);
       return data;
     },
     enabled: !!token,
     retry: false,
-  });
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      nome: "", password: "", confirmPassword: "", phone: "", birthDate: "",
-      goal: "", weight: "", height: "", startDate: new Date().toISOString().split('T')[0]
-    },
   });
 
   const registerMutation = useMutation({
@@ -86,40 +97,41 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   });
 
   const onSubmit = (data: FormValues) => registerMutation.mutate(data);
+  
   if (isValidating) return <LoadingSpinner text="Validando convite..." />;
   if (isError) return <ErrorMessage title="Convite Inválido" message={validationError?.message || "O link de convite que você usou é inválido ou já expirou."} />;
 
   return (
-    // Fundo da página ajustado para um cinza muito claro
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-lg bg-white text-gray-800 shadow-lg"> {/* Card branco com texto escuro */}
+      <Card className="w-full max-w-lg bg-white text-gray-800 shadow-lg">
         <CardHeader className="text-center pb-4">
-          {/* Logo da aplicação - caminho atualizado */}
-          <img 
-            src="/logodyfit.png" // Caminho relativo para a logo na pasta public
-            alt="DyFit Logo"
-            className="mx-auto mb-4 h-12 w-auto"
-          />
-          <CardTitle className="text-2xl font-bold text-primary">Bem-vindo(a) ao DyFit!</CardTitle> {/* Título com a cor primária */}
+          <img src="/logodyfit.png" alt="DyFit Logo" className="mx-auto mb-4 h-12 w-auto" />
+          <CardTitle className="text-2xl font-bold text-primary">Bem-vindo(a) ao DyFit!</CardTitle>
           {personalName && (
-            <CardDescription className="text-lg text-gray-600 mt-2"> {/* Texto mais escuro */}
-              Seu personal, <span className="font-semibold text-primary">{personalName}</span>, te convidou para fazer parte da nossa plataforma. Prepare-se para uma jornada incrível rumo aos seus objetivos!
+            <CardDescription className="text-lg text-gray-600 mt-2">
+              Seu personal, <span className="font-semibold text-primary">{personalName}</span>, te convidou.
             </CardDescription>
           )}
-          {!personalName && (
-            <CardDescription className="text-gray-600"> {/* Texto mais escuro */}
-              Complete seus dados para acessar a plataforma.
-            </CardDescription>
-          )}
+          <CardDescription className="text-gray-600">Complete seus dados para acessar a plataforma.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormItem>
-                  <FormLabel className="text-gray-700">Email</FormLabel> {/* Label mais escuro */}
-                  <FormControl><Input value={emailConvidado || ''} disabled className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl> {/* Input claro */}
-                </FormItem>
+                {emailConvidado ? (
+                  <FormItem>
+                    <FormLabel className="text-gray-700">Email</FormLabel>
+                    <FormControl><Input value={emailConvidado} disabled className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                  </FormItem>
+                ) : (
+                  <FormField control={form.control} name="email" render={({ field }) => ( 
+                    <FormItem>
+                      <FormLabel className="text-gray-700">Email*</FormLabel>
+                      <FormControl><Input placeholder="seu.email@exemplo.com" {...field} className="bg-gray-50 border-gray-300 text-gray-800 focus:ring-primary" /></FormControl>
+                      <FormMessage />
+                    </FormItem> 
+                  )} />
+                )}
                 <FormField control={form.control} name="nome" render={({ field }) => ( 
                   <FormItem>
                     <FormLabel className="text-gray-700">Nome Completo*</FormLabel>
@@ -127,6 +139,7 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
                     <FormMessage />
                   </FormItem> 
                 )} />
+                {/* ... outros campos do formulário permanecem iguais ... */}
                 <FormField control={form.control} name="password" render={({ field }) => ( 
                   <FormItem>
                     <FormLabel className="text-gray-700">Crie uma Senha*</FormLabel>
@@ -213,7 +226,7 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
                   </FormItem> 
                 )} />
               </div>
-              <Button type="submit" className="w-full mt-6 bg-primary text-primary-foreground hover:bg-primary/90" disabled={registerMutation.isPending}> {/* Botão primário padrão */}
+              <Button type="submit" className="w-full mt-6 bg-primary text-primary-foreground hover:bg-primary/90" disabled={registerMutation.isPending}>
                 {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Finalizar Cadastro
               </Button>
