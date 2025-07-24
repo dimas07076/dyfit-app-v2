@@ -16,7 +16,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { Loader2, Copy, Check } from 'lucide-react';
 
 const formSchema = z.object({
-  email: z.string().email("Por favor, insira um e-mail válido."),
+  email: z.string().email("Se preenchido, deve ser um e-mail válido.").optional().or(z.literal('')),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -49,8 +49,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
   }, [isOpen, form]);
 
   const mutation = useMutation({
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API para o correto >>>
-    mutationFn: (data: FormValues) => apiRequest<{ linkConvite: string }>("POST", "/api/aluno/convite", { emailConvidado: data.email }),
+    mutationFn: (data: FormValues) => apiRequest<{ linkConvite: string }>("POST", "/api/aluno/convite", { emailConvidado: data.email || undefined }),
     onSuccess: (data) => {
       setInviteLink(data.linkConvite);
       setView('success');
@@ -91,7 +90,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
           <DialogTitle>Convidar Novo Aluno</DialogTitle>
           <DialogDescription>
             {view === 'form' 
-              ? "Insira o e-mail do aluno para gerar um link de convite exclusivo."
+              ? "Insira o e-mail do aluno (opcional) ou gere um link de convite genérico."
               : "Link de convite gerado! Envie para o seu aluno."}
           </DialogDescription>
         </DialogHeader>
@@ -104,7 +103,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>E-mail do Aluno</FormLabel>
+                    <FormLabel>E-mail do Aluno (Opcional)</FormLabel>
                     <FormControl>
                       <Input placeholder="email@exemplo.com" {...field} />
                     </FormControl>

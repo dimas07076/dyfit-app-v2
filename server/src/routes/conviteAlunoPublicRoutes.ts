@@ -23,14 +23,13 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
             return res.status(404).json({ erro: 'Convite inválido ou expirado.' });
         }
 
-        // Busca o personal trainer que criou o convite
         const personal = await PersonalTrainer.findById(convite.criadoPor).select('nome');
 
         if (!personal) {
             return res.status(404).json({ erro: 'Personal trainer associado ao convite não encontrado.' });
         }
-
-        // Retorna o e-mail do aluno e o nome do personal
+        
+        // Retorna o e-mail (que pode ser undefined) e o nome do personal
         res.status(200).json({ email: convite.emailConvidado, personalName: personal.nome });
 
     } catch (error) {
@@ -42,7 +41,7 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
 router.post('/registrar', async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     try {
-        const { token, nome, password, ...outrosDados } = req.body;
+        const { token, nome, password, email, ...outrosDados } = req.body;
 
         if (!token || !nome || !password) {
             return res.status(400).json({ erro: 'Dados insuficientes para o registro.' });
@@ -57,10 +56,15 @@ router.post('/registrar', async (req: Request, res: Response, next: NextFunction
             }
             return res.status(404).json({ erro: 'Convite inválido ou expirado.' });
         }
+        
+        const emailFinal = convite.emailConvidado || email;
+        if (!emailFinal) {
+            return res.status(400).json({ erro: 'O e-mail é obrigatório para o cadastro.' });
+        }
 
         const novoAluno = new Aluno({
             nome,
-            email: convite.emailConvidado,
+            email: emailFinal, // Usa o e-mail determinado
             passwordHash: password,
             trainerId: convite.criadoPor,
             status: 'active',
@@ -82,6 +86,5 @@ router.post('/registrar', async (req: Request, res: Response, next: NextFunction
         next(error);
     }
 });
-
 
 export default router;

@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 export interface IConviteAluno extends Document {
   token: string;
-  emailConvidado: string;
+  emailConvidado?: string; // Alterado para opcional
   status: 'pendente' | 'utilizado' | 'expirado';
   dataExpiracao: Date;
   criadoPor: mongoose.Types.ObjectId; // ID do PersonalTrainer que criou o convite
@@ -21,7 +21,7 @@ const ConviteAlunoSchema: Schema<IConviteAluno> = new Schema(
     },
     emailConvidado: {
       type: String,
-      required: true,
+      required: false, // Alterado para opcional
       lowercase: true,
       trim: true,
     },
