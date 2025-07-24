@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Star, BrainCircuit, User, SearchX, SlidersHorizontal } from "lucide-react"; // <<< CORREÇÃO: 'FilterX' removido
+import { Star, BrainCircuit, User, SearchX, SlidersHorizontal } from "lucide-react";
 import ExerciseFormModal from "@/components/dialogs/ExerciseFormModal";
 import ExerciseEditModal from "@/components/dialogs/ExerciseEditModal";
 import ExerciseDeleteButton from "@/components/buttons/ExerciseDeleteButton";
@@ -17,9 +17,9 @@ import { fetchWithAuth } from "@/lib/apiClient";
 import LiteYouTubeEmbed from "@/components/LiteYouTubeEmbed";
 import LiteGoogleDriveEmbed from "@/components/LiteGoogleDriveEmbed";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
-import ExerciseFilters from '@/components/ExerciseFilters'; // <<< CORREÇÃO: Caminho da importação ajustado
+import ExerciseFilters from '@/components/ExerciseFilters';
 
-// --- Interfaces, Funções e Constantes (sem alteração) ---
+// --- Interfaces, Funções e Constantes ---
 interface Exercicio { _id: string; nome: string; descricao?: string; grupoMuscular?: string; categoria?: string; urlVideo?: string; isCustom: boolean; isFavoritedByCurrentUser?: boolean; }
 type AbaSelecionada = "todos" | "app" | "meus" | "favoritos";
 const ALL_FILTER_VALUE = "all";
@@ -28,7 +28,7 @@ const getGoogleDriveId = (url?: string): string | undefined => { if (!url) retur
 const grupos = ["Peitoral", "Pernas", "Costas", "Ombros", "Bíceps", "Tríceps", "Abdômen", "Lombar", "Glúteos", "Panturrilha", "Cardio", "Corpo Inteiro", "Outro"].sort();
 const categorias = ["Força", "Resistência", "Hipertrofia", "Potência", "Cardiovascular", "Flexibilidade", "Mobilidade", "Funcional", "Calistenia", "Outro"].sort();
 
-// --- Componente ExerciseList (sem alteração) ---
+// --- Componente ExerciseList ---
 const ExerciseList = ({ exercicios, onFavoriteToggle, onFetch, isAdmin }: { exercicios: Exercicio[], onFavoriteToggle: (id: string, isFavorited: boolean) => void, onFetch: () => void, isAdmin: boolean }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
     {exercicios.map((ex) => {
