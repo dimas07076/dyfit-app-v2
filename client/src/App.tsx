@@ -8,12 +8,15 @@ import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
-import { UserProvider, UserContext } from "@/context/UserContext";
+import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
-import { useToast } from '@/hooks/use-toast'; // Importa o hook useToast
+import { useToast } from '@/hooks/use-toast';
+
+// <<< ADIÇÃO 1 de 2: Importar o componente de prompt de atualização >>>
+import ReloadPrompt from '@/components/ReloadPrompt';
 
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -64,21 +67,19 @@ const AlunoProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component,
     return <Route {...rest} component={Component} />;
 };
 
-// Definição da interface para o detalhe do evento customizado 'auth-failed'
 interface AuthFailedEventDetail {
   status: number;
   forAluno: boolean;
   forPersonalAdmin: boolean;
-  code?: string; // O código de erro que o backend envia
+  code?: string;
 }
 
 function AppContent() {
   const { user, isLoading: isUserLoading } = useContext(UserContext);
   const { aluno, isLoadingAluno } = useAluno();
-  const [location, navigate] = useLocation(); // useLocation retorna [path, navigate]
-  const { toast } = useToast(); // Hook para exibir notificações toast
+  const [location, navigate] = useLocation();
+  const { toast } = useToast();
 
-  // <<< INÍCIO DA ADIÇÃO: Tratamento Global de Erros de Autenticação >>>
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent<AuthFailedEventDetail>;
@@ -86,23 +87,20 @@ function AppContent() {
 
       console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
 
-      let redirectPath = '/'; // Caminho padrão para redirecionamento
+      let redirectPath = '/';
       let message = 'Sua sessão expirou ou é inválida. Por favor, faça login novamente.';
 
-      // Limpar tokens do LocalStorage
       if (forAluno) {
         localStorage.removeItem('alunoAuthToken');
-        redirectPath = '/login/aluno'; // Redireciona para login de aluno
+        redirectPath = '/login/aluno';
       }
       if (forPersonalAdmin) {
         localStorage.removeItem('authToken');
-        redirectPath = '/login'; // Redireciona para login de personal/admin
+        redirectPath = '/login';
       }
 
-      // Limpar o cache do React Query para garantir que dados antigos não sejam exibidos
       queryClient.clear();
 
-      // Ajustar a mensagem com base no código de erro
       switch (code) {
         case 'TOKEN_NOT_PROVIDED':
           message = 'Você não está autenticado. Por favor, faça login.';
@@ -115,23 +113,16 @@ function AppContent() {
           break;
         case 'UNAUTHORIZED_ROLE':
           message = 'Você não tem permissão para acessar este recurso.';
-          // Para role não autorizada, pode ser melhor redirecionar para a raiz ou uma página de erro de acesso
-          redirectPath = forPersonalAdmin ? '/' : '/aluno/dashboard'; // Ex: personal vai para a raiz, aluno para o dashboard
+          redirectPath = forPersonalAdmin ? '/' : '/aluno/dashboard';
           break;
         case 'INVALID_CREDENTIALS':
-          // Para credenciais inválidas, a mensagem já é tratada no componente de login,
-          // então não precisamos de um toast global aqui, a menos que seja um caso de uso específico.
-          // O redirecionamento não é necessário aqui, pois o erro ocorre na própria página de login.
           console.log("[Global Auth Handler] Erro de credenciais inválidas, tratado no componente de login.");
-          return; // Não faz nada globalmente, o componente de login já lida.
+          return;
         case 'ACCOUNT_INACTIVE':
             message = 'Sua conta está inativa. Fale com seu personal trainer.';
-            // Não redireciona para login, pois a conta está inativa, não é um problema de token.
-            // O ideal é redirecionar para uma página de aviso ou manter na tela atual com a mensagem.
-            redirectPath = forAluno ? '/login/aluno' : '/login'; // Redireciona para a tela de login, mas com a mensagem de inatividade.
+            redirectPath = forAluno ? '/login/aluno' : '/login';
             break;
         default:
-          // Mensagem padrão para outros erros 401/403 sem código específico
           if (status === 401 || status === 403) {
             message = 'Ocorreu um problema de autenticação. Por favor, faça login novamente.';
           } else {
@@ -140,31 +131,25 @@ function AppContent() {
           break;
       }
 
-      // Exibir toast (se a mensagem não for para credenciais inválidas, que é tratada localmente)
       if (code !== 'INVALID_CREDENTIALS') {
         toast({
           title: "Atenção!",
           description: message,
-          variant: "destructive", // Ou "warning" dependendo da gravidade
+          variant: "destructive",
         });
       }
       
-      // Redirecionar o usuário (se não estiver já na página de login e o erro não for apenas de credenciais inválidas)
-      // Evita loops de redirecionamento se o usuário já estiver na página de login
       if (window.location.pathname !== redirectPath && !location.startsWith(redirectPath)) {
         navigate(redirectPath);
       }
     };
 
-    // Adiciona o listener quando o componente é montado
     window.addEventListener('auth-failed', handleAuthFailed as EventListener);
 
-    // Remove o listener quando o componente é desmontado para evitar vazamentos de memória
     return () => {
       window.removeEventListener('auth-failed', handleAuthFailed as EventListener);
     };
-  }, [location, navigate, toast]); // Dependências do useEffect
-  // <<< FIM DA ADIÇÃO: Tratamento Global de Erros de Autenticação >>>
+  }, [location, navigate, toast]);
 
 
   if (isUserLoading || isLoadingAluno) {
@@ -219,6 +204,8 @@ function App() {
             <UserProvider>
               <AlunoProvider>
                 <Toaster />
+                {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
+                <ReloadPrompt />
                 <AppContent />
               </AlunoProvider>
             </UserProvider>
