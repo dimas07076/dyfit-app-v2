@@ -41,8 +41,7 @@ router.get('/personal-trainers', async (req: Request, res: Response, next: NextF
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 0;
     const sortQuery = (req.query.sort as string)?.split(':');
     
-    // <<< CORREÇÃO DE TIPO: A tipagem agora é '1 | -1' para corresponder ao Mongoose >>>
-    let sortOptions: { [key: string]: 1 | -1 } = { createdAt: -1 }; // Sorteio padrão
+    let sortOptions: { [key: string]: 1 | -1 } = { createdAt: -1 };
     if (sortQuery && sortQuery.length === 2) {
       sortOptions = { [sortQuery[0]]: sortQuery[1] === 'desc' ? -1 : 1 };
     }
@@ -170,21 +169,39 @@ conviteRouter.post('/personal', async (req: Request, res: Response, next: NextFu
     if (!adminId) {
       return res.status(401).json({ mensagem: "Administrador não autenticado." });
     }
+
+    if (emailConvidado) {
+        const convitePendente = await ConvitePersonal.findOne({ 
+            emailConvidado: emailConvidado.toLowerCase().trim(), 
+            status: 'pendente',
+            criadoPor: new mongoose.Types.ObjectId(adminId),
+        });
+        if (convitePendente) {
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const linkConvite = `${frontendUrl}/cadastrar-personal/convite/${convitePendente.token}`;
+            return res.status(200).json({ mensagem: "Já existe um convite pendente para este email.", linkConvite });
+        }
+    }
+
     const token = crypto.randomBytes(20).toString('hex');
     const dataExpiracao = new Date();
     dataExpiracao.setDate(dataExpiracao.getDate() + (diasParaExpirar || 7));
+    
     const novoConvite = new ConvitePersonal({
       token,
-      emailConvidado: emailConvidado?.toLowerCase().trim(),
+      emailConvidado: emailConvidado ? emailConvidado.toLowerCase().trim() : undefined,
       roleConvidado: roleConvidado || 'Personal Trainer',
       status: 'pendente',
       dataExpiracao,
       criadoPor: new mongoose.Types.ObjectId(adminId),
     });
+    
     await novoConvite.save();
+    
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const linkConvite = `${frontendUrl}/cadastrar-personal/convite/${token}`;
     res.status(201).json({ mensagem: "Convite criado com sucesso!", convite: novoConvite, linkConvite });
+
   } catch (error) {
     next(error);
   }
