@@ -10,7 +10,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // AQUI ESTÁ A ALTERAÇÃO PRINCIPAL
+      registerType: 'prompt', 
       injectRegister: 'auto',
       
       devOptions: {
