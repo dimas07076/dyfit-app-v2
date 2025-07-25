@@ -101,8 +101,8 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
     }
   };
 
-  // Se o modal não estiver aberto ou faltarem dados essenciais, não renderiza
-  if (!isOpen || !fichaModeloId || !fichaModeloTitulo) {
+  // REMOÇÃO: A condição de renderização não deve mais verificar fichaModeloId ou fichaModeloTitulo
+  if (!isOpen) { 
     return null;
   }
 
@@ -112,7 +112,7 @@ const AssociarModeloAlunoModal: React.FC<AssociarModeloAlunoModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <Users className="w-5 h-5 mr-2 text-primary" />
-            Associar Modelo: {fichaModeloTitulo}
+            Associar Modelo: {fichaModeloTitulo || "Selecione um Modelo"} {/* Exibir placeholder se nulo */}
           </DialogTitle>
           <DialogDescription>
             Selecione um aluno para criar uma ficha individual baseada neste modelo.
