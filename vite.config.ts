@@ -10,8 +10,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // AQUI ESTÁ A ALTERAÇÃO PRINCIPAL
-      registerType: 'prompt', 
+      registerType: 'autoUpdate',
       injectRegister: 'auto',
       
       devOptions: {
@@ -19,65 +18,54 @@ export default defineConfig({
       },
       
       workbox: {
-        // Estratégia para o index.html: CacheFirst para navegações
-        // Garante que o index.html seja servido do cache primeiro em navegações (como F5)
-        navigateFallback: '/index.html', // Fallback para todas as navegações
-        navigateFallbackDenylist: [/^\/api\//], // Exclui rotas de API do fallback
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
 
-        // Pré-cache de assets críticos
-        // Inclua todos os tipos de arquivos relevantes que compõem sua aplicação estática
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2,webp,jpg,jpeg}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Aumentado para 5MB para garantir cache de assets maiores
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
 
-        // Regras de runtime caching para assets que não estão no pré-cache
         runtimeCaching: [
+          // Regra para que as chamadas de API NUNCA sejam cacheadas.
           {
-            // Cache para assets da própria aplicação (não APIs)
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            handler: 'NetworkOnly', 
+            options: {
+              cacheName: 'api-cache',
+              backgroundSync: {
+                name: 'api-queue',
+                options: {
+                  maxRetentionTime: 24 * 60,
+                },
+              },
+            },
+          },
+          // Regra para os assets da aplicação.
+          {
             urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst', // Tenta a rede primeiro, depois o cache
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'app-assets',
               expiration: {
-                maxEntries: 50, // Número máximo de entradas no cache
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 semana de validade
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 semana
               },
               cacheableResponse: {
-                statuses: [0, 200], // Cachear respostas bem-sucedidas e opacas
+                statuses: [0, 200],
               },
-              // Importante: Adiciona esta opção para ignorar o cabeçalho 'Vary: Origin'
-              // Isso resolve o warning no console e melhora a consistência do cache.
               matchOptions: {
                 ignoreVary: true,
               },
             },
           },
-          // Se você tiver assets de CDN ou outros recursos externos que queira cachear
-          // {
-          //   urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-          //   handler: 'CacheFirst',
-          //   options: {
-          //     cacheName: 'google-fonts-cache',
-          //     expiration: {
-          //       maxEntries: 10,
-          //       maxAgeSeconds: 60 * 60 * 24 * 365, // 1 ano
-          //     },
-          //     cacheableResponse: {
-          //       statuses: [0, 200],
-          //     },
-          //   },
-          // },
         ],
       },
-      // Configuração do manifest.json para PWA (se ainda não estiver usando um arquivo separado)
-      // Se você já tem um manifest.json em /public, esta seção pode ser removida
-      // ou usada para complementar/sobrescrever partes do manifest existente.
       manifest: {
         name: 'DyFit',
         short_name: 'DyFit',
         description: 'Plataforma de gestão de treinos personalizada',
-        theme_color: '#4f46e5', // Cor do seu gradiente indigo-600
+        theme_color: '#4f46e5',
         background_color: '#4f46e5',
-        display: 'standalone', // Modo de exibição (standalone, fullscreen, minimal-ui, browser)
+        display: 'standalone',
         icons: [
           {
             src: '/pwa-192x192.png',
@@ -93,7 +81,7 @@ export default defineConfig({
             src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable', // Ícone maskable para Android
+            purpose: 'any maskable',
           },
         ],
       },

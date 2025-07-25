@@ -1,7 +1,7 @@
 // server/src/routes/alunoApiRoutes.ts
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
-import Treino, { ITreinoPopuladoLean } from '../../models/Treino.js';
+import Treino from '../../models/Treino.js';
 import Sessao from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
@@ -25,7 +25,6 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
     try {
         const { emailConvidado } = req.body;
 
-        // Se um email foi fornecido, fazemos as verificações
         if (emailConvidado) {
             const alunoExistente = await Aluno.findOne({ email: emailConvidado, trainerId });
             if (alunoExistente) {
@@ -39,9 +38,8 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
             }
         }
 
-        // Cria o convite, com ou sem email
         const novoConvite = new ConviteAluno({
-            emailConvidado: emailConvidado || undefined, // Garante que o campo não seja salvo se for uma string vazia
+            emailConvidado: emailConvidado || undefined,
             criadoPor: new mongoose.Types.ObjectId(trainerId)
         });
 
@@ -63,14 +61,50 @@ router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Res
 // =======================================================
 // ROTAS DO ALUNO (PARA ACESSO PRÓPRIO)
 // =======================================================
-router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); try { const rotinasDoAluno = await Treino.find({ alunoId: new Types.ObjectId(alunoId), tipo: 'individual' }).sort({ atualizadoEm: -1, criadoEm: -1 }).populate({ path: 'criadorId', select: 'nome email _id' }).populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' }).lean<ITreinoPopuladoLean[]>(); res.status(200).json(rotinasDoAluno); } catch (error) { next(error); } });
-router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; const { id: treinoId } = req.params; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); if (!mongoose.Types.ObjectId.isValid(treinoId)) return res.status(400).json({ message: "ID da rotina inválido." }); try { const rotina = await Treino.findOne({ _id: new mongoose.Types.ObjectId(treinoId), alunoId: new mongoose.Types.ObjectId(alunoId) }).populate({ path: 'criadorId', select: 'nome email _id' }).populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' }).lean<ITreinoPopuladoLean>(); if (!rotina) { return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." }); } res.status(200).json(rotina); } catch (error) { next(error); } });
+router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' });
+    try {
+        const rotinasDoAlunoDocs = await Treino.find({ alunoId: new Types.ObjectId(alunoId), tipo: 'individual' })
+            .sort({ atualizadoEm: -1, criadoEm: -1 })
+            .populate({ path: 'criadorId', select: 'nome email _id' })
+            .populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' });
+        
+        const rotinasDoAluno = rotinasDoAlunoDocs.map(doc => doc.toObject());
+        res.status(200).json(rotinasDoAluno);
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    const { id: treinoId } = req.params;
+    if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' });
+    if (!mongoose.Types.ObjectId.isValid(treinoId)) return res.status(400).json({ message: "ID da rotina inválido." });
+    try {
+        const rotinaDoc = await Treino.findOne({ _id: new mongoose.Types.ObjectId(treinoId), alunoId: new mongoose.Types.ObjectId(alunoId) })
+            .populate({ path: 'criadorId', select: 'nome email _id' })
+            .populate({ path: 'diasDeTreino.exerciciosDoDia.exercicioId', select: 'nome grupoMuscular urlVideo tipo categoria descricao _id' });
+            
+        if (!rotinaDoc) {
+            return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." });
+        }
+
+        const rotina = rotinaDoc.toObject();
+        res.status(200).json(rotina);
+    } catch (error) {
+        next(error);
+    }
+});
+
+
 router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); try { const hoje = new Date(); const inicioDaSemana = startOfWeek(hoje, { weekStartsOn: 1 }); const fimDaSemana = endOfWeek(hoje, { weekStartsOn: 1 }); const sessoesConcluidas = await Sessao.find({ alunoId: new Types.ObjectId(alunoId), status: 'completed', concluidaEm: { $gte: inicioDaSemana, $lte: fimDaSemana }, }).select('_id sessionDate concluidaEm tipoCompromisso').sort({ concluidaEm: 1 }).lean(); res.status(200).json(sessoesConcluidas); } catch (error) { next(error); } });
 router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; if (!alunoId) { return res.status(401).json({ message: 'ID do aluno não encontrado no token.' }); } const page = parseInt(req.query.page as string) || 1; const limit = parseInt(req.query.limit as string) || 5; const skip = (page - 1) * limit; try { const query = { alunoId: new Types.ObjectId(alunoId), status: 'completed' }; const totalSessoes = await Sessao.countDocuments(query); const sessoes = await Sessao.find(query).sort({ concluidaEm: -1 }).skip(skip).limit(limit).populate({ path: 'rotinaId', select: 'titulo' }).lean(); res.status(200).json({ sessoes, currentPage: page, totalPages: Math.ceil(totalSessoes / limit), totalSessoes, }); } catch (error) { next(error); } });
+router.patch('/meus-treinos/:rotinaId/cargas', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; const { rotinaId } = req.params; const { diaDeTreinoId, cargas } = req.body; if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." }); if (!mongoose.Types.ObjectId.isValid(rotinaId) || !mongoose.Types.ObjectId.isValid(diaDeTreinoId)) { return res.status(400).json({ message: "IDs inválidos." }); } if (!cargas || typeof cargas !== 'object' || Object.keys(cargas).length === 0) { return res.status(400).json({ message: "Nenhuma carga para atualizar." }); } try { const rotina = await Treino.findOne({ _id: rotinaId, alunoId }); if (!rotina) { return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." }); } const diaDeTreino = rotina.diasDeTreino.id(diaDeTreinoId); if (!diaDeTreino) { return res.status(404).json({ message: "Dia de treino não encontrado na rotina." }); } let atualizacoes = 0; diaDeTreino.exerciciosDoDia?.forEach(exercicio => { const exercicioIdString = exercicio._id.toString(); if (cargas[exercicioIdString] && exercicio.carga !== cargas[exercicioIdString]) { exercicio.carga = cargas[exercicioIdString]; atualizacoes++; } }); if (atualizacoes > 0) { await rotina.save(); return res.status(200).json({ message: `${atualizacoes} carga(s) atualizada(s) com sucesso na ficha.` }); } return res.status(200).json({ message: "Nenhuma carga precisou ser atualizada." }); } catch (error) { next(error); } });
 
-router.patch('/meus-treinos/:rotinaId/cargas', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const alunoId = req.aluno?.id; const { rotinaId } = req.params; const { diaDeTreinoId, cargas } = req.body; console.log('--- [PATCH /cargas] Rota acionada ---'); console.log('Dados recebidos do frontend (req.body):', JSON.stringify(req.body, null, 2)); if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." }); if (!mongoose.Types.ObjectId.isValid(rotinaId) || !mongoose.Types.ObjectId.isValid(diaDeTreinoId)) { return res.status(400).json({ message: "IDs inválidos." }); } if (!cargas || typeof cargas !== 'object' || Object.keys(cargas).length === 0) { return res.status(400).json({ message: "Nenhuma carga para atualizar." }); } try { const rotina = await Treino.findOne({ _id: rotinaId, alunoId }); if (!rotina) { return res.status(404).json({ message: "Rotina não encontrada ou não pertence a este aluno." }); } const diaDeTreino = rotina.diasDeTreino.id(diaDeTreinoId); if (!diaDeTreino) { return res.status(404).json({ message: "Dia de treino não encontrado na rotina." }); } let atualizacoes = 0; console.log('IDs das cargas recebidas:', Object.keys(cargas)); diaDeTreino.exerciciosDoDia?.forEach(exercicio => { const exercicioIdString = exercicio._id.toString(); console.log(`Verificando ID do BD: ${exercicioIdString}. Existe em 'cargas'?`, cargas.hasOwnProperty(exercicioIdString)); if (cargas[exercicioIdString] && exercicio.carga !== cargas[exercicioIdString]) { console.log(`   -> ATUALIZANDO! De '${exercicio.carga}' para '${cargas[exercicioIdString]}'`); exercicio.carga = cargas[exercicioIdString]; atualizacoes++; } }); if (atualizacoes > 0) { await rotina.save(); console.log('--- FIM: Rotina salva com sucesso! ---'); return res.status(200).json({ message: `${atualizacoes} carga(s) atualizada(s) com sucesso na ficha.` }); } console.log('--- FIM: Nenhuma carga precisou ser atualizada. ---'); return res.status(200).json({ message: "Nenhuma carga precisou ser atualizada." }); } catch (error) { next(error); } });
-
-// <<< INÍCIO DA NOVA ROTA >>>
 const pseMap = new Map([
   ['Muito Leve', 1],
   ['Leve', 2],
@@ -92,11 +126,7 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
             alunoId: new Types.ObjectId(alunoId),
             status: 'completed'
         }).sort({ concluidaEm: -1 }).lean();
-
-        // 1. Total de Treinos Concluídos
         const totalTreinosConcluidos = sessoesConcluidas.length;
-
-        // 2. Média de PSE
         const sessoesComPSE = sessoesConcluidas
             .map(s => s.pseAluno ? pseMap.get(s.pseAluno) : undefined)
             .filter((v): v is number => v !== undefined);
@@ -104,8 +134,6 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
         const mediaPSE = sessoesComPSE.length > 0
             ? (sessoesComPSE.reduce((sum, val) => sum + val, 0) / sessoesComPSE.length).toFixed(1)
             : 'N/D';
-
-        // 3. Dias Consecutivos
         let diasConsecutivos = 0;
         if (sessoesConcluidas.length > 0) {
             const datasUnicas = [...new Set(sessoesConcluidas.map(s => s.concluidaEm!.toISOString().split('T')[0]))]
@@ -115,7 +143,6 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
             if (datasUnicas.length > 0) {
                 let rachaAtual = 1;
                 let rachaMaxima = 1;
-                // Verifica se o dia mais recente é hoje ou ontem para começar a contagem
                 const hoje = new Date();
                 const diffPrimeiroDia = differenceInCalendarDays(hoje, datasUnicas[0]);
 
@@ -130,7 +157,7 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
                     }
                     rachaMaxima = rachaAtual;
                 } else {
-                    rachaMaxima = 0; // Se não treinou hoje ou ontem, o "streak" é 0
+                    rachaMaxima = 0;
                 }
                 diasConsecutivos = rachaMaxima;
             }
@@ -146,6 +173,5 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
         next(error);
     }
 });
-// <<< FIM DA NOVA ROTA >>>
 
 export default router;
