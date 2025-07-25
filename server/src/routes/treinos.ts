@@ -8,6 +8,8 @@ import Treino, {
 import PastaTreino from '../../models/Pasta.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
+import { ExpirationManager } from '../services/expirationManager.js';
+import { NotificationService } from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -74,6 +76,12 @@ router.post("/", authenticateToken, async (req: Request, res: Response, next: Ne
     // Garante que isCopied seja false por padrão para novas criações
     const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
     const novaRotina = new Treino(dadosRotina);
+    
+    // Set default expiration for individual routines
+    if (novaRotina.tipo === 'individual' && !novaRotina.dataValidade) {
+      ExpirationManager.setDefaultExpirationDate(novaRotina);
+    }
+    
     await novaRotina.save();
 
     const rotinaPopulada = await Treino.findById(novaRotina._id)
@@ -134,6 +142,10 @@ router.post("/associar-modelo", authenticateToken, async (req: Request, res: Res
         };
 
         const novaFichaIndividual = new Treino(newFichaData);
+        
+        // Set default expiration for individual routines created from models
+        ExpirationManager.setDefaultExpirationDate(novaFichaIndividual);
+        
         await novaFichaIndividual.save();
         const fichaPopulada = await Treino.findById(novaFichaIndividual._id)
             .populate({ path: 'alunoId', select: 'nome' })
@@ -285,6 +297,153 @@ router.delete("/:id", authenticateToken, async (req: Request, res: Response, nex
         const resultado = await Treino.findOneAndDelete({ _id: id, criadorId: new Types.ObjectId(criadorId) });
         if (!resultado) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
         res.status(200).json({ mensagem: "Rotina excluída com sucesso." });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Renewal and Expiration Management Routes
+
+// Renew a routine
+router.post("/:id/renew", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const { validityDays = 30 } = req.body;
+        const criadorId = req.user?.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
+            return res.status(400).json({ mensagem: "Requisição inválida." });
+        }
+
+        // Verify the routine belongs to the authenticated personal trainer
+        const routine = await Treino.findOne({ 
+            _id: id, 
+            criadorId: new Types.ObjectId(criadorId),
+            tipo: 'individual'
+        });
+
+        if (!routine) {
+            return res.status(404).json({ 
+                mensagem: "Rotina não encontrada ou você não tem permissão." 
+            });
+        }
+
+        const renewedRoutine = await ExpirationManager.renewRoutine(id, validityDays);
+        
+        if (!renewedRoutine) {
+            return res.status(500).json({ 
+                mensagem: "Erro ao renovar a rotina." 
+            });
+        }
+
+        // Send renewal notification to student
+        try {
+            const notification = NotificationService.createRenewalSuccessNotification(renewedRoutine);
+            if (notification) {
+                await NotificationService['sendNotification'](notification);
+            }
+        } catch (notificationError) {
+            console.error('Error sending renewal notification:', notificationError);
+            // Don't fail the renewal if notification fails
+        }
+
+        res.status(200).json({
+            mensagem: "Rotina renovada com sucesso.",
+            rotina: renewedRoutine
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get expiring routines for a personal trainer
+router.get("/expiring", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const criadorId = req.user?.id;
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+
+        // Update statuses first
+        await ExpirationManager.updateRoutinesForPersonal(criadorId);
+
+        const expiringRoutines = await ExpirationManager.getExpiringRoutinesForPersonal(criadorId);
+        
+        res.status(200).json(expiringRoutines);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get expiration statistics for a personal trainer
+router.get("/expiration-stats", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const criadorId = req.user?.id;
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+
+        const stats = await ExpirationManager.getExpirationStats(criadorId);
+        
+        res.status(200).json(stats);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Update routine status (can be called manually)
+router.post("/:id/update-status", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const criadorId = req.user?.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
+            return res.status(400).json({ mensagem: "Requisição inválida." });
+        }
+
+        // Verify the routine belongs to the authenticated personal trainer
+        const routine = await Treino.findOne({ 
+            _id: id, 
+            criadorId: new Types.ObjectId(criadorId)
+        });
+
+        if (!routine) {
+            return res.status(404).json({ 
+                mensagem: "Rotina não encontrada ou você não tem permissão." 
+            });
+        }
+
+        const updatedRoutine = await ExpirationManager.updateRoutineStatus(id);
+        
+        if (!updatedRoutine) {
+            return res.status(500).json({ 
+                mensagem: "Erro ao atualizar status da rotina." 
+            });
+        }
+
+        res.status(200).json({
+            mensagem: "Status da rotina atualizado com sucesso.",
+            rotina: updatedRoutine
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Process notifications (for admin or cron jobs)
+router.post("/process-notifications", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const result = await NotificationService.processNotifications();
+        
+        res.status(200).json({
+            mensagem: "Notificações processadas com sucesso.",
+            resultado: result
+        });
     } catch (error) {
         next(error);
     }

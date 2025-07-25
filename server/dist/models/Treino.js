@@ -1,6 +1,7 @@
 // server/models/Treino.ts
 import mongoose, { Schema } from "mongoose";
 export const TIPOS_ORGANIZACAO_ROTINA = ['diasDaSemana', 'numerico', 'livre'];
+export const STATUS_EXPIRACAO_ROTINA = ['active', 'expiring', 'expired', 'inactive'];
 // --- Schemas ---
 const ExercicioEmDiaDeTreinoSchema = new Schema({
     exercicioId: { type: Schema.Types.ObjectId, ref: 'Exercicio', required: true },
@@ -30,6 +31,12 @@ const TreinoSchema = new Schema({
     statusModelo: { type: String, enum: ['ativo', 'rascunho', 'arquivado'], default: 'ativo' },
     ordemNaPasta: { type: Number },
     dataValidade: { type: Date, default: null },
+    statusExpiracao: { type: String, enum: STATUS_EXPIRACAO_ROTINA, default: 'active' },
+    ultimaRenovacao: { type: Date, default: null },
+    notificacoes: {
+        avisocincodias: { type: Boolean, default: false },
+        avisoexpiracao: { type: Boolean, default: false }
+    },
     totalSessoesRotinaPlanejadas: { type: Number, default: 0 },
     sessoesRotinaConcluidas: { type: Number, default: 0 },
     criadoEm: { type: Date, default: Date.now },
