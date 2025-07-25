@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from 'bcryptjs';
 
 export interface IAluno extends Document {
+  _id: mongoose.Types.ObjectId;
   nome: string;
   email: string;
   passwordHash?: string;

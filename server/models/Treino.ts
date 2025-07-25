@@ -74,6 +74,7 @@ export interface IDiaDeTreinoPlain {
 
 // --- Documento Principal: Treino/Rotina ---
 export interface ITreino extends Document {
+  _id: Types.ObjectId;
   titulo: string;
   descricao?: string;
   tipo: 'modelo' | 'individual';

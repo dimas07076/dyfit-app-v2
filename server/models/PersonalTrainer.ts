@@ -5,6 +5,7 @@ import crypto from 'crypto'; // Importar crypto para gerar o token
 
 // Interface atualizada para incluir todos os campos planejados
 export interface IPersonalTrainer extends Document {
+    _id: mongoose.Types.ObjectId;
     nome: string;
     email: string;
     passwordHash: string; // Mantido como passwordHash conforme seu arquivo
