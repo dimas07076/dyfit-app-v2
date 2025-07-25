@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy } from 'lucide-react'; // Importado BookCopy
+import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy, RotateCcw } from 'lucide-react'; // Importado BookCopy
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 import type { Pasta } from '@/pages/treinos/index';
+import { FullStatusIndicator } from '@/components/expiration';
+import { calculateExpirationStatus } from '@/hooks/useRoutineExpiration';
 
 interface RotinaCardProps {
   rotina: RotinaListagemItem;
@@ -20,6 +22,7 @@ interface RotinaCardProps {
   onMoveToFolder: (rotinaId: string, pastaId: string) => void;
   onRemoveFromFolder: (rotinaId: string) => void;
   onConvertToModel: (rotina: RotinaListagemItem) => void; // Nova prop para converter para modelo
+  onRenew?: (rotina: RotinaListagemItem) => void; // Nova prop para renovar rotina
 }
 
 export const RotinaCard: React.FC<RotinaCardProps> = ({ 
@@ -32,13 +35,18 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   onAssign,
   onMoveToFolder,
   onRemoveFromFolder,
-  onConvertToModel // Nova prop
+  onConvertToModel, // Nova prop
+  onRenew // Nova prop para renovação
 }) => {
   const isModelo = rotina.tipo === 'modelo';
   const diasDeTreinoCount = Array.isArray(rotina.diasDeTreino) ? rotina.diasDeTreino.length : 0;
   const pastaAtualId = typeof rotina.pastaId === 'object' ? rotina.pastaId?._id : rotina.pastaId;
 
   const outrasPastas = pastas.filter(p => p._id !== pastaAtualId);
+
+  // Check expiration status for individual routines
+  const expirationStatus = !isModelo ? calculateExpirationStatus(rotina) : null;
+  const needsRenewal = expirationStatus && (expirationStatus.status === 'expiring' || expirationStatus.status === 'expired');
 
   const ActionButton = ({ title, onClick, children, className }: { title: string, onClick: () => void, children: React.ReactNode, className?: string }) => (
     <TooltipProvider delayDuration={200}>
@@ -54,8 +62,18 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   return (
     <Card className="flex flex-col h-full shadow-md hover:shadow-lg transition-shadow duration-200 dark:bg-slate-800">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-bold truncate text-slate-800 dark:text-slate-100" title={rotina.titulo}>{rotina.titulo}</CardTitle>
-        <CardDescription className="text-xs text-slate-500 dark:text-slate-400 h-8 line-clamp-2" title={rotina.descricao ?? undefined}>{rotina.descricao || 'Sem descrição.'}</CardDescription>
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base font-bold truncate text-slate-800 dark:text-slate-100" title={rotina.titulo}>{rotina.titulo}</CardTitle>
+            <CardDescription className="text-xs text-slate-500 dark:text-slate-400 h-8 line-clamp-2" title={rotina.descricao ?? undefined}>{rotina.descricao || 'Sem descrição.'}</CardDescription>
+          </div>
+          {/* Expiration Status Indicator for Individual Routines */}
+          {!isModelo && rotina.dataValidade && (
+            <div className="flex-shrink-0">
+              <FullStatusIndicator routine={rotina} />
+            </div>
+          )}
+        </div>
       </CardHeader>
       
       <CardContent className="flex-grow pt-2 pb-4 space-y-2">
@@ -126,6 +144,16 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         <div className="flex justify-end">
           <ActionButton title="Visualizar" onClick={() => onView(rotina)}><Eye className="h-4 w-4 text-slate-500" /></ActionButton>
           {isModelo && <ActionButton title="Atribuir a Aluno" onClick={() => onAssign(rotina._id, rotina.titulo)}><CopyPlus className="h-4 w-4 text-slate-500" /></ActionButton>}
+          {/* Botão de renovação para rotinas individuais que precisam */}
+          {!isModelo && needsRenewal && onRenew && (
+            <ActionButton 
+              title="Renovar Rotina" 
+              onClick={() => onRenew(rotina)}
+              className="text-orange-500/80 hover:text-orange-500"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </ActionButton>
+          )}
           {/* Novo botão para converter rotina individual em modelo */}
           {!isModelo && (
             <ActionButton 
