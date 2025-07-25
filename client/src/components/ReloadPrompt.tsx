@@ -1,27 +1,27 @@
 import React from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react'; // Importa o hook para registrar o Service Worker
-import { Button } from '@/components/ui/button'; // CORREÇÃO: Usando alias de caminho
-import { useToast } from '@/hooks/use-toast';   // CORREÇÃO: Usando alias de caminho
+import { useRegisterSW } from 'virtual:pwa-register/react';
+import { Button } from '@/components/ui/button'; // Usando alias de caminho
+import { useToast } from '@/hooks/use-toast';   // Usando alias de caminho
 
 export function ReloadPrompt() {
-  // Usa o hook useRegisterSW para gerenciar o registro do Service Worker e atualizações
-  // 'setOfflineReady' e 'setNeedRefresh' foram removidas da desestruturação para evitar avisos de "never read".
   const {
-    offlineReady: [offlineReady], // Estado que indica se o app está pronto para uso offline
-    needRefresh: [needRefresh],   // Estado que indica se uma nova versão está disponível e precisa de refresh
-    updateServiceWorker,         // Função para atualizar o Service Worker e recarregar a página
+    offlineReady: [offlineReady],
+    needRefresh: [needRefresh],
+    updateServiceWorker,
   } = useRegisterSW({
-    // Callback chamado quando o Service Worker é atualizado
     onRegistered(r) {
       console.log('SW Registered:', r);
+      // Opcional: Iniciar verificação periódica após o registro
+      // setInterval(() => {
+      //   r && r.update(); // Força uma verificação de atualização a cada X milissegundos
+      // }, 5 * 60 * 1000); // Exemplo: a cada 5 minutos
     },
-    // Callback chamado quando o Service Worker registra um erro
     onRegisterError(error) {
       console.error('SW registration error:', error);
     },
   });
 
-  const { toast } = useToast(); // Obtém a função toast do hook useToast
+  const { toast } = useToast();
 
   // Efeito para exibir o toast quando uma nova versão estiver disponível
   React.useEffect(() => {
@@ -49,6 +49,35 @@ export function ReloadPrompt() {
     }
   }, [needRefresh, offlineReady, updateServiceWorker, toast]);
 
-  // Não renderiza nada diretamente, a notificação é feita via toast
-  return null;
+  // Adiciona uma verificação periódica de atualização
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      // Tenta atualizar o Service Worker
+      // `updateServiceWorker()` sem parâmetro apenas verifica por uma nova versão
+      // `updateServiceWorker(true)` força a atualização e recarrega a página se uma nova for encontrada
+      updateServiceWorker(); 
+    }, 5 * 60 * 1000); // Verifica a cada 5 minutos (300000 ms)
+
+    return () => clearInterval(interval); // Limpa o intervalo ao desmontar o componente
+  }, [updateServiceWorker]);
+
+  // Opcional: Botão manual para verificar atualizações (pode ser útil para depuração)
+  // Remova ou comente esta seção em produção se não quiser um botão visível
+  // const handleManualCheck = async () => {
+  //   toast({
+  //     title: "Verificando Atualizações...",
+  //     description: "Buscando por novas versões do aplicativo.",
+  //     duration: 2000,
+  //   });
+  //   await updateServiceWorker();
+  // };
+
+  return (
+    // <div className="fixed bottom-4 right-4 z-50">
+    //   <Button onClick={handleManualCheck} variant="secondary">
+    //     Verificar Atualizações (Manual)
+    //   </Button>
+    // </div>
+    null // Não renderiza nada diretamente, a notificação é feita via toast
+  );
 }
