@@ -1,66 +1,54 @@
-// client/src/components/ReloadPrompt.tsx
-import { useEffect } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
+import React from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react'; // Importa o hook para registrar o Service Worker
+import { Button } from '@/components/ui/button'; // CORREÇÃO: Usando alias de caminho
+import { useToast } from '@/hooks/use-toast';   // CORREÇÃO: Usando alias de caminho
 
-/**
- * Este componente não renderiza nada visualmente.
- * Ele serve como um controlador para detectar quando uma nova versão
- * do Service Worker está disponível (app atualizado) e notifica o usuário
- * usando o sistema de Toasts, oferecendo uma ação para recarregar a página.
- */
-function ReloadPrompt() {
-  const { toast } = useToast();
-
-  // O hook useRegisterSW é fornecido por 'vite-plugin-pwa'
-  // needRefresh: um booleano que se torna true quando há uma atualização pronta.
-  // updateServiceWorker: uma função para ativar o novo SW e recarregar a página.
+export function ReloadPrompt() {
+  // Usa o hook useRegisterSW para gerenciar o registro do Service Worker e atualizações
+  // 'setOfflineReady' e 'setNeedRefresh' foram removidas da desestruturação para evitar avisos de "never read".
   const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
+    offlineReady: [offlineReady], // Estado que indica se o app está pronto para uso offline
+    needRefresh: [needRefresh],   // Estado que indica se uma nova versão está disponível e precisa de refresh
+    updateServiceWorker,         // Função para atualizar o Service Worker e recarregar a página
   } = useRegisterSW({
-    // <<< ALTERAÇÃO AQUI: Ajustado o tipo para aceitar 'undefined' >>>
-    onRegistered(r: ServiceWorkerRegistration | undefined) {
-      console.log(`Service Worker registrado.`);
-      // Adicionamos a verificação 'if (r)' para usar o objeto de registro com segurança
-      if (r) {
-        // Opcional: Logar o registro a cada hora para garantir que está checando por atualizações.
-        setInterval(() => {
-          r.update();
-        }, 60 * 60 * 1000); // 1 hora
-      }
+    // Callback chamado quando o Service Worker é atualizado
+    onRegistered(r) {
+      console.log('SW Registered:', r);
     },
-    onRegisterError(error: any) {
-      console.error('Erro ao registrar o Service Worker:', error);
+    // Callback chamado quando o Service Worker registra um erro
+    onRegisterError(error) {
+      console.error('SW registration error:', error);
     },
   });
 
-  useEffect(() => {
+  const { toast } = useToast(); // Obtém a função toast do hook useToast
+
+  // Efeito para exibir o toast quando uma nova versão estiver disponível
+  React.useEffect(() => {
     if (needRefresh) {
-      // Se uma nova versão for detectada, mostramos um toast persistente.
-      const { dismiss } = toast({
-        title: 'Nova Versão Disponível!',
-        description: 'Uma nova versão do DyFit está pronta para ser instalada.',
-        duration: Infinity, // O toast não desaparece sozinho
+      toast({
+        title: 'Atualização Disponível',
+        description: 'Uma nova versão do aplicativo está disponível. Recarregue para obter as últimas funcionalidades!',
         action: (
           <Button
-            onClick={() => {
-              // Ao clicar, ativamos o novo Service Worker.
-              // O `true` como argumento força o recarregamento da página.
-              updateServiceWorker(true);
-              dismiss(); // Fecha o toast
-            }}
+            onClick={() => updateServiceWorker(true)} // Botão para recarregar a página
+            className="bg-primary hover:bg-primary-dark text-white"
           >
-            Atualizar Agora
+            Recarregar Agora
           </Button>
         ),
+        duration: 0, // Duração 0 para que o toast permaneça até o usuário interagir
       });
+    } else if (offlineReady) {
+      // Opcional: Notificar quando o aplicativo está pronto para uso offline
+      // toast({
+      //   title: 'Aplicativo Pronto',
+      //   description: 'O aplicativo está pronto para ser usado offline.',
+      //   duration: 3000,
+      // });
     }
-  }, [needRefresh, toast, updateServiceWorker]);
+  }, [needRefresh, offlineReady, updateServiceWorker, toast]);
 
-  // O componente em si não precisa renderizar nada na tela.
+  // Não renderiza nada diretamente, a notificação é feita via toast
   return null;
 }
-
-export default ReloadPrompt;
