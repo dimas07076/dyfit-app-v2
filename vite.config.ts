@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       injectRegister: 'auto',
       
       devOptions: {
@@ -20,6 +20,8 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        skipWaiting: false,
+        clientsClaim: false,
 
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2,webp,jpg,jpeg}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,

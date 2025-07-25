@@ -1,6 +1,6 @@
 // Caminho: ./client/src/components/layout/header.tsx
 import { useState, useContext } from "react";
-import { Menu, X, LogOut, User as UserIcon, ChevronDown } from "lucide-react";
+import { Menu, X, LogOut, User as UserIcon, ChevronDown, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./sidebar";
@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Link as WouterLink } from "wouter";
 import { cn } from "@/lib/utils";
+import { usePWAUpdate } from "@/hooks/use-pwa-update";
 
 interface HeaderProps {
   isScrolled: boolean;
@@ -30,6 +31,7 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
   const { user, logout: logoutUser } = useContext(UserContext);
   const { aluno, logoutAluno } = useAluno();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { checkForUpdates, needRefresh } = usePWAUpdate();
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   const getInitials = (
@@ -116,15 +118,29 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
       </div>
       <div className="flex items-center space-x-2 sm:space-x-4">
         {(aluno || user) && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={activeMobileLogoutFunction}
-            className="hover:text-destructive/80"
-            title="Sair"
-          >
-            <LogOut size={20} />
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={checkForUpdates}
+              className={cn(
+                "hover:text-primary/80",
+                needRefresh && "text-orange-500 animate-pulse"
+              )}
+              title="Verificar atualizações"
+            >
+              <RotateCcw size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={activeMobileLogoutFunction}
+              className="hover:text-destructive/80"
+              title="Sair"
+            >
+              <LogOut size={20} />
+            </Button>
+          </>
         )}
       </div>
       {isSearchOpen && (
@@ -158,7 +174,27 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
         <header className={cn("flex items-center justify-end h-16 px-6", headerClasses)}>
           <div className="flex items-center space-x-4">
             {displayUserForDesktopHeader && (
-              <DropdownMenu>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={checkForUpdates}
+                  className={cn(
+                    "flex items-center gap-2 px-2 py-1 h-auto",
+                    {
+                      "text-white hover:text-white/90": isAluno && !isScrolled,
+                      "text-card-foreground": !isAluno || isScrolled,
+                    },
+                    needRefresh && "text-orange-500 animate-pulse"
+                  )}
+                  title="Verificar atualizações"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span className="text-xs hidden lg:inline">
+                    {needRefresh ? "Atualização!" : "Verificar"}
+                  </span>
+                </Button>
+                <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -205,6 +241,7 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </>
             )}
           </div>
         </header>
