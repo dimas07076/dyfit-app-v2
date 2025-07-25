@@ -109,3 +109,25 @@ export const fetchWithAuth = async <T = any>(
       }
     }
   };
+
+// NOVO: Função auxiliar para requisições API que não precisam de autenticação específica ou que já usam fetchWithAuth internamente
+export const apiRequest = async <T = any>(
+  method: string,
+  url: string,
+  body?: any,
+  tokenType: TokenType = 'personalAdmin' // Default para personalAdmin, pode ser 'aluno' se necessário
+): Promise<T> => {
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  // Reutiliza fetchWithAuth para lidar com autenticação e tratamento de erros
+  return fetchWithAuth<T>(url, options, tokenType);
+};

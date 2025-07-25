@@ -17,7 +17,20 @@ router.get("/", authenticateToken, async (req: Request, res: Response, next: Nex
     const criadorId = req.user?.id;
     if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
 
-    const rotinas = await Treino.find({ criadorId: new Types.ObjectId(criadorId) })
+    // Inicia o objeto de query com o criadorId
+    const query: any = { criadorId: new Types.ObjectId(criadorId) };
+
+    // Adiciona o filtro por tipo, se presente na query string
+    if (req.query.tipo) {
+      query.tipo = req.query.tipo;
+    }
+
+    // O parâmetro trainerId já é o criadorId, então não precisamos adicioná-lo novamente
+    // se já estamos filtrando por criadorId. Se a intenção é permitir que um admin
+    // veja modelos de outros personais, a lógica precisaria ser mais complexa
+    // e envolver autorização de admin. Por enquanto, mantemos o filtro pelo criadorId do token.
+
+    const rotinas = await Treino.find(query) // Usa o objeto de query
         .populate({ path: 'alunoId', select: 'nome' })
         .populate({ path: 'pastaId', select: 'nome' })
         .populate({
