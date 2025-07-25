@@ -1,9 +1,11 @@
 // client/src/components/dialogs/AlunoViewModal.tsx
 import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'; // Importar useMutation
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { fetchWithAuth, apiRequest } from '@/lib/apiClient'; // Importar apiRequest
-import { useToast } from '@/hooks/use-toast'; // Importar useToast
+import { fetchWithAuth, apiRequest } from '@/lib/apiClient';
+import { useToast } from '@/hooks/use-toast';
+import { ModalConfirmacao } from "@/components/ui/modal-confirmacao"; // Importar ModalConfirmacao
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";     // Importar useConfirmDialog
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -14,14 +16,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Aluno } from "@/types/aluno";
-import { Dumbbell, Edit, History, Mail, Phone, User, Weight, Ruler, Cake, Target, CalendarDays, BarChart, CheckCircle2, Sigma, FileText, View, PlusCircle, Loader2 } from 'lucide-react';
+import { Dumbbell, Edit, History, Mail, Phone, User, Weight, Ruler, Cake, Target, CalendarDays, BarChart, CheckCircle2, Sigma, FileText, View, PlusCircle, MoreVertical, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from '../ui/skeleton';
 import ErrorMessage from '../ErrorMessage';
 import RotinaViewModal from './RotinaViewModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import RotinaFormModal from './RotinaFormModal';
-import SelectModeloRotinaModal from './SelectModeloRotinaModal'; // Importar o novo modal de seleção de modelo
-// import AssociarModeloAlunoModal from './AssociarModeloAlunoModal'; // Este modal não será mais aberto diretamente aqui
+import SelectModeloRotinaModal from './SelectModeloRotinaModal';
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 
 interface AlunoRotina {
@@ -37,7 +41,9 @@ interface AlunoViewModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const RotinasTab = ({ alunoId, onVisualizarRotina, isVisualizingRotina, onAssociarRotina }: { alunoId: string, onVisualizarRotina: (id: string) => void, isVisualizingRotina: boolean, onAssociarRotina: () => void }) => {
+// Atualizar props do RotinasTab para incluir onDeleteRotina
+// REMOÇÃO: isVisualizingRotina não é mais necessário aqui
+const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRotina }: { alunoId: string, onVisualizarRotina: (id: string) => void, onAssociarRotina: () => void, onDeleteRotina: (rotinaId: string, rotinaTitulo: string) => void }) => {
     const { data: rotinas, isLoading, isError, error } = useQuery<AlunoRotina[]>({
         queryKey: ['alunoRotinas', alunoId],
         queryFn: () => fetchWithAuth(`/api/aluno/${alunoId}/rotinas`),
@@ -80,9 +86,22 @@ const RotinasTab = ({ alunoId, onVisualizarRotina, isVisualizingRotina, onAssoci
                                 <p className="text-xs text-muted-foreground"> Atualizada em: {new Date(rotina.atualizadoEm).toLocaleDateString('pt-BR')} </p>
                             </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => onVisualizarRotina(rotina._id)} disabled={isVisualizingRotina}>
-                            {isVisualizingRotina ? <Loader2 className="h-4 w-4 animate-spin"/> : <View className="h-4 w-4" />}
-                        </Button>
+                        {/* Dropdown Menu para Visualizar e Excluir */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => onVisualizarRotina(rotina._id)}>
+                                    <View className="mr-2 h-4 w-4" /> Visualizar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onDeleteRotina(rotina._id, rotina.titulo)} className="text-red-600 focus:text-red-700">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Remover
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 ))
             )}
@@ -95,14 +114,18 @@ const KpiCard = ({ title, value, icon: Icon }: { title: string, value: string | 
 
 const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChange }) => {
     const queryClient = useQueryClient();
-    const { toast } = useToast(); // Inicializar useToast
+    const { toast } = useToast();
+    const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog, confirm: performConfirmAction } = useConfirmDialog();
+
     const [rotinaIdParaVer, setRotinaIdParaVer] = useState<string | null>(null);
     const [isRotinaViewModalOpen, setIsRotinaViewModalOpen] = useState(false);
     const [rotinaParaEditar, setRotinaParaEditar] = useState<RotinaListagemItem | null>(null);
     const [isRotinaFormModalOpen, setIsRotinaFormModalOpen] = useState(false);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
-    // NOVO ESTADO: Para controlar a abertura do modal de seleção de modelo
     const [isSelectModeloRotinaModalOpen, setIsSelectModeloRotinaModalOpen] = useState(false);
+
+    // Estado para armazenar o ID da rotina a ser excluída
+    const [rotinaIdToDelete, setRotinaIdToDelete] = useState<string | null>(null);
 
     const { data: rotinaDetalhada, isFetching: isFetchingRotina } = useQuery<RotinaListagemItem>({
         queryKey: ['rotinaDetalhes', rotinaIdParaVer],
@@ -130,12 +153,61 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         setVideoUrl(url);
     };
 
-    // NOVA FUNÇÃO: Para abrir o modal de seleção de modelo
     const handleAssociarRotina = () => {
         setIsSelectModeloRotinaModalOpen(true);
     };
 
-    // NOVA FUNÇÃO: Para associar a rotina selecionada do modal de modelos
+    const deleteRotinaMutation = useMutation({
+        mutationFn: async (rotinaId: string) => {
+            return apiRequest("DELETE", `/api/treinos/${rotinaId}`);
+        },
+        onSuccess: () => {
+            toast({
+                title: "Sucesso!",
+                description: "Rotina excluída com sucesso.",
+            });
+            queryClient.invalidateQueries({ queryKey: ["alunoRotinas", aluno?._id] });
+            setRotinaIdToDelete(null); // Limpar o ID da rotina a ser excluída
+        },
+        onError: (error: any) => {
+            toast({
+                variant: "destructive",
+                title: "Erro ao Excluir",
+                description: error.message || "Não foi possível excluir a rotina.",
+            });
+        },
+        onSettled: () => {
+            closeConfirmDialog(); // Fechar o modal de confirmação
+        }
+    });
+
+    const handleDeleteRotina = (rotinaId: string, rotinaTitulo: string) => {
+        setRotinaIdToDelete(rotinaId); // Armazenar o ID da rotina a ser excluída
+        openConfirmDialog({
+            titulo: "Confirmar Exclusão",
+            mensagem: `Tem certeza que deseja remover a rotina "${rotinaTitulo}"? Esta ação não pode ser desfeita.`,
+            onConfirm: () => {
+                // A mutação será disparada por handleConfirmDelete, que é passada para o ModalConfirmacao
+            },
+        });
+    };
+
+    // Este useEffect não é mais necessário para redefinir onConfirm
+    // A lógica de `handleConfirmDelete` já lida com o `rotinaIdToDelete`
+    useEffect(() => {
+        // Removendo a lógica de redefinição de onConfirm aqui.
+        // A função `handleConfirmDelete` já está sendo passada diretamente para o ModalConfirmacao.
+    }, [isConfirmOpen, rotinaIdToDelete, performConfirmAction]);
+
+    // Ajuste na chamada do ModalConfirmacao para passar a função de confirmação correta
+    // que usará o estado rotinaIdToDelete.
+    const handleConfirmDelete = () => {
+        if (rotinaIdToDelete) {
+            deleteRotinaMutation.mutate(rotinaIdToDelete);
+        }
+    };
+
+
     const associateModelMutation = useMutation({
         mutationFn: async ({ fichaModeloId, alunoId }: { fichaModeloId: string; alunoId: string }) => {
             const payload = { fichaModeloId, alunoId };
@@ -158,11 +230,12 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
             });
         },
         onSettled: () => {
-            setIsSelectModeloRotinaModalOpen(false); // Fechar o modal após a tentativa de associação
+            setIsSelectModeloRotinaModalOpen(false);
         }
     });
 
-    const handleSelectModelAndAssociate = (modelId: string) => { // REMOÇÃO: modelTitle não é mais necessário aqui
+    // REMOÇÃO: modelTitle não é mais necessário aqui
+    const handleSelectModelAndAssociate = (modelId: string) => { 
         if (aluno?._id) {
             associateModelMutation.mutate({ fichaModeloId: modelId, alunoId: aluno._id });
         } else {
@@ -203,7 +276,7 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                             <Tabs defaultValue="detalhes" className="w-full flex-grow">
                                 <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="detalhes">Detalhes</TabsTrigger><TabsTrigger value="rotinas">Rotinas</TabsTrigger><TabsTrigger value="historico">Histórico</TabsTrigger></TabsList>
                                 <TabsContent value="detalhes" className="mt-4 pr-2 h-[250px] overflow-y-auto"><div className="space-y-1"><InfoItem icon={Target} label="Objetivo" value={aluno.goal} /><InfoItem icon={Cake} label="Nascimento" value={formatDateBR(aluno.birthDate)} /><InfoItem icon={Weight} label="Peso" value={`${aluno.weight} kg`} /><InfoItem icon={Ruler} label="Altura" value={`${aluno.height} cm`} /><InfoItem icon={User} label="Gênero" value={aluno.gender} /><InfoItem icon={CalendarDays} label="Início" value={formatDateBR(aluno.startDate)} /></div></TabsContent>
-                                <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} isVisualizingRotina={isFetchingRotina} onAssociarRotina={handleAssociarRotina} /></TabsContent>
+                                <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} /></TabsContent>
                                 <TabsContent value="historico" className="mt-4"><div className="text-center text-muted-foreground pt-10"><History className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-700" /><p className="mt-2">Histórico de treinos em breve.</p></div></TabsContent>
                             </Tabs>
                             <DialogFooter className="mt-auto pt-6"><Button variant="outline" asChild><Link href={`/alunos/editar/${aluno._id}`}> <Edit className="mr-2 h-4 w-4" /> Editar Aluno </Link></Button></DialogFooter>
@@ -231,11 +304,20 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                 alunos={[aluno]}
             />
 
-            {/* NOVO MODAL: SelectModeloRotinaModal */}
             <SelectModeloRotinaModal
                 isOpen={isSelectModeloRotinaModalOpen}
                 onClose={() => setIsSelectModeloRotinaModalOpen(false)}
                 onSelect={handleSelectModelAndAssociate}
+            />
+
+            {/* Modal de Confirmação para Exclusão */}
+            <ModalConfirmacao
+                isOpen={isConfirmOpen}
+                onClose={closeConfirmDialog}
+                onConfirm={handleConfirmDelete}
+                titulo={confirmOptions.titulo}
+                mensagem={confirmOptions.mensagem}
+                isLoadingConfirm={deleteRotinaMutation.isPending}
             />
         </>
     );
