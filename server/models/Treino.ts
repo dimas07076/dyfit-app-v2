@@ -5,6 +5,9 @@ import { IExercicio } from './Exercicio.js';
 export const TIPOS_ORGANIZACAO_ROTINA = ['diasDaSemana', 'numerico', 'livre'] as const;
 export type TipoOrganizacaoRotina = typeof TIPOS_ORGANIZACAO_ROTINA[number];
 
+export const STATUS_EXPIRACAO_ROTINA = ['active', 'expiring', 'expired', 'inactive'] as const;
+export type StatusExpiracaoRotina = typeof STATUS_EXPIRACAO_ROTINA[number];
+
 // --- Subdocumento: Exercício em Dia de Treino ---
 export interface IExercicioEmDiaDeTreino extends Types.Subdocument {
   _id: Types.ObjectId;
@@ -82,6 +85,12 @@ export interface ITreino extends Document {
   statusModelo?: 'ativo' | 'rascunho' | 'arquivado' | null;
   ordemNaPasta?: number;
   dataValidade?: Date | null;
+  statusExpiracao?: StatusExpiracaoRotina;
+  ultimaRenovacao?: Date | null;
+  notificacoes?: {
+    avisocincodias?: boolean;
+    avisoexpiracao?: boolean;
+  };
   totalSessoesRotinaPlanejadas?: number;
   sessoesRotinaConcluidas?: number;
   criadoEm: Date;
@@ -106,6 +115,12 @@ export interface ITreinoPopuladoLean {
     statusModelo?: "ativo" | "rascunho" | "arquivado" | null;
     ordemNaPasta?: number;
     dataValidade?: string | Date | null;
+    statusExpiracao?: StatusExpiracaoRotina;
+    ultimaRenovacao?: string | Date | null;
+    notificacoes?: {
+        avisocincodias?: boolean;
+        avisoexpiracao?: boolean;
+    };
     totalSessoesRotinaPlanejadas?: number;
     sessoesRotinaConcluidas?: number;
     criadoEm?: string | Date;
@@ -150,6 +165,12 @@ const TreinoSchema = new Schema<ITreino>({
   statusModelo: { type: String, enum: ['ativo', 'rascunho', 'arquivado'], default: 'ativo' },
   ordemNaPasta: { type: Number },
   dataValidade: { type: Date, default: null },
+  statusExpiracao: { type: String, enum: STATUS_EXPIRACAO_ROTINA, default: 'active' },
+  ultimaRenovacao: { type: Date, default: null },
+  notificacoes: {
+    avisocincodias: { type: Boolean, default: false },
+    avisoexpiracao: { type: Boolean, default: false }
+  },
   totalSessoesRotinaPlanejadas: { type: Number, default: 0 },
   sessoesRotinaConcluidas: { type: Number, default: 0 },
   criadoEm: { type: Date, default: Date.now },

@@ -3,3 +3,7 @@ node_modules/
 # Ignorar diretórios de build do cliente
 /client/dist
 /client/dev-dist
+# Ignorar diretórios de build do servidor e shared
+/server/dist
+/shared/dist
+dist/

@@ -1,203 +1,115 @@
 // server/src/routes/treinos.ts
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
 import mongoose, { Types } from "mongoose";
-import Treino, {
-    IDiaDeTreinoPlain,
-    IExercicioEmDiaDeTreinoPlain
-} from "../../models/Treino.js";
+import Treino from "../../models/Treino.js";
 import PastaTreino from '../../models/Pasta.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
 import { ExpirationManager } from '../services/expirationManager.js';
 import { NotificationService } from '../services/notificationService.js';
-
 const router = express.Router();
-
-router.get("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect();
-  try {
-    const criadorId = req.user?.id;
-    if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
-
-    const rotinas = await Treino.find({ criadorId: new Types.ObjectId(criadorId) })
-        .populate({ path: 'alunoId', select: 'nome' })
-        .populate({ path: 'pastaId', select: 'nome' })
-        .populate({
+router.get("/", authenticateToken, async (req, res, next) => {
+    await dbConnect();
+    try {
+        const criadorId = req.user?.id;
+        if (!criadorId)
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        const rotinas = await Treino.find({ criadorId: new Types.ObjectId(criadorId) })
+            .populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
             path: 'diasDeTreino',
             populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         })
-        .sort({ tipo: 1, atualizadoEm: -1 });
-
-    res.status(200).json(rotinas);
-  } catch (error) {
-    next(error);
-  }
+            .sort({ tipo: 1, atualizadoEm: -1 });
+        res.status(200).json(rotinas);
+    }
+    catch (error) {
+        next(error);
+    }
 });
-
 // <<< ADIÇÃO: Nova rota para buscar uma única rotina por ID >>>
-router.get("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { id } = req.params;
         const criadorId = req.user?.id;
-        
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ mensagem: "ID da rotina inválido." });
         }
         if (!criadorId) {
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
         }
-
         const rotina = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId) })
             .populate({ path: 'alunoId', select: 'nome' })
             .populate({ path: 'pastaId', select: 'nome' })
             .populate({
-                path: 'diasDeTreino',
-                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
-            });
-
-        if (!rotina) {
-            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
-        }
-
-        res.status(200).json(rotina);
-    } catch (error) {
-        next(error);
-    }
-});
-
-
-router.post("/", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect();
-  try {
-    const criadorId = req.user?.id;
-    if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
-
-    // Garante que isCopied seja false por padrão para novas criações
-    const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
-    const novaRotina = new Treino(dadosRotina);
-    
-    // Set default expiration for individual routines
-    if (novaRotina.tipo === 'individual' && !novaRotina.dataValidade) {
-      ExpirationManager.setDefaultExpirationDate(novaRotina);
-    }
-    
-    await novaRotina.save();
-
-    const rotinaPopulada = await Treino.findById(novaRotina._id)
-        .populate({ path: 'alunoId', select: 'nome' })
-        .populate({ path: 'pastaId', select: 'nome' })
-        .populate({
             path: 'diasDeTreino',
             populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         });
-
-    res.status(201).json(rotinaPopulada);
-  } catch (error) {
-    next(error);
-  }
+        if (!rotina) {
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
+        }
+        res.status(200).json(rotina);
+    }
+    catch (error) {
+        next(error);
+    }
 });
-
-router.post("/associar-modelo", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", authenticateToken, async (req, res, next) => {
+    await dbConnect();
+    try {
+        const criadorId = req.user?.id;
+        if (!criadorId)
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        // Garante que isCopied seja false por padrão para novas criações
+        const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
+        const novaRotina = new Treino(dadosRotina);
+        // Set default expiration for individual routines
+        if (novaRotina.tipo === 'individual' && !novaRotina.dataValidade) {
+            ExpirationManager.setDefaultExpirationDate(novaRotina);
+        }
+        await novaRotina.save();
+        const rotinaPopulada = await Treino.findById(novaRotina._id)
+            .populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+            path: 'diasDeTreino',
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+        });
+        res.status(201).json(rotinaPopulada);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post("/associar-modelo", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { fichaModeloId, alunoId } = req.body;
         const criadorId = req.user?.id;
-
-        if (!criadorId) return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        if (!criadorId)
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
         if (!mongoose.Types.ObjectId.isValid(fichaModeloId) || !mongoose.Types.ObjectId.isValid(alunoId)) {
             return res.status(400).json({ mensagem: "IDs inválidos fornecidos." });
         }
         const fichaModelo = await Treino.findOne({ _id: fichaModeloId, criadorId: new Types.ObjectId(criadorId), tipo: 'modelo' });
-        if (!fichaModelo) return res.status(404).json({ mensagem: "Ficha modelo não encontrada ou você não tem permissão para usá-la." });
-
+        if (!fichaModelo)
+            return res.status(404).json({ mensagem: "Ficha modelo não encontrada ou você não tem permissão para usá-la." });
         const { _id, criadoEm, atualizadoEm, diasDeTreino, ...modeloRestante } = fichaModelo.toObject();
         const newFichaData = {
             ...modeloRestante,
-            tipo: 'individual' as const,
+            tipo: 'individual',
             criadorId: new Types.ObjectId(criadorId),
             alunoId: new Types.ObjectId(alunoId),
             pastaId: null,
             titulo: modeloRestante.titulo, // Remove o sufixo "(Ficha de Aluno)"
             isCopied: true, // <<< NOVO: Marca como cópia ao associar modelo >>>
-            diasDeTreino: diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
+            diasDeTreino: diasDeTreino?.map((dia) => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
                 ordemNaRotina: dia.ordemNaRotina,
-                exerciciosDoDia: dia.exerciciosDoDia?.map((ex): IExercicioEmDiaDeTreinoPlain => {
-                    const exercicioIdValue = typeof ex.exercicioId === 'object' && ex.exercicioId?._id
-                        ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
-                    return {
-                        exercicioId: new Types.ObjectId(exercicioIdValue),
-                        series: ex.series,
-                        repeticoes: ex.repeticoes,
-                        carga: ex.carga,
-                        descanso: ex.descanso, 
-                        observacoes: ex.observacoes,
-                        ordemNoDia: ex.ordemNoDia,
-                        concluido: false
-                    };
-                }) ?? []
-            })) ?? []
-        };
-
-        const novaFichaIndividual = new Treino(newFichaData);
-        
-        // Set default expiration for individual routines created from models
-        ExpirationManager.setDefaultExpirationDate(novaFichaIndividual);
-        
-        await novaFichaIndividual.save();
-        const fichaPopulada = await Treino.findById(novaFichaIndividual._id)
-            .populate({ path: 'alunoId', select: 'nome' })
-            .populate({ path: 'pastaId', select: 'nome' })
-            .populate({
-                path: 'diasDeTreino',
-                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
-            });
-
-        res.status(201).json(fichaPopulada);
-    } catch (error) {
-        console.error("Erro ao associar modelo de treino ao aluno:", error);
-        next(error);
-    }
-});
-
-// <<< ADIÇÃO: Nova rota para copiar uma rotina individual e transformá-la em modelo >>>
-router.post("/copiar-para-modelo/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect();
-    try {
-        const { id } = req.params;
-        const criadorId = req.user?.id;
-
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ mensagem: "ID da rotina inválido." });
-        }
-        if (!criadorId) {
-            return res.status(401).json({ mensagem: "Usuário não autenticado." });
-        }
-
-        // Encontra a rotina individual original
-        const rotinaOriginal = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId), tipo: 'individual' });
-
-        if (!rotinaOriginal) {
-            return res.status(404).json({ mensagem: "Rotina individual não encontrada ou você não tem permissão para copiá-la." });
-        }
-
-        // Cria uma cópia profunda da rotina
-        const { _id, criadoEm, atualizadoEm, alunoId, ...restanteDaRotina } = rotinaOriginal.toObject();
-
-        const novaRotinaModeloData = {
-            ...restanteDaRotina,
-            tipo: 'modelo' as const, // Define o tipo como 'modelo'
-            alunoId: null, // Remove a associação com o aluno
-            pastaId: null, // Remove a associação com pasta (opcional, pode ser ajustado)
-            titulo: restanteDaRotina.titulo, // Remove o sufixo "(Cópia Modelo)"
-            isCopied: true, // <<< NOVO: Marca como cópia ao converter para modelo >>>
-            diasDeTreino: restanteDaRotina.diasDeTreino?.map((dia): IDiaDeTreinoPlain => ({
-                identificadorDia: dia.identificadorDia,
-                nomeSubFicha: dia.nomeSubFicha,
-                ordemNaRotina: dia.ordemNaRotina,
-                exerciciosDoDia: dia.exerciciosDoDia?.map((ex): IExercicioEmDiaDeTreinoPlain => {
+                exerciciosDoDia: dia.exerciciosDoDia?.map((ex) => {
                     const exercicioIdValue = typeof ex.exercicioId === 'object' && ex.exercicioId?._id
                         ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
                     return {
@@ -213,240 +125,277 @@ router.post("/copiar-para-modelo/:id", authenticateToken, async (req: Request, r
                 }) ?? []
             })) ?? []
         };
-
-        const novaRotinaModelo = new Treino(novaRotinaModeloData);
-        await novaRotinaModelo.save();
-
-        const rotinaPopulada = await Treino.findById(novaRotinaModelo._id)
+        const novaFichaIndividual = new Treino(newFichaData);
+        // Set default expiration for individual routines created from models
+        ExpirationManager.setDefaultExpirationDate(novaFichaIndividual);
+        await novaFichaIndividual.save();
+        const fichaPopulada = await Treino.findById(novaFichaIndividual._id)
             .populate({ path: 'alunoId', select: 'nome' })
             .populate({ path: 'pastaId', select: 'nome' })
             .populate({
-                path: 'diasDeTreino',
-                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
-            });
-
-        res.status(201).json(rotinaPopulada);
-
-    } catch (error) {
-        console.error("Erro ao copiar rotina para modelo:", error);
-        next(error);
-    }
-});
-
-router.put("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  await dbConnect();
-  try {
-    const { id } = req.params;
-    const criadorId = req.user?.id;
-    if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) return res.status(400).json({ mensagem: "Requisição inválida." });
-
-    const rotina = await Treino.findOneAndUpdate(
-        { _id: id, criadorId: new Types.ObjectId(criadorId) },
-        { $set: req.body },
-        { new: true, runValidators: true }
-    ).populate({ path: 'alunoId', select: 'nome' })
-     .populate({ path: 'pastaId', select: 'nome' })
-     .populate({
-         path: 'diasDeTreino',
-         populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
-     });
-
-    if (!rotina) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
-    res.status(200).json(rotina);
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put("/:id/pasta", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    await dbConnect();
-    const { id: rotinaId } = req.params;
-    const { pastaId } = req.body;
-    const criadorId = req.user?.id;
-
-    if (!criadorId || !mongoose.Types.ObjectId.isValid(rotinaId)) return res.status(400).json({ mensagem: "ID da rotina inválido ou usuário não autenticado." });
-    if (pastaId && !mongoose.Types.ObjectId.isValid(pastaId)) return res.status(400).json({ mensagem: "ID da pasta inválido." });
-
-    try {
-        if (pastaId) {
-            const pastaDestino = await PastaTreino.findOne({ _id: pastaId, criadorId: criadorId });
-            if (!pastaDestino) return res.status(404).json({ mensagem: "Pasta de destino não encontrada ou você não tem permissão para usá-la." });
-        }
-        const rotinaAtualizada = await Treino.findOneAndUpdate(
-            { _id: rotinaId, criadorId: criadorId },
-            { $set: { pastaId: pastaId ? new Types.ObjectId(pastaId) : null } },
-            { new: true }
-        ).populate('pastaId', 'nome')
-         .populate({
             path: 'diasDeTreino',
             populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         });
-        if (!rotinaAtualizada) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão para movê-la." });
-        res.status(200).json(rotinaAtualizada);
-    } catch (error) {
+        res.status(201).json(fichaPopulada);
+    }
+    catch (error) {
+        console.error("Erro ao associar modelo de treino ao aluno:", error);
         next(error);
     }
 });
-
-router.delete("/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+// <<< ADIÇÃO: Nova rota para copiar uma rotina individual e transformá-la em modelo >>>
+router.post("/copiar-para-modelo/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { id } = req.params;
         const criadorId = req.user?.id;
-        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) return res.status(400).json({ mensagem: "Requisição inválida." });
-        const resultado = await Treino.findOneAndDelete({ _id: id, criadorId: new Types.ObjectId(criadorId) });
-        if (!resultado) return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
-        res.status(200).json({ mensagem: "Rotina excluída com sucesso." });
-    } catch (error) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ mensagem: "ID da rotina inválido." });
+        }
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+        // Encontra a rotina individual original
+        const rotinaOriginal = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId), tipo: 'individual' });
+        if (!rotinaOriginal) {
+            return res.status(404).json({ mensagem: "Rotina individual não encontrada ou você não tem permissão para copiá-la." });
+        }
+        // Cria uma cópia profunda da rotina
+        const { _id, criadoEm, atualizadoEm, alunoId, ...restanteDaRotina } = rotinaOriginal.toObject();
+        const novaRotinaModeloData = {
+            ...restanteDaRotina,
+            tipo: 'modelo', // Define o tipo como 'modelo'
+            alunoId: null, // Remove a associação com o aluno
+            pastaId: null, // Remove a associação com pasta (opcional, pode ser ajustado)
+            titulo: restanteDaRotina.titulo, // Remove o sufixo "(Cópia Modelo)"
+            isCopied: true, // <<< NOVO: Marca como cópia ao converter para modelo >>>
+            diasDeTreino: restanteDaRotina.diasDeTreino?.map((dia) => ({
+                identificadorDia: dia.identificadorDia,
+                nomeSubFicha: dia.nomeSubFicha,
+                ordemNaRotina: dia.ordemNaRotina,
+                exerciciosDoDia: dia.exerciciosDoDia?.map((ex) => {
+                    const exercicioIdValue = typeof ex.exercicioId === 'object' && ex.exercicioId?._id
+                        ? ex.exercicioId._id.toString() : ex.exercicioId.toString();
+                    return {
+                        exercicioId: new Types.ObjectId(exercicioIdValue),
+                        series: ex.series,
+                        repeticoes: ex.repeticoes,
+                        carga: ex.carga,
+                        descanso: ex.descanso,
+                        observacoes: ex.observacoes,
+                        ordemNoDia: ex.ordemNoDia,
+                        concluido: false
+                    };
+                }) ?? []
+            })) ?? []
+        };
+        const novaRotinaModelo = new Treino(novaRotinaModeloData);
+        await novaRotinaModelo.save();
+        const rotinaPopulada = await Treino.findById(novaRotinaModelo._id)
+            .populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+            path: 'diasDeTreino',
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+        });
+        res.status(201).json(rotinaPopulada);
+    }
+    catch (error) {
+        console.error("Erro ao copiar rotina para modelo:", error);
         next(error);
     }
 });
-
+router.put("/:id", authenticateToken, async (req, res, next) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const criadorId = req.user?.id;
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId)
+            return res.status(400).json({ mensagem: "Requisição inválida." });
+        const rotina = await Treino.findOneAndUpdate({ _id: id, criadorId: new Types.ObjectId(criadorId) }, { $set: req.body }, { new: true, runValidators: true }).populate({ path: 'alunoId', select: 'nome' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+            path: 'diasDeTreino',
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+        });
+        if (!rotina)
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
+        res.status(200).json(rotina);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.put("/:id/pasta", authenticateToken, async (req, res, next) => {
+    await dbConnect();
+    const { id: rotinaId } = req.params;
+    const { pastaId } = req.body;
+    const criadorId = req.user?.id;
+    if (!criadorId || !mongoose.Types.ObjectId.isValid(rotinaId))
+        return res.status(400).json({ mensagem: "ID da rotina inválido ou usuário não autenticado." });
+    if (pastaId && !mongoose.Types.ObjectId.isValid(pastaId))
+        return res.status(400).json({ mensagem: "ID da pasta inválido." });
+    try {
+        if (pastaId) {
+            const pastaDestino = await PastaTreino.findOne({ _id: pastaId, criadorId: criadorId });
+            if (!pastaDestino)
+                return res.status(404).json({ mensagem: "Pasta de destino não encontrada ou você não tem permissão para usá-la." });
+        }
+        const rotinaAtualizada = await Treino.findOneAndUpdate({ _id: rotinaId, criadorId: criadorId }, { $set: { pastaId: pastaId ? new Types.ObjectId(pastaId) : null } }, { new: true }).populate('pastaId', 'nome')
+            .populate({
+            path: 'diasDeTreino',
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+        });
+        if (!rotinaAtualizada)
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão para movê-la." });
+        res.status(200).json(rotinaAtualizada);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.delete("/:id", authenticateToken, async (req, res, next) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const criadorId = req.user?.id;
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId)
+            return res.status(400).json({ mensagem: "Requisição inválida." });
+        const resultado = await Treino.findOneAndDelete({ _id: id, criadorId: new Types.ObjectId(criadorId) });
+        if (!resultado)
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão." });
+        res.status(200).json({ mensagem: "Rotina excluída com sucesso." });
+    }
+    catch (error) {
+        next(error);
+    }
+});
 // Renewal and Expiration Management Routes
-
 // Renew a routine
-router.post("/:id/renew", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/:id/renew", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { id } = req.params;
         const { validityDays = 30 } = req.body;
         const criadorId = req.user?.id;
-
         if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
             return res.status(400).json({ mensagem: "Requisição inválida." });
         }
-
         // Verify the routine belongs to the authenticated personal trainer
-        const routine = await Treino.findOne({ 
-            _id: id, 
+        const routine = await Treino.findOne({
+            _id: id,
             criadorId: new Types.ObjectId(criadorId),
             tipo: 'individual'
         });
-
         if (!routine) {
-            return res.status(404).json({ 
-                mensagem: "Rotina não encontrada ou você não tem permissão." 
+            return res.status(404).json({
+                mensagem: "Rotina não encontrada ou você não tem permissão."
             });
         }
-
         const renewedRoutine = await ExpirationManager.renewRoutine(id, validityDays);
-        
         if (!renewedRoutine) {
-            return res.status(500).json({ 
-                mensagem: "Erro ao renovar a rotina." 
+            return res.status(500).json({
+                mensagem: "Erro ao renovar a rotina."
             });
         }
-
         // Send renewal notification to student
         try {
             const notification = NotificationService.createRenewalSuccessNotification(renewedRoutine);
             if (notification) {
                 await NotificationService['sendNotification'](notification);
             }
-        } catch (notificationError) {
+        }
+        catch (notificationError) {
             console.error('Error sending renewal notification:', notificationError);
             // Don't fail the renewal if notification fails
         }
-
         res.status(200).json({
             mensagem: "Rotina renovada com sucesso.",
             rotina: renewedRoutine
         });
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get expiring routines for a personal trainer
-router.get("/expiring", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/expiring", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const criadorId = req.user?.id;
         if (!criadorId) {
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
         }
-
         // Update statuses first
         await ExpirationManager.updateRoutinesForPersonal(criadorId);
-
         const expiringRoutines = await ExpirationManager.getExpiringRoutinesForPersonal(criadorId);
-        
         res.status(200).json(expiringRoutines);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get expiration statistics for a personal trainer
-router.get("/expiration-stats", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/expiration-stats", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const criadorId = req.user?.id;
         if (!criadorId) {
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
         }
-
         const stats = await ExpirationManager.getExpirationStats(criadorId);
-        
         res.status(200).json(stats);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Update routine status (can be called manually)
-router.post("/:id/update-status", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/:id/update-status", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { id } = req.params;
         const criadorId = req.user?.id;
-
         if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
             return res.status(400).json({ mensagem: "Requisição inválida." });
         }
-
         // Verify the routine belongs to the authenticated personal trainer
-        const routine = await Treino.findOne({ 
-            _id: id, 
+        const routine = await Treino.findOne({
+            _id: id,
             criadorId: new Types.ObjectId(criadorId)
         });
-
         if (!routine) {
-            return res.status(404).json({ 
-                mensagem: "Rotina não encontrada ou você não tem permissão." 
+            return res.status(404).json({
+                mensagem: "Rotina não encontrada ou você não tem permissão."
             });
         }
-
         const updatedRoutine = await ExpirationManager.updateRoutineStatus(id);
-        
         if (!updatedRoutine) {
-            return res.status(500).json({ 
-                mensagem: "Erro ao atualizar status da rotina." 
+            return res.status(500).json({
+                mensagem: "Erro ao atualizar status da rotina."
             });
         }
-
         res.status(200).json({
             mensagem: "Status da rotina atualizado com sucesso.",
             rotina: updatedRoutine
         });
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Process notifications (for admin or cron jobs)
-router.post("/process-notifications", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/process-notifications", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const result = await NotificationService.processNotifications();
-        
         res.status(200).json({
             mensagem: "Notificações processadas com sucesso.",
             resultado: result
         });
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 export default router;
