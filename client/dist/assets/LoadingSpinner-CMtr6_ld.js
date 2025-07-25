@@ -1,1 +1,0 @@
-import{j as e,n as r}from"./index-BzLV8CNE.js";function a({text:s}){return e.jsxs("div",{className:"flex flex-col justify-center items-center h-32 gap-3",children:[" ",e.jsx(r,{className:"h-6 w-6 animate-spin text-primary"}),s&&e.jsx("p",{className:"text-sm text-muted-foreground",children:s})]})}export{a as L};

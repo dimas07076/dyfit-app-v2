@@ -1,2 +1,5 @@
 node_modules/ 
 .env 
+# Ignorar diretórios de build do cliente
+/client/dist
+/client/dev-dist
