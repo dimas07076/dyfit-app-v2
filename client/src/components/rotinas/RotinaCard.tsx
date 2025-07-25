@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy, RotateCcw } from 'lucide-react'; // Importado BookCopy
+import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy, RotateCcw, CalendarDays } from 'lucide-react'; // Importado BookCopy and CalendarDays
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 import type { Pasta } from '@/pages/treinos/index';
 import { FullStatusIndicator } from '@/components/expiration';
@@ -23,6 +23,7 @@ interface RotinaCardProps {
   onRemoveFromFolder: (rotinaId: string) => void;
   onConvertToModel: (rotina: RotinaListagemItem) => void; // Nova prop para converter para modelo
   onRenew?: (rotina: RotinaListagemItem) => void; // Nova prop para renovar rotina
+  onEditValidity?: (rotina: RotinaListagemItem) => void; // Nova prop para editar validade
 }
 
 export const RotinaCard: React.FC<RotinaCardProps> = ({ 
@@ -36,7 +37,8 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   onMoveToFolder,
   onRemoveFromFolder,
   onConvertToModel, // Nova prop
-  onRenew // Nova prop para renovação
+  onRenew, // Nova prop para renovação
+  onEditValidity // Nova prop para editar validade
 }) => {
   const isModelo = rotina.tipo === 'modelo';
   const diasDeTreinoCount = Array.isArray(rotina.diasDeTreino) ? rotina.diasDeTreino.length : 0;
@@ -152,6 +154,16 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
               className="text-orange-500/80 hover:text-orange-500"
             >
               <RotateCcw className="h-4 w-4" />
+            </ActionButton>
+          )}
+          {/* Botão de editar validade para rotinas individuais */}
+          {!isModelo && onEditValidity && (
+            <ActionButton 
+              title="Editar Validade" 
+              onClick={() => onEditValidity(rotina)}
+              className="text-blue-500/80 hover:text-blue-500"
+            >
+              <CalendarDays className="h-4 w-4" />
             </ActionButton>
           )}
           {/* Novo botão para converter rotina individual em modelo */}

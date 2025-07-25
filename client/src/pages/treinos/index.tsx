@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import VideoPlayerModal from "@/components/dialogs/VideoPlayerModal";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/context/UserContext";
+import { RenewalModal, EditRoutineValidityModal } from "@/components/expiration";
 
 export interface Pasta { _id: string; nome: string; ordem?: number; }
 
@@ -42,6 +43,12 @@ export default function TreinosPage() {
     // Estados para a nova funcionalidade de "Tornar Modelo"
     const [isConvertToModelAlertOpen, setIsConvertToModelAlertOpen] = useState(false);
     const [rotinaParaConverterEmModelo, setRotinaParaConverterEmModelo] = useState<RotinaListagemItem | null>(null);
+
+    // Estados para renovação e edição de validade
+    const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
+    const [isEditValidityModalOpen, setIsEditValidityModalOpen] = useState(false);
+    const [rotinaParaRenovar, setRotinaParaRenovar] = useState<RotinaListagemItem | null>(null);
+    const [rotinaParaEditarValidade, setRotinaParaEditarValidade] = useState<RotinaListagemItem | null>(null);
 
     const queryClient = useQueryClient();
     const { toast } = useToast();
@@ -106,6 +113,18 @@ export default function TreinosPage() {
       }
     };
 
+    // Handler para abrir modal de renovação
+    const handleRenewRoutine = (rotina: RotinaListagemItem) => {
+      setRotinaParaRenovar(rotina);
+      setIsRenewalModalOpen(true);
+    };
+
+    // Handler para abrir modal de edição de validade
+    const handleEditValidityRoutine = (rotina: RotinaListagemItem) => {
+      setRotinaParaEditarValidade(rotina);
+      setIsEditValidityModalOpen(true);
+    };
+
     const rotinasIndividuaisFiltradas = useMemo(() => {
         const rotinasBase = rotinas.filter(r => r.tipo === 'individual');
         if (!buscaAluno.trim()) { return rotinasBase; }
@@ -133,6 +152,8 @@ export default function TreinosPage() {
       onMoveToFolder: handleMoveToFolder, 
       onRemoveFromFolder: handleRemoveFromFolder,
       onConvertToModel: handleConvertToModelClick, // Passa a nova função
+      onRenew: handleRenewRoutine, // Handler para renovação
+      onEditValidity: handleEditValidityRoutine, // Handler para editar validade
     };
 
     return (
@@ -258,6 +279,25 @@ export default function TreinosPage() {
             </AlertDialog>
 
             <VideoPlayerModal videoUrl={videoUrlToPlay} onClose={() => setVideoUrlToPlay(null)} />
+
+            {/* Modais para gerenciamento de expiração */}
+            <RenewalModal 
+                routine={rotinaParaRenovar} 
+                isOpen={isRenewalModalOpen} 
+                onClose={() => {
+                    setIsRenewalModalOpen(false);
+                    setRotinaParaRenovar(null);
+                }} 
+            />
+            
+            <EditRoutineValidityModal 
+                routine={rotinaParaEditarValidade} 
+                isOpen={isEditValidityModalOpen} 
+                onClose={() => {
+                    setIsEditValidityModalOpen(false);
+                    setRotinaParaEditarValidade(null);
+                }} 
+            />
         </div>
     );
 }

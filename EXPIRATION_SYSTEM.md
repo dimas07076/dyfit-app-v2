@@ -12,6 +12,7 @@ O sistema de validade para rotinas de treino oferece controle automático sobre 
 - **Validade automática**: Rotinas individuais recebem automaticamente 30 dias de validade
 - **Dashboard de expiração**: Visualize todas as rotinas que estão expirando ou expiradas
 - **Renovação rápida**: Renove rotinas com períodos customizáveis (15, 30, 60, 90 dias ou personalizado)
+- **Edição manual de validade**: Defina uma data específica de expiração para qualquer rotina individual
 - **Estatísticas**: Acompanhe quantas rotinas estão ativas, expirando, expiradas ou inativas
 - **Indicadores visuais**: Badges coloridos mostram o status em tempo real
 - **Notificações automáticas**: Receba alertas sobre rotinas que precisam de atenção
@@ -48,6 +49,7 @@ interface ITreino {
 
 #### API Endpoints
 - `POST /api/treinos/:id/renew` - Renova uma rotina
+- `PATCH /api/treinos/:id/update-validity` - Atualiza a data de validade manualmente
 - `GET /api/treinos/expiring` - Lista rotinas expirando
 - `GET /api/treinos/expiration-stats` - Estatísticas de expiração
 - `POST /api/treinos/:id/update-status` - Atualiza status manualmente
@@ -58,6 +60,7 @@ interface ITreino {
 #### Componentes
 - **RoutineStatusIndicator**: Badge visual com status da rotina
 - **RenewalModal**: Modal para renovação de rotinas
+- **EditRoutineValidityModal**: Modal para edição manual da data de validade
 - **ExpirationNotice**: Avisos para alunos sobre expiração
 - **ExpiringRoutinesDashboard**: Dashboard para personal trainers
 - **ExpiredRoutineBlocker**: Bloqueia acesso a rotinas inativas
@@ -65,6 +68,7 @@ interface ITreino {
 #### Hooks
 - **useRoutineExpiration**: Hook principal para gerenciar expiração
 - **useRoutineRenewal**: Hook para renovação de rotinas
+- **useRoutineValidityUpdate**: Hook para edição manual da data de validade
 - **useExpiringRoutines**: Hook para listar rotinas expirando
 - **useExpirationStats**: Hook para estatísticas
 
@@ -128,6 +132,30 @@ import { FullStatusIndicator } from '@/components/expiration';
 <FullStatusIndicator routine={routine} />
 ```
 
+#### Para Renovação de Rotinas
+```tsx
+import { RenewalModal } from '@/components/expiration';
+
+// Modal para renovar rotinas (adiciona dias a partir de hoje)
+<RenewalModal 
+  routine={routine} 
+  isOpen={isRenewalModalOpen} 
+  onClose={() => setIsRenewalModalOpen(false)} 
+/>
+```
+
+#### Para Edição Manual de Validade
+```tsx
+import { EditRoutineValidityModal } from '@/components/expiration';
+
+// Modal para definir data específica de validade
+<EditRoutineValidityModal 
+  routine={routine} 
+  isOpen={isEditValidityModalOpen} 
+  onClose={() => setIsEditValidityModalOpen(false)} 
+/>
+```
+
 #### Para Bloqueio de Acesso
 ```tsx
 import { ExpiredRoutineBlocker } from '@/components/expiration';
@@ -159,6 +187,13 @@ import { ExpiredRoutineBlocker } from '@/components/expiration';
 - **Somente personal trainers** podem renovar rotinas
 - **Períodos flexíveis**: 15, 30, 60, 90 dias ou personalizado
 - **Reset de notificações**: Renovação limpa flags de notificação
+
+### Edição Manual de Validade
+- **Somente personal trainers** podem editar a data de validade
+- **Data específica**: Define uma data exata de expiração (diferente da renovação que adiciona dias)
+- **Validação**: Nova data deve ser maior que a data atual
+- **Reset de notificações**: Edição limpa flags de notificação
+- **Recálculo automático**: Status da rotina é recalculado com base na nova data
 
 ## 🔔 Sistema de Notificações
 
@@ -259,6 +294,7 @@ client/src/
 ├── components/expiration/
 │   ├── RoutineStatusIndicator.tsx        # Indicador visual de status
 │   ├── RenewalModal.tsx                  # Modal de renovação
+│   ├── EditRoutineValidityModal.tsx      # Modal de edição de validade
 │   ├── ExpirationNotice.tsx              # Avisos para alunos
 │   ├── ExpiringRoutinesDashboard.tsx     # Dashboard para personals
 │   └── ExpiredRoutineBlocker.tsx         # Bloqueador de acesso
@@ -270,11 +306,23 @@ client/src/
 ### Integrando em Páginas Existentes
 ```tsx
 // Em componentes de rotina existentes
-import { FullStatusIndicator } from '@/components/expiration';
+import { FullStatusIndicator, EditRoutineValidityModal, RenewalModal } from '@/components/expiration';
 
 // Adicionar indicador de status
 {routine.tipo === 'individual' && (
   <FullStatusIndicator routine={routine} />
+)}
+
+// Botões para gerenciar validade (exemplo em card de rotina)
+{routine.tipo === 'individual' && (
+  <>
+    <Button onClick={() => setRenewalModalOpen(true)}>
+      Renovar Rotina
+    </Button>
+    <Button onClick={() => setEditValidityModalOpen(true)}>
+      Editar Validade
+    </Button>
+  </>
 )}
 ```
 

@@ -40,6 +40,24 @@ const api = {
     return response.json();
   },
 
+  updateRoutineValidity: async (routineId: string, newDate: string) => {
+    const response = await fetch(`/api/treinos/${routineId}/update-validity`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ newDate })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.mensagem || 'Erro ao atualizar validade');
+    }
+    
+    return response.json();
+  },
+
   getExpiringRoutines: async () => {
     const response = await fetch('/api/treinos/expiring', {
       headers: {
@@ -133,6 +151,22 @@ export function useRoutineRenewal() {
   return useMutation({
     mutationFn: ({ routineId, validityDays }: { routineId: string; validityDays?: number }) =>
       api.renewRoutine(routineId, validityDays),
+    onSuccess: () => {
+      // Invalidate related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['routines'] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-routines'] });
+      queryClient.invalidateQueries({ queryKey: ['expiration-stats'] });
+    }
+  });
+}
+
+// Hook for updating routine validity date manually
+export function useRoutineValidityUpdate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ routineId, newDate }: { routineId: string; newDate: string }) =>
+      api.updateRoutineValidity(routineId, newDate),
     onSuccess: () => {
       // Invalidate related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['routines'] });

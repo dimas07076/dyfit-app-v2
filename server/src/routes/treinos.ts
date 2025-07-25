@@ -449,4 +449,92 @@ router.post("/process-notifications", authenticateToken, async (req: Request, re
     }
 });
 
+// Update routine validity date manually
+router.patch("/:id/update-validity", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { id } = req.params;
+        const { newDate } = req.body;
+        const criadorId = req.user?.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id) || !criadorId) {
+            return res.status(400).json({ mensagem: "Requisição inválida." });
+        }
+
+        if (!newDate) {
+            return res.status(400).json({ mensagem: "Nova data de validade é obrigatória." });
+        }
+
+        const newExpirationDate = new Date(newDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Validate that the new date is in the future
+        if (newExpirationDate <= today) {
+            return res.status(400).json({ 
+                mensagem: "A nova data de validade deve ser maior que a data atual." 
+            });
+        }
+
+        // Verify the routine belongs to the authenticated personal trainer and is individual
+        const routine = await Treino.findOne({ 
+            _id: id, 
+            criadorId: new Types.ObjectId(criadorId),
+            tipo: 'individual'
+        });
+
+        if (!routine) {
+            return res.status(404).json({ 
+                mensagem: "Rotina individual não encontrada ou você não tem permissão para editá-la." 
+            });
+        }
+
+        // Update the validity date and calculate new status
+        routine.dataValidade = newExpirationDate;
+        routine.ultimaRenovacao = new Date();
+        
+        // Reset notifications since we're changing the date
+        routine.notificacoes = {
+            avisocincodias: false,
+            avisoexpiracao: false
+        };
+
+        // Update expiration status based on new date
+        const updatedRoutine = await ExpirationManager.updateRoutineStatus(routine._id.toString());
+        
+        if (!updatedRoutine) {
+            // Fallback: save the routine with manual status calculation
+            const daysUntilExpiration = Math.floor((newExpirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilExpiration > 5) {
+                routine.statusExpiracao = 'active';
+            } else if (daysUntilExpiration <= 5 && daysUntilExpiration >= 0) {
+                routine.statusExpiracao = 'expiring';
+            } else if (daysUntilExpiration < 0 && Math.abs(daysUntilExpiration) <= 2) {
+                routine.statusExpiracao = 'expired';
+            } else {
+                routine.statusExpiracao = 'inactive';
+            }
+            
+            await routine.save();
+        }
+
+        // Fetch the updated routine with populated fields
+        const finalRoutine = await Treino.findById(id)
+            .populate({ path: 'alunoId', select: 'nome email' })
+            .populate({ path: 'pastaId', select: 'nome' })
+            .populate({
+                path: 'diasDeTreino',
+                populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+            });
+
+        res.status(200).json({
+            mensagem: "Data de validade atualizada com sucesso.",
+            rotina: finalRoutine
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;
