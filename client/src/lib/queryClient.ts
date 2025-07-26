@@ -30,7 +30,10 @@ export async function apiRequest<T = unknown>(
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2, // 2 minutos
+      // Configuração otimizada para visão de aluno: reduzido de 2 minutos para 30 segundos
+      // Isso garante que dados de progresso de treinos sejam atualizados mais frequentemente,
+      // resolvendo problemas de cache no Vercel onde usuários precisavam pressionar F5
+      staleTime: 1000 * 30, // 30 segundos
 
       // Etapa 2: Transformar a opção 'retry' em uma função inteligente.
       // Esta função recebe o número de tentativas e o objeto de erro.
@@ -64,7 +67,12 @@ export const queryClient = new QueryClient({
 
       retryDelay: retryDelay,
 
-      refetchOnWindowFocus: true, 
+      // Garante atualização dos dados quando o usuário volta para a aba
+      refetchOnWindowFocus: true,
+      
+      // Garante atualização dos dados quando a conexão é restabelecida
+      // Importante para aplicações web que podem perder conexão temporariamente
+      refetchOnReconnect: true,
     },
   },
 });
