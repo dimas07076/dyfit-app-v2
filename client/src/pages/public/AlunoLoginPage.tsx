@@ -12,6 +12,7 @@ import { apiRequest } from '@/lib/queryClient';
 interface AlunoLoginApiResponse {
     message: string;
     token: string;
+    refreshToken: string;
     aluno: { id: string; nome: string; email: string; role: 'Aluno'; personalId: string; };
     // <<< ADIÇÃO: Adicionando o campo 'code' opcional à resposta de erro >>>
     code?: string;
@@ -44,6 +45,7 @@ export default function AlunoLoginPage() {
                 '/api/auth/aluno/login', 
                 { email: email.toLowerCase().trim(), password }
             );
+            localStorage.setItem('alunoRefreshToken', response.refreshToken);
             loginAluno?.(response.token);
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
         } catch (err: any) {
