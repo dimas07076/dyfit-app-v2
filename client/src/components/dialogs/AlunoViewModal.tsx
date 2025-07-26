@@ -39,18 +39,16 @@ interface AlunoRotina {
     atualizadoEm: string;
 }
 
-// Interface para o histórico de sessões (baseado na API que criamos)
-interface ISessaoHistorico {
-  concluidaEm: string;
-  inicioSessao?: string;
-  fimSessao?: string;
-  duracaoMinutos?: number;
-  pseAluno?: 'Muito Leve' | 'Leve' | 'Moderado' | 'Intenso' | 'Muito Intenso' | 'Máximo Esforço';
-  comentariosAluno?: string;
-  cargaAumentada?: boolean;
-  rotinaId?: {
-      titulo: string;
-  };
+// NOVA INTERFACE - Mapeia os dados do histórico de treino do backend
+interface IWorkoutHistoryLog {
+    _id: string;
+    treinoId: string;
+    treinoTitulo: string;
+    dataFim: string; // Vem como string ISO da API
+    duracaoTotalMinutos: number;
+    nivelTreino: 'muito_facil' | 'facil' | 'moderado' | 'dificil' | 'muito_dificil';
+    comentarioAluno?: string;
+    aumentoCarga?: boolean;
 }
 
 interface AlunoViewModalProps {
@@ -105,12 +103,13 @@ const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRot
     );
 };
 
+// COMPONENTE ATUALIZADO - Consome o novo endpoint
 const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolean }) => {
-    const { data: historicoSessoes = [], isLoading, isError, error } = useQuery<ISessaoHistorico[]>({
-        queryKey: ['historicoAluno', alunoId],
-        queryFn: () => fetchWithAuth(`/api/aluno/gerenciar/${alunoId}/historico`),
+    const { data: historico, isLoading, isError, error } = useQuery<IWorkoutHistoryLog[]>({
+        queryKey: ['historicoAlunoWorkoutLogs', alunoId], // Nova queryKey
+        queryFn: () => fetchWithAuth(`/api/activity-logs/aluno/${alunoId}`), // Novo endpoint
         enabled: isActive && !!alunoId,
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60 * 5, // 5 minutos
     });
 
     if (isLoading) {
@@ -119,21 +118,34 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
     if (isError) {
         return <ErrorMessage title="Erro ao carregar histórico" message={error.message} />;
     }
-    if (historicoSessoes.length === 0) {
+    if (!historico || historico.length === 0) {
         return ( <div className="text-center text-muted-foreground pt-10"> <History className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-700" /> <p className="mt-2">Nenhum registro de treino encontrado.</p> </div> );
     }
 
-    const getNivelBadgeVariant = (nivel?: ISessaoHistorico['pseAluno']) => {
+    const nivelTreinoMap: Record<IWorkoutHistoryLog['nivelTreino'], string> = {
+        muito_facil: 'Muito Fácil',
+        facil: 'Fácil',
+        moderado: 'Moderado',
+        dificil: 'Difícil',
+        muito_dificil: 'Muito Difícil',
+    };
+
+    const getNivelBadgeVariant = (nivel: IWorkoutHistoryLog['nivelTreino']) => {
         switch (nivel) {
-            case 'Muito Leve': return 'outline'; case 'Leve': return 'secondary'; case 'Moderado': return 'default'; case 'Intenso': return 'destructive'; case 'Muito Intenso': return 'destructive'; case 'Máximo Esforço': return 'destructive'; default: return 'default';
+            case 'muito_facil': return 'outline';
+            case 'facil': return 'secondary';
+            case 'moderado': return 'default';
+            case 'dificil': return 'destructive';
+            case 'muito_dificil': return 'destructive';
+            default: return 'default';
         }
     };
 
     const InfoHistoricoItem = ({ icon: Icon, label, value, highlight = false }: { icon: React.ElementType, label: string, value?: string | number | null, highlight?: boolean }) => (
         <div className="flex items-start text-sm">
             <Icon className="h-4 w-4 mr-3 mt-0.5 text-slate-500" />
-            <span className="font-medium text-slate-600 dark:text-slate-400 w-24">{label}:</span>
-            {value ? (
+            <span className="font-medium text-slate-600 dark:text-slate-400 w-28">{label}:</span>
+            {value || (value === 0) ? (
                 <span className={`flex-1 ${highlight ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-slate-900 dark:text-slate-100'}`}>
                     {label === 'Duração' ? `${value} min` : value}
                 </span>
@@ -145,17 +157,17 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
 
     return (
         <div className="mt-4 pr-2 h-[250px] overflow-y-auto space-y-3">
-            {historicoSessoes.map((sessao, index) => (
-                <Card key={index} className="bg-slate-50 dark:bg-slate-800/50">
+            {historico.map((log) => (
+                <Card key={log._id} className="bg-slate-50 dark:bg-slate-800/50">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4">
-                        <CardTitle className="text-base font-semibold">{sessao.rotinaId?.titulo || 'Treino Avulso'}</CardTitle>
-                        {sessao.pseAluno && <Badge variant={getNivelBadgeVariant(sessao.pseAluno)}>{sessao.pseAluno}</Badge>}
+                        <CardTitle className="text-base font-semibold">{log.treinoTitulo}</CardTitle>
+                        <Badge variant={getNivelBadgeVariant(log.nivelTreino)}>{nivelTreinoMap[log.nivelTreino]}</Badge>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-2">
-                        <InfoHistoricoItem icon={CalendarCheck} label="Realizado em" value={new Date(sessao.concluidaEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} />
-                        <InfoHistoricoItem icon={Clock} label="Duração" value={sessao.duracaoMinutos} />
-                        <InfoHistoricoItem icon={MessageSquare} label="Comentários" value={sessao.comentariosAluno} />
-                        <InfoHistoricoItem icon={TrendingUp} label="Carga Aumentada" value={sessao.cargaAumentada ? 'Sim' : 'Não'} highlight={!!sessao.cargaAumentada} />
+                        <InfoHistoricoItem icon={CalendarCheck} label="Realizado em" value={new Date(log.dataFim).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} />
+                        <InfoHistoricoItem icon={Clock} label="Duração" value={log.duracaoTotalMinutos} />
+                        <InfoHistoricoItem icon={MessageSquare} label="Comentários" value={log.comentarioAluno} />
+                        <InfoHistoricoItem icon={TrendingUp} label="Aumentou Carga" value={log.aumentoCarga ? 'Sim' : 'Não'} highlight={!!log.aumentoCarga} />
                     </CardContent>
                 </Card>
             ))}
@@ -226,20 +238,17 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         }
     });
     
-    // <<< LÓGICA DE EXCLUSÃO CORRIGIDA >>>
     const handleDeleteRotina = (rotinaId: string, rotinaTitulo: string) => {
-        setRotinaIdToDelete(rotinaId); // Armazena o ID no estado ao abrir o diálogo
+        setRotinaIdToDelete(rotinaId); 
         openConfirmDialog({
             titulo: "Confirmar Remoção",
             mensagem: `Tem certeza que deseja remover a rotina "${rotinaTitulo}" deste aluno?`,
-            // onConfirm é definido aqui, mas a ação real acontece no ModalConfirmacao
             onConfirm: () => {}, 
         });
     };
 
-    // Esta função é chamada diretamente pelo botão de confirmação no modal.
     const handleConfirmDelete = () => {
-        if (rotinaIdToDelete) { // Lê o ID do estado
+        if (rotinaIdToDelete) {
             deleteRotinaMutation.mutate(rotinaIdToDelete);
         }
     };
@@ -310,7 +319,7 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
             <ModalConfirmacao
                 isOpen={isConfirmOpen}
                 onClose={closeConfirmDialog}
-                onConfirm={handleConfirmDelete} // Chama a função que lê o estado
+                onConfirm={handleConfirmDelete}
                 titulo={confirmOptions.titulo}
                 mensagem={confirmOptions.mensagem}
                 isLoadingConfirm={deleteRotinaMutation.isPending}
