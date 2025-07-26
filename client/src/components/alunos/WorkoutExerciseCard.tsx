@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, PlayCircle, Clock, Weight, ChevronDown, RotateCw, Info } from 'lucide-react';
+import { Check, PlayCircle, Clock, Weight, ChevronDown, RotateCcw, Info } from 'lucide-react';
 import { useWorkoutPlayer } from '@/context/WorkoutPlayerContext';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -41,6 +41,7 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(isActive);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentLoadInput, setCurrentLoadInput] = useState(load);
+  const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
 
   useEffect(() => {
     setIsExpanded(isActive);
@@ -79,8 +80,8 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
     <Card
       className={cn(
         "transition-all duration-300 ease-in-out overflow-hidden shadow-md border",
-        isCompleted ? 'bg-green-50 border-green-200 opacity-60' : 'bg-white',
-        isActive ? 'border-indigo-500 shadow-indigo-200 shadow-lg' : 'border-slate-200'
+        isCompleted ? 'bg-green-50 border-green-300 shadow-green-100' : 'bg-white border-slate-200',
+        isActive ? 'border-indigo-500 shadow-indigo-200 shadow-lg' : ''
       )}
     >
       <CardHeader 
@@ -88,21 +89,6 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isCompleted) {
-                handleUncompleteClick();
-              }
-            }}
-            className={cn(
-              "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors", 
-              isCompleted ? "bg-green-500 text-white hover:bg-green-600" : "border-2 border-gray-400"
-            )}
-            aria-label={isCompleted ? "Desfazer exercício" : "Exercício não concluído"}
-          >
-            {isCompleted ? <RotateCw size={16} /> : null}
-          </button>
           <p className="font-semibold text-gray-800 whitespace-normal" title={exerciseName}>
             {exerciseName}
           </p>
@@ -157,11 +143,23 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
                     </div>
                 </div>
             </div>
-            {!isCompleted && (
-              <Button className="w-full bg-green-600 hover:bg-green-700 mt-4" onClick={handleCompleteClick}>
-                <Check className="mr-2" size={18} /> Concluir Exercício
-              </Button>
-            )}
+            
+            {/* Action Button - Always visible, changes based on completion status */}
+            <div className="mt-4">
+              {!isCompleted ? (
+                <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleCompleteClick}>
+                  <Check className="mr-2" size={18} /> Concluir Exercício
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  className="w-full border-green-600 text-green-700 hover:bg-green-50" 
+                  onClick={() => setIsReopenConfirmOpen(true)}
+                >
+                  <RotateCcw className="mr-2" size={18} /> Reabrir Exercício
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       )}
@@ -192,6 +190,31 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
           <DialogFooter>
             <Button variant="outline" onClick={closeEditModal}>Cancelar</Button>
             <Button onClick={handleSaveLoad}>Atualizar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reopen Confirmation Dialog */}
+      <Dialog open={isReopenConfirmOpen} onOpenChange={setIsReopenConfirmOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reabrir Exercício</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja reabrir este exercício? Isso irá marcá-lo como não concluído.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReopenConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                handleUncompleteClick();
+                setIsReopenConfirmOpen(false);
+              }}
+            >
+              Reabrir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
