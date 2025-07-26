@@ -40,6 +40,7 @@ router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Respo
             _id: sessao._id,
             treinoId: sessao.rotinaId?._id || null,
             treinoTitulo: (sessao.rotinaId as any)?.titulo || sessao.diaDeTreinoIdentificador || 'Treino Concluído',
+            dataInicio: sessao.sessionDate, // <-- ADICIONADO: Inclui a data de início
             dataFim: sessao.concluidaEm,
             duracaoTotalMinutos: sessao.duracaoSegundos ? Math.round(sessao.duracaoSegundos / 60) : 0,
             nivelTreino: sessao.pseAluno, // O frontend já sabe como traduzir isso
