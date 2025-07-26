@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Loader2, ArrowLeft, ListChecks, Dumbbell, Calendar, PlayCircle, XCircle, Timer, Zap, MessageSquare, Award, Eye } from 'lucide-react';
 import VideoPlayerModal from '@/components/dialogs/VideoPlayerModal';
 import { useToast } from '@/hooks/use-toast';
-import { format, parseISO, addSeconds } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { WorkoutPlayerProvider, useWorkoutPlayer } from '@/context/WorkoutPlayerContext';
 import { WorkoutExerciseCard } from '@/components/alunos/WorkoutExerciseCard';
 
@@ -25,7 +25,7 @@ interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string;
 type ExercicioRenderizavel = Omit<ExercicioEmDiaDeTreinoPopulado, 'exercicioId'> & { _id: string; exercicioDetalhes: ExercicioDetalhePopulado | null; };
 const OPCOES_PSE_FRONTEND = [ 'Muito Leve', 'Leve', 'Moderado', 'Intenso', 'Muito Intenso', 'Máximo Esforço'] as const;
 type OpcaoPSEFrontend = typeof OPCOES_PSE_FRONTEND[number];
-interface ConcluirSessaoPayload { rotinaId: string; diaDeTreinoId: string; pseAluno?: OpcaoPSEFrontend | null; comentarioAluno?: string | null; duracaoSegundos: number; cargas: Record<string, string>; }
+interface ConcluirSessaoPayload { rotinaId: string; diaDeTreinoId: string; pseAluno?: OpcaoPSEFrontend | null; comentarioAluno?: string | null; duracaoSegundos: number; cargas: Record<string, string>; dataInicio: string; }
 interface ConcluirSessaoResponse { _id: string; }
 // --- Fim das Interfaces ---
 
@@ -82,25 +82,28 @@ const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTr
     );
 };
 
-const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: string; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; isFinishing: boolean; }> = ({ diaAtivo, rotinaId, onFinishWorkout, isFinishing }) => {
-    const { startWorkout, stopWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad } = useWorkoutPlayer();
+const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: string; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; }> = ({ diaAtivo, rotinaId, onFinishWorkout }) => {
+    const { startWorkout, stopWorkout, resetWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad, workoutStartTime } = useWorkoutPlayer();
     const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
-    const [dataInicio] = useState<Date>(() => new Date());
 
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
 
     useEffect(() => {
-        const exercicios = diaAtivo.exerciciosDoDia
-            .map((ex): { _id: string, exercicioDetalhes: ExercicioDetalhePopulado | null, descanso?: string } | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { _id: ex._id, exercicioDetalhes: ex.exercicioId, descanso: ex.descanso } : null)
-            .filter((ex): ex is { _id: string, exercicioDetalhes: ExercicioDetalhePopulado | null, descanso?: string } => ex !== null)
-            .sort((a, b) => (a as any).ordemNoDia - (b as any).ordemNoDia);
-        startWorkout(exercicios);
-    }, [startWorkout, diaAtivo]);
+        startWorkout(exerciciosParaRenderizar);
+        return () => {
+            resetWorkout();
+        };
+    }, [startWorkout, resetWorkout, diaAtivo, exerciciosParaRenderizar]);
+
 
     const handleStopAndFinish = () => {
+        if (!workoutStartTime) {
+            console.error("Tentativa de finalizar o treino sem uma data de início registrada.");
+            return;
+        }
         const cargas = exerciciosParaRenderizar.reduce((acc, ex) => { acc[ex._id] = getExerciseLoad(ex._id); return acc; }, {} as Record<string, string>);
-        onFinishWorkout({ duracao: elapsedTime, cargas, dataInicio });
         stopWorkout();
+        onFinishWorkout({ duracao: elapsedTime, cargas, dataInicio: workoutStartTime });
     };
     
     const formatTime = (seconds: number) => { const h = Math.floor(seconds / 3600).toString().padStart(2, '0'); const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0'); const s = (seconds % 60).toString().padStart(2, '0'); return h !== '00' ? `${h}:${m}:${s}` : `${m}:${s}`; };
@@ -114,12 +117,11 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
                 <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
             </CardHeader>
             <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">{exerciciosParaRenderizar.map(ex => <WorkoutExerciseCard key={ex._id} exercise={ex} isActive={ex._id === activeExerciseId} isCompleted={completedExercises.has(ex._id)} onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} />)}</CardContent>
-            <CardFooter className="flex-shrink-0 p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} disabled={isFinishing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg">{isFinishing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Zap className="w-5 h-5 mr-2" />} Finalizar e Salvar Treino</Button></CardFooter>
+            <CardFooter className="flex-shrink-0 p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg"><Zap className="w-5 h-5 mr-2" /> Finalizar e Salvar Treino</Button></CardFooter>
             <VideoPlayerModal videoUrl={videoModalUrl} onClose={() => setVideoModalUrl(null)} />
         </Card>
     );
 };
-// CONTINUAÇÃO...
 
 const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaIniciar: (dia: DiaDeTreinoPopulado) => void; onSelectDiaParaVer: (dia: DiaDeTreinoPopulado) => void; }> = ({ rotina, onSelectDiaParaIniciar, onSelectDiaParaVer }) => {
     
@@ -174,8 +176,9 @@ const AlunoFichaDetalhePage: React.FC = () => {
     const { aluno } = useAluno();
     const { toast } = useToast();
     const queryClientHook = useQueryClient();
+    const { resumeWorkout, resetWorkout } = useWorkoutPlayer();
 
-    const [workoutSummary, setWorkoutSummary] = useState<{ sessaoId: string; stats: { inicio: Date; fim: Date; tempoTotal: number; } } | null>(null);
+    const [pendingWorkoutData, setPendingWorkoutData] = useState<{ duracao: number; cargas: Record<string, string>; dataInicio: Date } | null>(null);
     const [diaParaIniciar, setDiaParaIniciar] = useState<DiaDeTreinoPopulado | null>(null);
     const [diaParaVer, setDiaParaVer] = useState<DiaDeTreinoPopulado | null>(null);
 
@@ -202,7 +205,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
         onError: (error) => { console.error("Erro ao atualizar cargas na ficha:", error.message); }
     });
 
-    const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload, dataInicio: Date }, { previousRotinas: RotinaDeTreinoAluno[] | undefined }>({
+    const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload }, { previousRotinas: RotinaDeTreinoAluno[] | undefined }>({
         onMutate: async () => {
             console.log("Iniciando mutação otimista...");
             await queryClientHook.cancelQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
@@ -230,40 +233,41 @@ const AlunoFichaDetalhePage: React.FC = () => {
         onError: (err, _newTodo, context) => {
             console.error("Mutação otimista falhou. Revertendo cache.");
             if (context?.previousRotinas) { queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], context.previousRotinas); }
-            toast({ title: "Erro ao Finalizar Treino", description: err.message, variant: "destructive" });
+            toast({ title: "Erro ao Salvar Treino", description: err.message, variant: "destructive" });
         },
         onSettled: () => { console.log("onSettled executado: Nenhuma invalidação forçada para 'minhasRotinasAluno'."); },
         mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload, 'aluno'),
-        onSuccess: (data, variables) => {
+        onSuccess: (_data, variables) => {
             console.log("Mutação no backend bem-sucedida.");
-            toast({ title: "Dia de Treino Salvo!", description: "Ótimo trabalho! Agora, conte-nos como foi." });
-            const dataFim = addSeconds(variables.dataInicio, variables.payload.duracaoSegundos);
-            setWorkoutSummary({ sessaoId: data._id, stats: { inicio: variables.dataInicio, fim: dataFim, tempoTotal: variables.payload.duracaoSegundos } });
+            toast({ title: "Treino Salvo!", description: "Redirecionando para o painel..." });
             atualizarCargasFichaMutation.mutate({ cargas: variables.payload.cargas });
             queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
             queryClientHook.invalidateQueries({ queryKey: ['statsProgressoAluno', aluno?.id] });
+            setPendingWorkoutData(null); 
+            resetWorkout(); // Limpa completamente o estado do player após o sucesso
+            setTimeout(() => navigateWouter('/aluno/dashboard'), 1000);
         },
     });
-
-    const atualizarFeedbackSessaoMutation = useMutation<{ _id: string }, Error, { sessaoId: string; pseAluno: OpcaoPSEFrontend | null; comentarioAluno: string | null; }>({
-        mutationFn: (payload) => apiRequest('PATCH', `/api/sessions/${payload.sessaoId}/feedback`, payload, 'aluno'),
-        onSuccess: () => {
-            toast({ title: "Feedback Enviado!", description: "Obrigado! Redirecionando..." });
-            setTimeout(() => { setWorkoutSummary(null); navigateWouter('/aluno/dashboard'); }, 1000);
-        },
-        onError: (error) => toast({ title: "Erro ao Enviar Feedback", description: error.message, variant: "destructive" }),
-    });
-
+    
     const handleFinishWorkout = (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => {
         if (!rotinaIdUrl || !diaIdUrl) return;
-        // <<< INÍCIO DA CORREÇÃO >>>
-        finalizarDiaDeTreinoMutation.mutate({ payload: { rotinaId: rotinaIdUrl, diaDeTreinoId: diaIdUrl, duracaoSegundos: payload.duracao, cargas: payload.cargas }, dataInicio: payload.dataInicio });
-        // <<< FIM DA CORREÇÃO >>>
+        setPendingWorkoutData(payload); 
     };
 
     const handleEnviarFeedback = (feedback: { pse: OpcaoPSEFrontend | null, comentario: string | null }) => {
-        if (!workoutSummary) return;
-        atualizarFeedbackSessaoMutation.mutate({ sessaoId: workoutSummary.sessaoId, pseAluno: feedback.pse, comentarioAluno: feedback.comentario });
+        if (!pendingWorkoutData || !rotinaIdUrl || !diaIdUrl) return;
+
+        const finalPayload: ConcluirSessaoPayload = {
+            rotinaId: rotinaIdUrl,
+            diaDeTreinoId: diaIdUrl,
+            dataInicio: pendingWorkoutData.dataInicio.toISOString(),
+            duracaoSegundos: pendingWorkoutData.duracao,
+            cargas: pendingWorkoutData.cargas,
+            pseAluno: feedback.pse,
+            comentarioAluno: feedback.comentario,
+        };
+
+        finalizarDiaDeTreinoMutation.mutate({ payload: finalPayload });
     };
 
     if (isLoadingRotina) return <div className="min-h-screen w-full flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-white" /></div>;
@@ -272,9 +276,22 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const renderContent = () => {
         if (diaIdUrl && diaDeTreinoAtivo) {
-            return <WorkoutExecutionView diaAtivo={diaDeTreinoAtivo} rotinaId={rotinaIdUrl!} onFinishWorkout={handleFinishWorkout} isFinishing={finalizarDiaDeTreinoMutation.isPending} />;
+            return <WorkoutExecutionView diaAtivo={diaDeTreinoAtivo} rotinaId={rotinaIdUrl!} onFinishWorkout={handleFinishWorkout} />;
         }
         return <SummaryView rotina={rotinaDetalhes} onSelectDiaParaIniciar={setDiaParaIniciar} onSelectDiaParaVer={setDiaParaVer} />;
+    };
+
+    const workoutSummaryForModal = pendingWorkoutData ? {
+        stats: {
+            inicio: pendingWorkoutData.dataInicio,
+            fim: new Date(),
+            tempoTotal: pendingWorkoutData.duracao,
+        }
+    } : null;
+
+    const handleCloseFeedbackModal = () => {
+        setPendingWorkoutData(null);
+        resumeWorkout();
     };
 
     return (
@@ -289,8 +306,14 @@ const AlunoFichaDetalhePage: React.FC = () => {
                 <DiaDetalhesModal isOpen={!!diaParaVer} onClose={() => setDiaParaVer(null)} diaDeTreino={diaParaVer} />
             )}
 
-            {workoutSummary && (
-                <FeedbackModal isOpen={!!workoutSummary} onClose={() => setWorkoutSummary(null)} onSubmit={handleEnviarFeedback} isSubmitting={atualizarFeedbackSessaoMutation.isPending} stats={workoutSummary.stats} />
+            {workoutSummaryForModal && (
+                <FeedbackModal 
+                    isOpen={!!workoutSummaryForModal} 
+                    onClose={handleCloseFeedbackModal} 
+                    onSubmit={handleEnviarFeedback} 
+                    isSubmitting={finalizarDiaDeTreinoMutation.isPending} 
+                    stats={workoutSummaryForModal.stats} 
+                />
             )}
         </div>
     );

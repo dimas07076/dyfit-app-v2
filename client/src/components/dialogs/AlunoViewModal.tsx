@@ -39,12 +39,13 @@ interface AlunoRotina {
     atualizadoEm: string;
 }
 
-// NOVA INTERFACE - Mapeia os dados do histórico de treino do backend
+// INTERFACE ATUALIZADA - Adicionado dataInicio
 interface IWorkoutHistoryLog {
     _id: string;
     treinoId: string;
     treinoTitulo: string;
-    dataFim: string; // Vem como string ISO da API
+    dataInicio: string; // <-- ADICIONADO
+    dataFim: string; 
     duracaoTotalMinutos: number;
     nivelTreino: 'muito_facil' | 'facil' | 'moderado' | 'dificil' | 'muito_dificil';
     comentarioAluno?: string;
@@ -86,7 +87,6 @@ const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRot
                             <FileText className="h-5 w-5 text-primary" />
                             <div> <p className="font-semibold text-sm">{rotina.titulo}</p> <p className="text-xs text-muted-foreground"> Atualizada em: {new Date(rotina.atualizadoEm).toLocaleDateString('pt-BR')} </p> </div>
                         </div>
-                        {/* Dropdown Menu para Visualizar e Excluir */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8"> <MoreVertical className="h-4 w-4" /> </Button>
@@ -103,13 +103,12 @@ const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRot
     );
 };
 
-// COMPONENTE ATUALIZADO - Consome o novo endpoint
 const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolean }) => {
     const { data: historico, isLoading, isError, error } = useQuery<IWorkoutHistoryLog[]>({
-        queryKey: ['historicoAlunoWorkoutLogs', alunoId], // Nova queryKey
-        queryFn: () => fetchWithAuth(`/api/activity-logs/aluno/${alunoId}`), // Novo endpoint
+        queryKey: ['historicoAlunoWorkoutLogs', alunoId],
+        queryFn: () => fetchWithAuth(`/api/activity-logs/aluno/${alunoId}`),
         enabled: isActive && !!alunoId,
-        staleTime: 1000 * 60 * 5, // 5 minutos
+        staleTime: 1000 * 60 * 5,
     });
 
     if (isLoading) {
@@ -122,7 +121,7 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
         return ( <div className="text-center text-muted-foreground pt-10"> <History className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-700" /> <p className="mt-2">Nenhum registro de treino encontrado.</p> </div> );
     }
 
-    const nivelTreinoMap: Record<IWorkoutHistoryLog['nivelTreino'], string> = {
+    const nivelTreinoMap: Record<string, string> = {
         muito_facil: 'Muito Fácil',
         facil: 'Fácil',
         moderado: 'Moderado',
@@ -130,7 +129,7 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
         muito_dificil: 'Muito Difícil',
     };
 
-    const getNivelBadgeVariant = (nivel: IWorkoutHistoryLog['nivelTreino']) => {
+    const getNivelBadgeVariant = (nivel?: string | null) => {
         switch (nivel) {
             case 'muito_facil': return 'outline';
             case 'facil': return 'secondary';
@@ -154,6 +153,14 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
             )}
         </div>
     );
+    
+    // Helper para formatar data e hora, tratando valores nulos
+    const formatDateTime = (dateString?: string | null) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+    };
 
     return (
         <div className="mt-4 pr-2 h-[250px] overflow-y-auto space-y-3">
@@ -161,10 +168,12 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
                 <Card key={log._id} className="bg-slate-50 dark:bg-slate-800/50">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4">
                         <CardTitle className="text-base font-semibold">{log.treinoTitulo}</CardTitle>
-                        <Badge variant={getNivelBadgeVariant(log.nivelTreino)}>{nivelTreinoMap[log.nivelTreino]}</Badge>
+                        {log.nivelTreino && <Badge variant={getNivelBadgeVariant(log.nivelTreino)}>{nivelTreinoMap[log.nivelTreino] || log.nivelTreino}</Badge>}
                     </CardHeader>
+                    {/* CARD CONTENT ATUALIZADO */}
                     <CardContent className="p-4 pt-0 space-y-2">
-                        <InfoHistoricoItem icon={CalendarCheck} label="Realizado em" value={new Date(log.dataFim).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} />
+                        <InfoHistoricoItem icon={CalendarDays} label="Iniciado em" value={formatDateTime(log.dataInicio)} />
+                        <InfoHistoricoItem icon={CalendarCheck} label="Concluído em" value={formatDateTime(log.dataFim)} />
                         <InfoHistoricoItem icon={Clock} label="Duração" value={log.duracaoTotalMinutos} />
                         <InfoHistoricoItem icon={MessageSquare} label="Comentários" value={log.comentarioAluno} />
                         <InfoHistoricoItem icon={TrendingUp} label="Aumentou Carga" value={log.aumentoCarga ? 'Sim' : 'Não'} highlight={!!log.aumentoCarga} />
