@@ -4,6 +4,7 @@ import PlanoService from '../../services/PlanoService.js';
 import PersonalTrainer from '../../models/PersonalTrainer.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authorizeAdmin } from '../../middlewares/authorizeAdmin.js';
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
 
@@ -12,15 +13,59 @@ router.use(authenticateToken);
 router.use(authorizeAdmin);
 
 /**
+ * GET /api/admin/planos/status - Check plans status
+ */
+router.get('/planos/status', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        console.log('🔍 Verificando status dos planos...');
+        
+        const status = await PlanoService.ensureInitialPlansExist();
+        const planos = await PlanoService.getAllPlans();
+        
+        res.json({
+            status: status ? 'ok' : 'error',
+            planosCount: planos.length,
+            planos: planos.map(p => ({ 
+                nome: p.nome, 
+                limiteAlunos: p.limiteAlunos, 
+                preco: p.preco, 
+                ativo: p.ativo 
+            })),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Erro ao verificar status dos planos:', error);
+        res.status(500).json({ 
+            message: 'Erro ao verificar status dos planos',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
+});
+
+/**
  * GET /api/admin/planos - Get all plans
  */
 router.get('/planos', async (req, res) => {
     try {
+        await dbConnect();
+        
+        console.log('📊 Recebida requisição para listar planos...');
+        
         const planos = await PlanoService.getAllPlans();
+        
+        console.log(`✅ Retornando ${planos.length} planos encontrados.`);
+        
         res.json(planos);
     } catch (error) {
-        console.error('Error fetching plans:', error);
-        res.status(500).json({ message: 'Erro ao buscar planos' });
+        console.error('❌ Erro ao buscar planos:', error);
+        
+        res.status(500).json({ 
+            message: 'Erro ao buscar planos',
+            error: error instanceof Error ? error.message : 'Erro desconhecido',
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
@@ -29,6 +74,8 @@ router.get('/planos', async (req, res) => {
  */
 router.post('/planos', async (req, res) => {
     try {
+        await dbConnect();
+        
         const planData = req.body;
         const plano = await PlanoService.createOrUpdatePlan(planData);
         res.status(201).json(plano);
@@ -43,6 +90,8 @@ router.post('/planos', async (req, res) => {
  */
 router.get('/personal/:personalId/status', async (req, res) => {
     try {
+        await dbConnect();
+        
         const { personalId } = req.params;
         
         const personal = await PersonalTrainer.findById(personalId);

@@ -5,6 +5,55 @@ import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
 import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
+// Initial plans configuration
+const INITIAL_PLANS = [
+    {
+        nome: 'Free',
+        descricao: 'Plano gratuito por 7 dias com 1 aluno ativo',
+        limiteAlunos: 1,
+        preco: 0,
+        duracao: 7, // 7 days
+        tipo: 'free' as const,
+        ativo: true
+    },
+    {
+        nome: 'Start',
+        descricao: 'Plano inicial para até 5 alunos ativos',
+        limiteAlunos: 5,
+        preco: 29.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Pro',
+        descricao: 'Plano profissional para até 10 alunos ativos',
+        limiteAlunos: 10,
+        preco: 49.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Elite',
+        descricao: 'Plano elite para até 20 alunos ativos',
+        limiteAlunos: 20,
+        preco: 79.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Master',
+        descricao: 'Plano master para até 50 alunos ativos',
+        limiteAlunos: 50,
+        preco: 129.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    }
+];
+
 export class PlanoService {
     /**
      * Get current active plan for a personal trainer
@@ -145,10 +194,69 @@ export class PlanoService {
     }
 
     /**
-     * Get all plans
+     * Ensure initial plans exist in database
+     */
+    async ensureInitialPlansExist(): Promise<boolean> {
+        try {
+            console.log('🔍 Verificando se planos iniciais existem...');
+            
+            const existingPlansCount = await Plano.countDocuments({ ativo: true });
+            
+            if (existingPlansCount > 0) {
+                console.log(`ℹ️  Encontrados ${existingPlansCount} planos existentes.`);
+                return true;
+            }
+
+            console.log('📝 Criando planos iniciais...');
+            
+            const createdPlans = [];
+            for (const planData of INITIAL_PLANS) {
+                try {
+                    const existingPlan = await Plano.findOne({ nome: planData.nome });
+                    
+                    if (existingPlan) {
+                        console.log(`✅ Plano '${planData.nome}' já existe.`);
+                    } else {
+                        const newPlan = new Plano(planData);
+                        await newPlan.save();
+                        createdPlans.push(newPlan);
+                        console.log(`✅ Plano '${planData.nome}' criado com sucesso.`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Erro ao criar plano '${planData.nome}':`, error);
+                }
+            }
+
+            if (createdPlans.length > 0) {
+                console.log(`🎉 ${createdPlans.length} planos iniciais criados com sucesso!`);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Erro ao verificar/criar planos iniciais:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get all plans - ensures plans exist first
      */
     async getAllPlans(): Promise<IPlano[]> {
-        return await Plano.find({ ativo: true }).sort({ preco: 1 });
+        try {
+            // First ensure plans exist
+            await this.ensureInitialPlansExist();
+            
+            const plans = await Plano.find({ ativo: true }).sort({ preco: 1 });
+            
+            if (plans.length === 0) {
+                console.warn('⚠️  Nenhum plano encontrado após verificação inicial!');
+            }
+            
+            return plans;
+        } catch (error) {
+            console.error('❌ Erro ao buscar planos:', error);
+            throw error;
+        }
     }
 
     /**

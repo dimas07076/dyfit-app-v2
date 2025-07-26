@@ -2,6 +2,7 @@
 import express from 'express';
 import PlanoService from '../../services/PlanoService.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
 
@@ -13,6 +14,8 @@ router.use(authenticateToken);
  */
 router.get('/meu-plano', async (req, res) => {
     try {
+        await dbConnect();
+        
         const personalTrainerId = (req as any).user.id;
         const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
         
@@ -37,6 +40,8 @@ router.get('/meu-plano', async (req, res) => {
  */
 router.get('/can-activate/:quantidade?', async (req, res) => {
     try {
+        await dbConnect();
+        
         const personalTrainerId = (req as any).user.id;
         const quantidade = parseInt(req.params.quantidade || '1');
         
@@ -58,6 +63,8 @@ router.get('/can-activate/:quantidade?', async (req, res) => {
  */
 router.get('/tokens-ativos', async (req, res) => {
     try {
+        await dbConnect();
+        
         const personalTrainerId = (req as any).user.id;
         const tokensQuantity = await PlanoService.getTokensAvulsosAtivos(personalTrainerId);
         
@@ -75,6 +82,8 @@ router.get('/tokens-ativos', async (req, res) => {
  */
 router.get('/planos-disponiveis', async (req, res) => {
     try {
+        await dbConnect();
+        
         const planos = await PlanoService.getAllPlans();
         
         // Return plans without admin-specific information
