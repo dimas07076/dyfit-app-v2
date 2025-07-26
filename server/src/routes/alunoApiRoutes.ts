@@ -10,6 +10,7 @@ import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO } from 'date
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
+import { checkLimiteAlunos, checkCanActivateStudent } from '../../middlewares/checkLimiteAlunos.js';
 
 const router = express.Router();
 
@@ -54,11 +55,129 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
     }
 });
 router.get("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); try { const alunos = await Aluno.find({ trainerId }).sort({ nome: 1 }).select('-passwordHash'); res.status(200).json(alunos); } catch (error) { next(error); } });
-router.post("/gerenciar", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); try { const { password, ...alunoDataBody } = req.body; if (!password) return res.status(400).json({ erro: "O campo de senha é obrigatório." }); const alunoData = { ...alunoDataBody, trainerId: new mongoose.Types.ObjectId(trainerId), passwordHash: password }; const novoAluno = new Aluno(alunoData); const alunoSalvo = await novoAluno.save(); const alunoParaRetornar = { ...alunoSalvo.toObject() }; delete (alunoParaRetornar as any).passwordHash; res.status(201).json(alunoParaRetornar); } catch (error) { next(error); } });
+router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
+    
+    try {
+        const { password, ...alunoDataBody } = req.body;
+        if (!password) return res.status(400).json({ erro: "O campo de senha é obrigatório." });
+        
+        const alunoData = {
+            ...alunoDataBody,
+            trainerId: new mongoose.Types.ObjectId(trainerId),
+            passwordHash: password
+        };
+        
+        const novoAluno = new Aluno(alunoData);
+        const alunoSalvo = await novoAluno.save();
+        const alunoParaRetornar = { ...alunoSalvo.toObject() };
+        delete (alunoParaRetornar as any).passwordHash;
+        
+        res.status(201).json(alunoParaRetornar);
+    } catch (error) {
+        next(error);
+    }
+});
 router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { id } = req.params; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido" }); try { const aluno = await Aluno.findOne({ _id: id, trainerId }).select('-passwordHash'); if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." }); res.status(200).json(aluno); } catch (error) { next(error); } });
 router.get('/:alunoId/rotinas', authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { alunoId } = req.params; if (!trainerId) return res.status(401).json({ erro: 'Personal não autenticado.' }); if (!mongoose.Types.ObjectId.isValid(alunoId)) return res.status(400).json({ erro: 'ID do aluno inválido.' }); try { const aluno = await Aluno.findOne({ _id: alunoId, trainerId }); if (!aluno) return res.status(404).json({ erro: 'Aluno não encontrado ou não pertence a este personal.' }); const rotinas = await Treino.find({ alunoId: new mongoose.Types.ObjectId(alunoId), criadorId: new mongoose.Types.ObjectId(trainerId), tipo: 'individual' }).select('titulo descricao criadoEm atualizadoEm').sort({ atualizadoEm: -1 }); res.status(200).json(rotinas); } catch (error) { next(error); } });
-router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { id } = req.params; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." }); try { const { password, ...updateData } = req.body; const aluno = await Aluno.findOne({ _id: id, trainerId }); if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." }); Object.assign(aluno, updateData); if (password && password.trim() !== "") { aluno.passwordHash = password; } const alunoAtualizado = await aluno.save(); const alunoParaRetornar = { ...alunoAtualizado.toObject() }; delete (alunoParaRetornar as any).passwordHash; res.status(200).json(alunoParaRetornar); } catch (error) { next(error); } });
+router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const { id } = req.params;
+    if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." });
+    
+    try {
+        const { password, status, ...updateData } = req.body;
+        const aluno = await Aluno.findOne({ _id: id, trainerId });
+        if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." });
+        
+        // Check limits if trying to activate student
+        if (status === 'active' && aluno.status === 'inactive') {
+            const PlanoService = (await import('../../services/PlanoService.js')).default;
+            const limitStatus = await PlanoService.canActivateMoreStudents(trainerId, 1);
+            
+            if (!limitStatus.canActivate) {
+                return res.status(403).json({
+                    erro: 'Limite de alunos ativos excedido',
+                    code: 'STUDENT_LIMIT_EXCEEDED',
+                    data: {
+                        currentLimit: limitStatus.currentLimit,
+                        activeStudents: limitStatus.activeStudents,
+                        availableSlots: limitStatus.availableSlots
+                    }
+                });
+            }
+        }
+        
+        Object.assign(aluno, updateData);
+        if (status) aluno.status = status;
+        if (password && password.trim() !== "") {
+            aluno.passwordHash = password;
+        }
+        
+        const alunoAtualizado = await aluno.save();
+        const alunoParaRetornar = { ...alunoAtualizado.toObject() };
+        delete (alunoParaRetornar as any).passwordHash;
+        
+        res.status(200).json(alunoParaRetornar);
+    } catch (error) {
+        next(error);
+    }
+});
 router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => { await dbConnect(); const trainerId = req.user?.id; const { id } = req.params; if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." }); if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." }); try { const result = await Aluno.findOneAndDelete({ _id: id, trainerId }); if (!result) return res.status(404).json({ erro: "Aluno não encontrado ou sem permissão." }); res.status(200).json({ mensagem: "Aluno removido com sucesso" }); } catch (error) { next(error); } });
+
+// Route to activate/deactivate student with limit check
+router.patch("/gerenciar/:id/status", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!trainerId) return res.status(401).json({ erro: "Usuário não autenticado." });
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ erro: "ID do aluno inválido." });
+    if (!status || !['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ erro: "Status deve ser 'active' ou 'inactive'." });
+    }
+    
+    try {
+        const aluno = await Aluno.findOne({ _id: id, trainerId });
+        if (!aluno) return res.status(404).json({ erro: "Aluno não encontrado ou você não tem permissão." });
+        
+        // If trying to activate and student is currently inactive, check limits
+        if (status === 'active' && aluno.status === 'inactive') {
+            // Use the limit checking middleware functionality
+            const PlanoService = (await import('../../services/PlanoService.js')).default;
+            const limitStatus = await PlanoService.canActivateMoreStudents(trainerId, 1);
+            
+            if (!limitStatus.canActivate) {
+                return res.status(403).json({
+                    erro: 'Limite de alunos ativos excedido',
+                    code: 'STUDENT_LIMIT_EXCEEDED',
+                    data: {
+                        currentLimit: limitStatus.currentLimit,
+                        activeStudents: limitStatus.activeStudents,
+                        availableSlots: limitStatus.availableSlots
+                    }
+                });
+            }
+        }
+        
+        aluno.status = status;
+        const alunoAtualizado = await aluno.save();
+        const alunoParaRetornar = { ...alunoAtualizado.toObject() };
+        delete (alunoParaRetornar as any).passwordHash;
+        
+        res.status(200).json({
+            mensagem: `Aluno ${status === 'active' ? 'ativado' : 'desativado'} com sucesso`,
+            aluno: alunoParaRetornar
+        });
+    } catch (error) {
+        next(error);
+    }
+});
 
 
 // =======================================================

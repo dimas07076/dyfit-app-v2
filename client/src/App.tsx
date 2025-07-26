@@ -42,6 +42,7 @@ const CriarPersonalPage = lazy(() => import('@/pages/admin/CriarPersonalPage'));
 const EditarPersonalPage = lazy(() => import('@/pages/admin/EditarPersonalPage'));
 const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvitesPage'));
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
+const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
 
 
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
@@ -175,7 +176,26 @@ function AppContent() {
   return <PublicRoutes />;
 }
 
-function AdminApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AdminProtectedRoute path="/admin" component={AdminDashboardPage} /> <AdminProtectedRoute path="/admin/personais" component={ListarPersonaisPage} /> <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} /> <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} /> <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} /> <AdminProtectedRoute path="/exercises" component={ExercisesIndex} /> <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/admin" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
+function AdminApp() { 
+  return ( 
+    <MainLayout> 
+      <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+        <Switch> 
+          <AdminProtectedRoute path="/admin" component={AdminDashboardPage} /> 
+          <AdminProtectedRoute path="/admin/personais" component={ListarPersonaisPage} /> 
+          <AdminProtectedRoute path="/admin/planos" component={GerenciarPlanosPersonalPage} /> 
+          <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} /> 
+          <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} /> 
+          <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} /> 
+          <AdminProtectedRoute path="/exercises" component={ExercisesIndex} /> 
+          <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> 
+          <Route path="/admin/:rest*"><Redirect to="/admin" /></Route> 
+          <Route component={NotFound} /> 
+        </Switch> 
+      </Suspense> 
+    </MainLayout> 
+  );
+}
 function PersonalApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <ProtectedRoute path="/" component={Dashboard} /> <ProtectedRoute path="/alunos" component={StudentsIndex} /> <ProtectedRoute path="/alunos/novo" component={NewStudent} /> <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> <ProtectedRoute path="/treinos" component={TreinosPage} /> <ProtectedRoute path="/exercises" component={ExercisesIndex} /> <ProtectedRoute path="/sessoes" component={SessionsPage} /> <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
 function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
 

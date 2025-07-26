@@ -7,12 +7,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/dashboard/stats-card";
 import { AlunosAtivosList } from "@/components/ui/dashboard/AlunosAtivosList";
+import { PlanoStatusCard } from "@/components/ui/dashboard/plano-status-card";
 
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutDashboard, Zap } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner"; 
 import ErrorMessage from "@/components/ErrorMessage"; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PersonalPlanStatus } from "../../../shared/types/planos";
 
 // <<< ALTERAÇÃO: Interface de dados atualizada >>>
 interface DashboardStatsData {
@@ -37,6 +39,20 @@ export default function Dashboard() {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar estatísticas.");
       // O backend precisará ser ajustado para retornar 'feedbacksHojeCount'
       return apiRequest<DashboardStatsData>("GET", `/api/dashboard/geral?trainerId=${trainerId}`);
+    },
+    enabled: !!trainerId, 
+  });
+
+  // Query for plan status
+  const { 
+    data: planStatus, 
+    isLoading: isLoadingPlan, 
+    error: errorPlan 
+  } = useQuery<PersonalPlanStatus, Error>({
+    queryKey: ["planStatus", trainerId], 
+    queryFn: async () => {
+      if (!trainerId) throw new Error("Trainer ID não encontrado para buscar status do plano.");
+      return apiRequest<PersonalPlanStatus>("GET", "/api/personal/meu-plano");
     },
     enabled: !!trainerId, 
   });
@@ -67,6 +83,10 @@ export default function Dashboard() {
         <ErrorMessage title="Erro ao Carregar Estatísticas" message={errorStats.message} />
       )}
 
+      {errorPlan && (
+        <ErrorMessage title="Erro ao Carregar Status do Plano" message={errorPlan.message} />
+      )}
+
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview"><LayoutDashboard className="w-4 h-4 mr-2 sm:hidden"/> Visão Geral</TabsTrigger>
@@ -74,7 +94,19 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* <<< ALTERAÇÃO: Cards de estatísticas atualizados >>> */}
+          {/* Plan Status Card */}
+          {planStatus && (
+            <PlanoStatusCard
+              planStatus={planStatus}
+              showUpgradeButton={true}
+              onUpgradeClick={() => {
+                // Could navigate to upgrade page or show modal
+                console.log('Upgrade clicked');
+              }}
+            />
+          )}
+          
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard title="Total de Alunos" value={isLoadingStats ? "..." : (dashboardStats?.totalAlunos ?? 0).toString()} icon="students" isLoading={isLoadingStats} />
             <StatsCard title="Alunos Ativos" value={isLoadingStats ? "..." : (dashboardStats?.treinosAtivos ?? 0).toString()} icon="activity" isLoading={isLoadingStats} />
