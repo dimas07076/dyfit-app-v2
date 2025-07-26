@@ -292,7 +292,16 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     if (!aluno) return null;
 
     const getInitials = (nome: string) => nome?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || '?';
-    const formatDateBR = (dateStr?: string) => dateStr ? new Intl.DateTimeFormat("pt-BR").format(new Date(dateStr)) : 'N/A';
+    const formatDateBR = (dateStr?: string) => {
+        if (!dateStr) return 'N/A';
+        try {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return 'N/A';
+            return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        } catch (e) {
+            return 'N/A';
+        }
+    };
     const frequenciaSemanal = 3; const progressoFicha = 66; const pseMedio = 7.5;
 
     return (
