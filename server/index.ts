@@ -17,6 +17,8 @@ import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import activityLogsRoutes from './src/routes/activityLogsRoutes.js'; // <-- 1. IMPORTAÇÃO ADICIONADA
+import adminPlanosRoutes from './src/routes/adminPlanosRoutes.js';
+import personalPlanosRoutes from './src/routes/personalPlanosRoutes.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -64,6 +66,8 @@ apiRouter.use('/auth', authRoutes);
 // --- 2. Rotas Protegidas ---
 // A autenticação é aplicada diretamente ou dentro de cada arquivo de rota.
 apiRouter.use('/admin', authenticateToken, authorizeAdmin, adminRoutes);
+apiRouter.use('/admin', adminPlanosRoutes); // Plan management routes (auth applied inside)
+apiRouter.use('/personal', personalPlanosRoutes); // Personal trainer plan routes (auth applied inside)
 apiRouter.use('/dashboard/geral', authenticateToken, dashboardRoutes);
 apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
