@@ -57,6 +57,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem('userData');
       localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
     }
   };
 

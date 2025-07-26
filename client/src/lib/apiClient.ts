@@ -15,6 +15,85 @@ export class AuthError extends Error {
 // Adicionamos um tipo para o tokenType para maior segurança de código
 export type TokenType = 'personalAdmin' | 'aluno';
 
+// Variável para controlar se já estamos tentando renovar um token (evita loops infinitos)
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+
+// Função para processar a fila de requisições que falharam durante a renovação
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
+
+// Função para renovar o token
+const refreshToken = async (tokenType: TokenType): Promise<string | null> => {
+  const refreshTokenKey = tokenType === 'aluno' ? 'alunoRefreshToken' : 'refreshToken';
+  const refreshTokenValue = localStorage.getItem(refreshTokenKey);
+  
+  if (!refreshTokenValue) {
+    console.warn(`[refreshToken] Nenhum refresh token encontrado para ${tokenType}`);
+    return null;
+  }
+
+  const endpoint = tokenType === 'aluno' ? '/api/auth/aluno/refresh' : '/api/auth/refresh';
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken: refreshTokenValue }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      let parsedError;
+      try {
+        parsedError = JSON.parse(errorData);
+      } catch {
+        parsedError = { message: errorData };
+      }
+      
+      console.warn(`[refreshToken] Falha ao renovar token ${tokenType}:`, parsedError.message);
+      
+      // Remove tokens inválidos
+      localStorage.removeItem(refreshTokenKey);
+      if (tokenType === 'aluno') {
+        localStorage.removeItem('alunoAuthToken');
+      } else {
+        localStorage.removeItem('authToken');
+      }
+      
+      return null;
+    }
+
+    const data = await response.json();
+    const newToken = data.token;
+    
+    // Armazena o novo token
+    if (tokenType === 'aluno') {
+      localStorage.setItem('alunoAuthToken', newToken);
+    } else {
+      localStorage.setItem('authToken', newToken);
+    }
+    
+    console.log(`[refreshToken] Token ${tokenType} renovado com sucesso`);
+    return newToken;
+    
+  } catch (error) {
+    console.error(`[refreshToken] Erro ao renovar token ${tokenType}:`, error);
+    return null;
+  }
+};
+
 // A função agora aceita um terceiro parâmetro 'tokenType'
 export const fetchWithAuth = async <T = any>(
     url: string,
@@ -79,17 +158,121 @@ export const fetchWithAuth = async <T = any>(
         const errorCode = data?.code; // Captura o código de erro enviado pelo backend
 
         if (response.status === 401 || response.status === 403) {
-            // Dispara um evento customizado para o tratamento global de autenticação
-            window.dispatchEvent(new CustomEvent('auth-failed', { 
-              detail: { 
-                status: response.status,
-                forAluno: tokenType === 'aluno', 
-                forPersonalAdmin: tokenType === 'personalAdmin',
-                code: errorCode // Passa o código de erro para o evento
-              } 
-            }));
-            // Lança AuthError com a mensagem e o código de erro
-            throw new AuthError(errorMessage, errorCode); 
+            // Tentar renovar o token apenas em caso de 401 (não 403, que é falta de permissão)
+            if (response.status === 401 && !isPublicAuthRoute) {
+                // Se já estamos renovando, adiciona à fila
+                if (isRefreshing) {
+                    return new Promise((resolve, reject) => {
+                        failedQueue.push({ resolve, reject });
+                    }).then((token) => {
+                        // Retry com o novo token
+                        const newHeaders = new Headers(options.headers || {});
+                        newHeaders.set('Authorization', `Bearer ${token}`);
+                        return fetch(url, { ...options, headers: newHeaders });
+                    }).then(async (retryResponse) => {
+                        // Processa a resposta da tentativa com o novo token
+                        if (retryResponse.status === 204) return null as T;
+                        const retryData = await retryResponse.json();
+                        if (!retryResponse.ok) {
+                            throw new Error(retryData?.message || `Erro ${retryResponse.status}`);
+                        }
+                        return retryData as T;
+                    });
+                }
+
+                // Marca que estamos renovando
+                isRefreshing = true;
+                
+                try {
+                    const newToken = await refreshToken(tokenType);
+                    
+                    if (newToken) {
+                        // Processa a fila com sucesso
+                        processQueue(null, newToken);
+                        isRefreshing = false;
+                        
+                        // Retry da requisição original com o novo token
+                        const newHeaders = new Headers(options.headers || {});
+                        newHeaders.set('Authorization', `Bearer ${newToken}`);
+                        
+                        const retryResponse = await fetch(url, { ...options, headers: newHeaders });
+                        
+                        if (retryResponse.status === 204) return null as T;
+                        
+                        const retryContentType = retryResponse.headers.get('content-type');
+                        const retryIsJson = retryContentType && retryContentType.includes('application/json');
+                        
+                        let retryData;
+                        const retryResponseText = await retryResponse.text();
+                        
+                        if (retryResponseText && retryIsJson) {
+                            try {
+                                retryData = JSON.parse(retryResponseText);
+                            } catch (parseError) {
+                                console.error(`[fetchWithAuth] Erro ao parsear JSON na tentativa de retry da rota '${url}':`, parseError);
+                                throw new Error(`Erro ${retryResponse.status}: Resposta JSON inválida do servidor.`);
+                            }
+                        } else if (retryResponseText) {
+                            retryData = { message: retryResponseText };
+                        } else {
+                            retryData = null;
+                        }
+                        
+                        if (!retryResponse.ok) {
+                            const retryErrorMessage = retryData?.message || retryData?.mensagem || retryData?.erro || `Erro ${retryResponse.status}: ${retryResponse.statusText || 'Ocorreu um erro na comunicação.'}`;
+                            throw new Error(retryErrorMessage);
+                        }
+                        
+                        return retryData as T;
+                    } else {
+                        // Renovação falhou, processa a fila com erro
+                        const refreshError = new AuthError('Token expirado e não foi possível renovar', 'REFRESH_FAILED');
+                        processQueue(refreshError, null);
+                        isRefreshing = false;
+                        
+                        // Dispara evento de falha de autenticação
+                        window.dispatchEvent(new CustomEvent('auth-failed', { 
+                          detail: { 
+                            status: response.status,
+                            forAluno: tokenType === 'aluno', 
+                            forPersonalAdmin: tokenType === 'personalAdmin',
+                            code: 'REFRESH_FAILED'
+                          } 
+                        }));
+                        
+                        throw refreshError;
+                    }
+                } catch (refreshError) {
+                    // Processa a fila com erro
+                    processQueue(refreshError, null);
+                    isRefreshing = false;
+                    
+                    // Se o erro não é de renovação, dispara o evento original
+                    if (!(refreshError instanceof AuthError)) {
+                        window.dispatchEvent(new CustomEvent('auth-failed', { 
+                          detail: { 
+                            status: response.status,
+                            forAluno: tokenType === 'aluno', 
+                            forPersonalAdmin: tokenType === 'personalAdmin',
+                            code: errorCode
+                          } 
+                        }));
+                    }
+                    
+                    throw refreshError;
+                }
+            } else {
+                // Para 403 ou rotas públicas, comportamento original
+                window.dispatchEvent(new CustomEvent('auth-failed', { 
+                  detail: { 
+                    status: response.status,
+                    forAluno: tokenType === 'aluno', 
+                    forPersonalAdmin: tokenType === 'personalAdmin',
+                    code: errorCode
+                  } 
+                }));
+                throw new AuthError(errorMessage, errorCode);
+            }
         }
         
         throw new Error(errorMessage);

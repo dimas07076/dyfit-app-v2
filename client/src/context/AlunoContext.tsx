@@ -39,6 +39,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setTokenAluno(null);
     localStorage.removeItem(ALUNO_TOKEN_KEY);
     localStorage.removeItem(ALUNO_DATA_KEY);
+    localStorage.removeItem('alunoRefreshToken');
     console.log("Contexto Aluno: Aluno deslogado.");
     if (shouldRedirect) {
         console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 interface LoginApiResponse {
     message: string;
     token: string;
+    refreshToken: string;
     user: { id: string; username: string; firstName: string; lastName: string; email: string; role: string; };
 }
 
@@ -36,6 +37,7 @@ export default function LoginPage() {
                 body: JSON.stringify({ email: email.toLowerCase(), password }),
             });
             localStorage.setItem('authToken', loginData.token);
+            localStorage.setItem('refreshToken', loginData.refreshToken);
             const loggedInUser: User = { ...loginData.user, role: loginData.user.role || 'Personal Trainer' };
             localStorage.setItem("userData", JSON.stringify(loggedInUser));
             userContext?.setUser(loggedInUser);
