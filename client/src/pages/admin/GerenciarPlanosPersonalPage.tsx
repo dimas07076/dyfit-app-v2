@@ -26,12 +26,12 @@ export function GerenciarPlanosPersonalPage() {
             const [personalResponse, planosResponse] = await Promise.all([
                 fetch('/api/admin/personal-trainers', {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                     }
                 }),
                 fetch('/api/admin/planos', {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                     }
                 })
             ]);
@@ -58,7 +58,7 @@ export function GerenciarPlanosPersonalPage() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                 },
                 body: JSON.stringify(data)
             });
@@ -80,7 +80,7 @@ export function GerenciarPlanosPersonalPage() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                 },
                 body: JSON.stringify(data)
             });
@@ -289,3 +289,5 @@ export function GerenciarPlanosPersonalPage() {
         </div>
     );
 }
+
+export default GerenciarPlanosPersonalPage;
