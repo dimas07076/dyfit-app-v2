@@ -184,21 +184,32 @@ export function PlanoModal({
                             <Label htmlFor="plano">Selecione o Plano</Label>
                             <Select value={assignForm.planoId} onValueChange={(value) => setAssignForm({ ...assignForm, planoId: value })}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Escolha um plano" />
+                                    <SelectValue placeholder={planos.length === 0 ? "Nenhum plano disponível" : "Escolha um plano"} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {planos.map((plano) => (
-                                        <SelectItem key={plano._id} value={plano._id}>
-                                            <div className="flex items-center justify-between w-full">
-                                                <span>{plano.nome}</span>
-                                                <span className="text-sm text-gray-500 ml-2">
-                                                    {plano.limiteAlunos} alunos - R${plano.preco.toFixed(2)}
-                                                </span>
-                                            </div>
+                                    {planos.length === 0 ? (
+                                        <SelectItem value="empty" disabled>
+                                            <span className="text-gray-500">Nenhum plano disponível</span>
                                         </SelectItem>
-                                    ))}
+                                    ) : (
+                                        planos.map((plano) => (
+                                            <SelectItem key={plano._id} value={plano._id}>
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span>{plano.nome}</span>
+                                                    <span className="text-sm text-gray-500 ml-2">
+                                                        {plano.limiteAlunos} alunos - R${plano.preco.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
+                            {planos.length === 0 && (
+                                <p className="text-sm text-red-600 mt-1">
+                                    ⚠️ Nenhum plano disponível. Entre em contato com o administrador.
+                                </p>
+                            )}
                         </div>
 
                         <div>
@@ -282,7 +293,7 @@ export function PlanoModal({
                             </Button>
                             <Button 
                                 onClick={handleAssignPlan} 
-                                disabled={!assignForm.planoId || loading}
+                                disabled={!assignForm.planoId || planos.length === 0 || loading}
                             >
                                 {loading ? 'Atribuindo...' : 'Atribuir Plano'}
                             </Button>

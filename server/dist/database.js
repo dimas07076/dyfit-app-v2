@@ -20,8 +20,14 @@ export async function connectToDatabase() {
             throw new Error("❌ MONGODB_URI não definida no arquivo .env");
         }
         console.log("🟡 Conectando ao MongoDB Atlas...");
+        // Configuração otimizada para ambiente serverless
         await mongoose.connect(mongoUri, {
             dbName: "dyfit", // Nome do banco de dados especificado
+            bufferCommands: false, // Critical for serverless - disable mongoose buffering
+            maxPoolSize: 10, // Maintain up to 10 socket connections
+            serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+            socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+            family: 4, // Use IPv4, skip trying IPv6
         });
         isConnected = true;
         console.log("✅ Conectado ao MongoDB Atlas com sucesso!");
@@ -33,9 +39,17 @@ export async function connectToDatabase() {
             console.log("ℹ️  Desconectado do MongoDB.");
             isConnected = false;
         });
+        mongoose.connection.on('close', () => {
+            console.log("ℹ️  Conexão com MongoDB fechada.");
+            isConnected = false;
+        });
     }
     catch (error) {
         console.error("❌ Erro ao conectar ao MongoDB Atlas:", error);
+        // In serverless environment, don't exit process - just throw error
+        if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+            throw error;
+        }
         process.exit(1);
     }
 }

@@ -5,6 +5,55 @@ import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
 import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
+// Initial plans configuration
+const INITIAL_PLANS = [
+    {
+        nome: 'Free',
+        descricao: 'Plano gratuito por 7 dias com 1 aluno ativo',
+        limiteAlunos: 1,
+        preco: 0,
+        duracao: 7, // 7 days
+        tipo: 'free' as const,
+        ativo: true
+    },
+    {
+        nome: 'Start',
+        descricao: 'Plano inicial para até 5 alunos ativos',
+        limiteAlunos: 5,
+        preco: 29.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Pro',
+        descricao: 'Plano profissional para até 10 alunos ativos',
+        limiteAlunos: 10,
+        preco: 49.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Elite',
+        descricao: 'Plano elite para até 20 alunos ativos',
+        limiteAlunos: 20,
+        preco: 79.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    },
+    {
+        nome: 'Master',
+        descricao: 'Plano master para até 50 alunos ativos',
+        limiteAlunos: 50,
+        preco: 129.90,
+        duracao: 30, // 30 days
+        tipo: 'paid' as const,
+        ativo: true
+    }
+];
+
 export class PlanoService {
     /**
      * Get current active plan for a personal trainer
@@ -16,36 +65,46 @@ export class PlanoService {
         alunosAtivos: number;
         tokensAvulsos: number;
     }> {
-        const personalPlanoAtivo = await PersonalPlano.findOne({
-            personalTrainerId,
-            ativo: true,
-            dataVencimento: { $gt: new Date() }
-        }).populate('planoId').sort({ dataInicio: -1 });
+        try {
+            // Validate input
+            if (!personalTrainerId) {
+                throw new Error('Personal trainer ID é obrigatório');
+            }
 
-        const alunosAtivos = await Aluno.countDocuments({
-            trainerId: personalTrainerId,
-            status: 'active'
-        });
+            const personalPlanoAtivo = await PersonalPlano.findOne({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            }).populate('planoId').sort({ dataInicio: -1 });
 
-        const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
-        
-        let limiteAtual = 0;
-        let plano = null;
+            const alunosAtivos = await Aluno.countDocuments({
+                trainerId: personalTrainerId,
+                status: 'active'
+            });
 
-        if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-            plano = personalPlanoAtivo.planoId as any;
-            limiteAtual = plano.limiteAlunos;
+            const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
+            
+            let limiteAtual = 0;
+            let plano = null;
+
+            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
+                plano = personalPlanoAtivo.planoId as any;
+                limiteAtual = plano.limiteAlunos || 0;
+            }
+
+            limiteAtual += tokensAtivos;
+
+            return {
+                plano,
+                personalPlano: personalPlanoAtivo,
+                limiteAtual,
+                alunosAtivos,
+                tokensAvulsos: tokensAtivos
+            };
+        } catch (error) {
+            console.error('❌ Erro ao buscar plano atual do personal:', error);
+            throw error;
         }
-
-        limiteAtual += tokensAtivos;
-
-        return {
-            plano,
-            personalPlano: personalPlanoAtivo,
-            limiteAtual,
-            alunosAtivos,
-            tokensAvulsos: tokensAtivos
-        };
     }
 
     /**
@@ -72,13 +131,30 @@ export class PlanoService {
      * Get active tokens for a personal trainer
      */
     async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
-        const tokens = await TokenAvulso.find({
-            personalTrainerId,
-            ativo: true,
-            dataVencimento: { $gt: new Date() }
-        });
+        try {
+            // Validate input
+            if (!personalTrainerId) {
+                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
+                return 0;
+            }
 
-        return tokens.reduce((total, token) => total + token.quantidade, 0);
+            const tokens = await TokenAvulso.find({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            });
+
+            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            
+            if (total > 0) {
+                console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
+            }
+            
+            return total;
+        } catch (error) {
+            console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
+            return 0; // Return 0 instead of throwing to prevent cascade failures
+        }
     }
 
     /**
@@ -145,10 +221,69 @@ export class PlanoService {
     }
 
     /**
-     * Get all plans
+     * Ensure initial plans exist in database
+     */
+    async ensureInitialPlansExist(): Promise<boolean> {
+        try {
+            console.log('🔍 Verificando se planos iniciais existem...');
+            
+            const existingPlansCount = await Plano.countDocuments({ ativo: true });
+            
+            if (existingPlansCount > 0) {
+                console.log(`ℹ️  Encontrados ${existingPlansCount} planos existentes.`);
+                return true;
+            }
+
+            console.log('📝 Criando planos iniciais...');
+            
+            const createdPlans = [];
+            for (const planData of INITIAL_PLANS) {
+                try {
+                    const existingPlan = await Plano.findOne({ nome: planData.nome });
+                    
+                    if (existingPlan) {
+                        console.log(`✅ Plano '${planData.nome}' já existe.`);
+                    } else {
+                        const newPlan = new Plano(planData);
+                        await newPlan.save();
+                        createdPlans.push(newPlan);
+                        console.log(`✅ Plano '${planData.nome}' criado com sucesso.`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Erro ao criar plano '${planData.nome}':`, error);
+                }
+            }
+
+            if (createdPlans.length > 0) {
+                console.log(`🎉 ${createdPlans.length} planos iniciais criados com sucesso!`);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Erro ao verificar/criar planos iniciais:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get all plans - ensures plans exist first
      */
     async getAllPlans(): Promise<IPlano[]> {
-        return await Plano.find({ ativo: true }).sort({ preco: 1 });
+        try {
+            // First ensure plans exist
+            await this.ensureInitialPlansExist();
+            
+            const plans = await Plano.find({ ativo: true }).sort({ preco: 1 });
+            
+            if (plans.length === 0) {
+                console.warn('⚠️  Nenhum plano encontrado após verificação inicial!');
+            }
+            
+            return plans;
+        } catch (error) {
+            console.error('❌ Erro ao buscar planos:', error);
+            throw error;
+        }
     }
 
     /**
