@@ -28,10 +28,12 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [aluno, setAluno] = useState<AlunoLogado | null>(null);
   const [tokenAluno, setTokenAluno] = useState<string | null>(null);
   const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
+  const [lastValidationTime, setLastValidationTime] = useState<number>(0);
   const [, setLocationWouter] = useLocation();
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
   const ALUNO_DATA_KEY = 'alunoData';
+  const VALIDATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
@@ -96,13 +98,14 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (storedToken) {
       setAlunoFromToken(storedToken);
     }
+    setLastValidationTime(Date.now());
     setIsLoadingAluno(false);
   }, [setAlunoFromToken]);
 
   useEffect(() => {
     checkAlunoSession();
-    // O log de "Verificando sessão" foi movido para dentro de checkAlunoSession para ser mais preciso
-  }, [checkAlunoSession]);
+    // Initial check on mount
+  }, []); // Empty dependency array for initial check only
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
@@ -131,15 +134,22 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, [aluno, logoutAluno]);
 
-  // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA ---
+  // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA COM CACHE INTELIGENTE ---
   useEffect(() => {
     // Esta função será chamada sempre que o estado de visibilidade da página mudar.
     const handleVisibilityChange = () => {
       // Verificamos o estado apenas quando a página se torna visível.
       if (document.visibilityState === 'visible') {
-        console.log("[AlunoContext] App tornou-se visível. Revalidando a sessão do aluno...");
-        // Reutilizamos a mesma função de verificação de sessão que é usada no carregamento inicial.
-        checkAlunoSession();
+        const now = Date.now();
+        const timeSinceLastValidation = now - lastValidationTime;
+        
+        // Só revalida se passou do tempo de cache ou se nunca foi validado
+        if (timeSinceLastValidation > VALIDATION_CACHE_DURATION || lastValidationTime === 0) {
+          console.log("[AlunoContext] App tornou-se visível. Revalidando a sessão do aluno... (cache expirado)");
+          checkAlunoSession();
+        } else {
+          console.log("[AlunoContext] App tornou-se visível. Cache ainda válido, pulando revalidação.");
+        }
       }
     };
 
@@ -151,7 +161,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkAlunoSession]); // A dependência garante que a função mais recente de checkAlunoSession seja usada.
+  }, [checkAlunoSession, lastValidationTime]); // A dependência garante que a função mais recente seja usada.
   // --- FIM DA ETAPA 3 ---
 
   return (
