@@ -60,8 +60,8 @@ export function PlanoModal({
         setLoading(true);
         try {
             await onAssignPlan(personal._id, assignForm);
-            setMode('view');
-            onClose();
+            // Don't close modal here, let parent component handle it
+            // The parent will reload data and close the modal
         } catch (error) {
             console.error('Error assigning plan:', error);
         } finally {
@@ -75,8 +75,8 @@ export function PlanoModal({
         setLoading(true);
         try {
             await onAddTokens(personal._id, tokenForm);
-            setMode('view');
-            onClose();
+            // Don't close modal here, let parent component handle it
+            // The parent will reload data and close the modal
         } catch (error) {
             console.error('Error adding tokens:', error);
         } finally {
@@ -140,7 +140,7 @@ export function PlanoModal({
                                         <CalendarDays className="w-4 h-4 text-blue-600" />
                                     </div>
                                     <p className="text-sm text-gray-600">Plano Atual</p>
-                                    <p className="font-semibold">{personal.planoAtual}</p>
+                                    <p className="font-semibold">{personal.planoAtual || 'Sem plano'}</p>
                                 </div>
                                 
                                 <div className="text-center">
@@ -148,28 +148,28 @@ export function PlanoModal({
                                         <Users className="w-4 h-4 text-green-600" />
                                     </div>
                                     <p className="text-sm text-gray-600">Alunos Ativos</p>
-                                    <p className="font-semibold">{personal.alunosAtivos}/{personal.limiteAlunos}</p>
+                                    <p className="font-semibold">{personal.alunosAtivos || 0}/{personal.limiteAlunos || 0}</p>
                                 </div>
                                 
                                 <div className="text-center">
                                     <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full mx-auto mb-1">
-                                        <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso)}`} />
+                                        <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso || 0)}`} />
                                     </div>
                                     <p className="text-sm text-gray-600">Status</p>
-                                    <Badge variant={personal.percentualUso >= 90 ? 'destructive' : personal.percentualUso >= 70 ? 'default' : 'secondary'}>
-                                        {getStatusText(personal.percentualUso)}
+                                    <Badge variant={(personal.percentualUso || 0) >= 90 ? 'destructive' : (personal.percentualUso || 0) >= 70 ? 'default' : 'secondary'}>
+                                        {getStatusText(personal.percentualUso || 0)}
                                     </Badge>
                                 </div>
                                 
                                 <div className="text-center">
                                     <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full mx-auto mb-1">
-                                        <div className="text-orange-600 text-xs font-bold">{personal.percentualUso}%</div>
+                                        <div className="text-orange-600 text-xs font-bold">{personal.percentualUso || 0}%</div>
                                     </div>
                                     <p className="text-sm text-gray-600">Utilização</p>
                                     <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                                         <div 
-                                            className={`h-2 rounded-full ${getStatusColor(personal.percentualUso)}`}
-                                            style={{ width: `${personal.percentualUso}%` }}
+                                            className={`h-2 rounded-full ${getStatusColor(personal.percentualUso || 0)}`}
+                                            style={{ width: `${Math.min(personal.percentualUso || 0, 100)}%` }}
                                         />
                                     </div>
                                 </div>

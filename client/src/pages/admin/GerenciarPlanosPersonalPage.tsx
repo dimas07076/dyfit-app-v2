@@ -65,6 +65,9 @@ export function GerenciarPlanosPersonalPage() {
 
             if (response.ok) {
                 await loadData(); // Reload data
+                // Close modal and refresh selected personal data
+                setModalOpen(false);
+                setSelectedPersonal(null);
             } else {
                 const error = await response.json();
                 console.error('Error assigning plan:', error.message);
@@ -87,6 +90,9 @@ export function GerenciarPlanosPersonalPage() {
 
             if (response.ok) {
                 await loadData(); // Reload data
+                // Close modal and refresh selected personal data
+                setModalOpen(false);
+                setSelectedPersonal(null);
             } else {
                 const error = await response.json();
                 console.error('Error adding tokens:', error.message);

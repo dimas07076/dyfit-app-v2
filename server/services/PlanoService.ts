@@ -91,6 +91,9 @@ export class PlanoService {
         customDuration?: number,
         motivo?: string
     ): Promise<IPersonalPlano> {
+        // Import PersonalTrainer model
+        const PersonalTrainer = (await import('../models/PersonalTrainer.js')).default;
+        
         // Deactivate current plan
         await PersonalPlano.updateMany(
             { personalTrainerId, ativo: true },
@@ -116,7 +119,19 @@ export class PlanoService {
             ativo: true
         });
 
-        return await personalPlano.save();
+        // Save the PersonalPlano first
+        const savedPersonalPlano = await personalPlano.save();
+
+        // Update PersonalTrainer model fields to keep them synchronized
+        await PersonalTrainer.findByIdAndUpdate(personalTrainerId, {
+            planoId: planoId,
+            statusAssinatura: 'ativa',
+            dataInicioAssinatura: dataInicio,
+            dataFimAssinatura: dataVencimento,
+            limiteAlunos: plano.limiteAlunos
+        });
+
+        return savedPersonalPlano;
     }
 
     /**
