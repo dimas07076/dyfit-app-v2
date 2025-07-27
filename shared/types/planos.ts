@@ -61,9 +61,18 @@ export interface PersonalTrainerWithStatus {
     email: string;
     createdAt: Date;
     planoAtual: string;
+    planoId: string | null;
+    planoDisplay: string;
     alunosAtivos: number;
     limiteAlunos: number;
     percentualUso: number;
+    hasActivePlan: boolean;
+    planDetails: {
+        id: string;
+        nome: string;
+        limiteAlunos: number;
+        preco: number;
+    } | null;
 }
 
 export interface PersonalStatusAdmin {

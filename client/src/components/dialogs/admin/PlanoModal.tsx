@@ -19,6 +19,15 @@ interface PlanoModalProps {
     onAddTokens: (personalId: string, data: AddTokensForm) => Promise<void>;
 }
 
+interface DetailedPersonalStatus {
+    personalInfo: any;
+    currentPlan: any;
+    activeTokens: any[];
+    activeStudents: number;
+    totalLimit: number;
+    planHistory: any[];
+}
+
 type ModalMode = 'view' | 'assign-plan' | 'add-tokens';
 
 export function PlanoModal({ 
@@ -31,6 +40,8 @@ export function PlanoModal({
 }: PlanoModalProps) {
     const [mode, setMode] = useState<ModalMode>('view');
     const [loading, setLoading] = useState(false);
+    const [detailedStatus, setDetailedStatus] = useState<DetailedPersonalStatus | null>(null);
+    const [loadingStatus, setLoadingStatus] = useState(false);
     
     // Plan assignment form
     const [assignForm, setAssignForm] = useState<AssignPlanForm>({
@@ -46,13 +57,42 @@ export function PlanoModal({
         motivo: ''
     });
 
+    // Load detailed status when modal opens
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && personal) {
             setMode('view');
             setAssignForm({ planoId: '', customDuration: undefined, motivo: '' });
             setTokenForm({ quantidade: 1, customDays: 30, motivo: '' });
+            loadDetailedStatus();
         }
-    }, [isOpen]);
+    }, [isOpen, personal]);
+
+    const loadDetailedStatus = async () => {
+        if (!personal) return;
+        
+        setLoadingStatus(true);
+        try {
+            console.log('🔄 Carregando status detalhado do personal...', personal._id);
+            
+            const response = await fetch(`/api/admin/personal/${personal._id}/status`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                }
+            });
+
+            if (response.ok) {
+                const status = await response.json();
+                console.log('✅ Status detalhado carregado:', status);
+                setDetailedStatus(status);
+            } else {
+                console.error('❌ Erro ao carregar status detalhado');
+            }
+        } catch (error) {
+            console.error('❌ Erro ao carregar status detalhado:', error);
+        } finally {
+            setLoadingStatus(false);
+        }
+    };
 
     const handleAssignPlan = async () => {
         if (!personal || !assignForm.planoId) return;
@@ -134,47 +174,107 @@ export function PlanoModal({
                         {/* Current Plan Status */}
                         <div className="bg-white border p-4 rounded-lg">
                             <h3 className="font-semibold mb-3">Status Atual</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full mx-auto mb-1">
-                                        <CalendarDays className="w-4 h-4 text-blue-600" />
-                                    </div>
-                                    <p className="text-sm text-gray-600">Plano Atual</p>
-                                    <p className="font-semibold">{personal.planoAtual || 'Sem plano'}</p>
+                            {loadingStatus ? (
+                                <div className="flex items-center justify-center py-4">
+                                    <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="ml-2 text-sm text-gray-600">Carregando status...</span>
                                 </div>
-                                
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full mx-auto mb-1">
-                                        <Users className="w-4 h-4 text-green-600" />
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full mx-auto mb-1">
+                                            <CalendarDays className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                        <p className="text-sm text-gray-600">Plano Atual</p>
+                                        <p className="font-semibold text-xs">
+                                            {detailedStatus?.currentPlan?.plano?.nome || personal.planoAtual || 'Sem plano'}
+                                        </p>
+                                        {detailedStatus?.currentPlan?.plano?._id && (
+                                            <p className="text-xs text-gray-500">
+                                                ID: {detailedStatus.currentPlan.plano._id}
+                                            </p>
+                                        )}
                                     </div>
-                                    <p className="text-sm text-gray-600">Alunos Ativos</p>
-                                    <p className="font-semibold">{personal.alunosAtivos || 0}/{personal.limiteAlunos || 0}</p>
+                                    
+                                    <div className="text-center">
+                                        <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full mx-auto mb-1">
+                                            <Users className="w-4 h-4 text-green-600" />
+                                        </div>
+                                        <p className="text-sm text-gray-600">Alunos Ativos</p>
+                                        <p className="font-semibold">
+                                            {(detailedStatus?.activeStudents ?? personal.alunosAtivos) || 0}/
+                                            {(detailedStatus?.totalLimit ?? personal.limiteAlunos) || 0}
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="text-center">
+                                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full mx-auto mb-1">
+                                            <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso || 0)}`} />
+                                        </div>
+                                        <p className="text-sm text-gray-600">Status</p>
+                                        <Badge variant={(personal.percentualUso || 0) >= 90 ? 'destructive' : (personal.percentualUso || 0) >= 70 ? 'default' : 'secondary'}>
+                                            {getStatusText(personal.percentualUso || 0)}
+                                        </Badge>
+                                    </div>
+                                    
+                                    <div className="text-center">
+                                        <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full mx-auto mb-1">
+                                            <div className="text-orange-600 text-xs font-bold">{personal.percentualUso || 0}%</div>
+                                        </div>
+                                        <p className="text-sm text-gray-600">Utilização</p>
+                                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                            <div 
+                                                className={`h-2 rounded-full ${getStatusColor(personal.percentualUso || 0)}`}
+                                                style={{ width: `${Math.min(personal.percentualUso || 0, 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full mx-auto mb-1">
-                                        <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso || 0)}`} />
-                                    </div>
-                                    <p className="text-sm text-gray-600">Status</p>
-                                    <Badge variant={(personal.percentualUso || 0) >= 90 ? 'destructive' : (personal.percentualUso || 0) >= 70 ? 'default' : 'secondary'}>
-                                        {getStatusText(personal.percentualUso || 0)}
-                                    </Badge>
-                                </div>
-                                
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full mx-auto mb-1">
-                                        <div className="text-orange-600 text-xs font-bold">{personal.percentualUso || 0}%</div>
-                                    </div>
-                                    <p className="text-sm text-gray-600">Utilização</p>
-                                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                        <div 
-                                            className={`h-2 rounded-full ${getStatusColor(personal.percentualUso || 0)}`}
-                                            style={{ width: `${Math.min(personal.percentualUso || 0, 100)}%` }}
-                                        />
-                                    </div>
+                            )}
+                        </div>
+
+                        {/* Additional Details */}
+                        {detailedStatus && (
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <h3 className="font-semibold mb-2">Detalhes do Plano</h3>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    {detailedStatus.currentPlan?.plano && (
+                                        <>
+                                            <div>
+                                                <span className="text-gray-600">Plano ID:</span>
+                                                <p className="font-medium font-mono">{detailedStatus.currentPlan.plano._id}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Limite de Alunos:</span>
+                                                <p className="font-medium">{detailedStatus.currentPlan.plano.limiteAlunos}</p>
+                                            </div>
+                                        </>
+                                    )}
+                                    {detailedStatus.currentPlan?.personalPlano && (
+                                        <>
+                                            <div>
+                                                <span className="text-gray-600">Início da Assinatura:</span>
+                                                <p className="font-medium">
+                                                    {new Date(detailedStatus.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Fim da Assinatura:</span>
+                                                <p className="font-medium">
+                                                    {new Date(detailedStatus.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')}
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                    {detailedStatus.activeTokens?.length > 0 && (
+                                        <div className="col-span-2">
+                                            <span className="text-gray-600">Tokens Ativos:</span>
+                                            <p className="font-medium">{detailedStatus.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens adicionais</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 

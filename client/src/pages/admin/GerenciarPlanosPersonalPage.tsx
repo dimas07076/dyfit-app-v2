@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
-import { Search, Users, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Search, Users, TrendingUp, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 
@@ -18,11 +18,28 @@ export function GerenciarPlanosPersonalPage() {
 
     useEffect(() => {
         loadData();
+        
+        // Add keyboard shortcut for manual refresh (F5 or Ctrl+R)
+        const handleKeyPress = (event: KeyboardEvent) => {
+            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+                event.preventDefault();
+                console.log('🔄 Refresh manual detectado - recarregando dados...');
+                loadData();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyPress);
+        
+        return () => {
+            window.removeEventListener('keydown', handleKeyPress);
+        };
     }, []);
 
     const loadData = async () => {
         setLoading(true);
         try {
+            console.log('🔄 Carregando dados do painel administrativo...');
+            
             const [personalResponse, planosResponse] = await Promise.all([
                 fetch('/api/admin/personal-trainers', {
                     headers: {
@@ -38,15 +55,21 @@ export function GerenciarPlanosPersonalPage() {
 
             if (personalResponse.ok) {
                 const personalData = await personalResponse.json();
+                console.log('✅ Dados dos personal trainers carregados:', personalData.length);
                 setPersonalTrainers(personalData);
+            } else {
+                console.error('❌ Erro ao carregar personal trainers:', personalResponse.status);
             }
 
             if (planosResponse.ok) {
                 const planosData = await planosResponse.json();
+                console.log('✅ Dados dos planos carregados:', planosData.length);
                 setPlanos(planosData);
+            } else {
+                console.error('❌ Erro ao carregar planos:', planosResponse.status);
             }
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('❌ Error loading data:', error);
         } finally {
             setLoading(false);
         }
@@ -54,6 +77,8 @@ export function GerenciarPlanosPersonalPage() {
 
     const handleAssignPlan = async (personalId: string, data: AssignPlanForm) => {
         try {
+            console.log('🔄 Atribuindo plano...', { personalId, data });
+            
             const response = await fetch(`/api/admin/personal/${personalId}/assign-plan`, {
                 method: 'POST',
                 headers: {
@@ -64,21 +89,36 @@ export function GerenciarPlanosPersonalPage() {
             });
 
             if (response.ok) {
-                await loadData(); // Reload data
-                // Close modal and refresh selected personal data
+                const result = await response.json();
+                console.log('✅ Plano atribuído com sucesso:', result);
+                
+                // Close modal first
                 setModalOpen(false);
                 setSelectedPersonal(null);
+                
+                // Wait a bit for database to process the transaction
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Then reload data to reflect changes
+                await loadData();
+                
+                // Show success feedback
+                console.log('✅ Dados recarregados após atribuição de plano');
             } else {
                 const error = await response.json();
-                console.error('Error assigning plan:', error.message);
+                console.error('❌ Error assigning plan:', error.message);
+                alert(`Erro ao atribuir plano: ${error.message}`);
             }
         } catch (error) {
-            console.error('Error assigning plan:', error);
+            console.error('❌ Error assigning plan:', error);
+            alert('Erro ao atribuir plano. Tente novamente.');
         }
     };
 
     const handleAddTokens = async (personalId: string, data: AddTokensForm) => {
         try {
+            console.log('🔄 Adicionando tokens...', { personalId, data });
+            
             const response = await fetch(`/api/admin/personal/${personalId}/add-tokens`, {
                 method: 'POST',
                 headers: {
@@ -89,16 +129,29 @@ export function GerenciarPlanosPersonalPage() {
             });
 
             if (response.ok) {
-                await loadData(); // Reload data
-                // Close modal and refresh selected personal data
+                const result = await response.json();
+                console.log('✅ Tokens adicionados com sucesso:', result);
+                
+                // Close modal first
                 setModalOpen(false);
                 setSelectedPersonal(null);
+                
+                // Wait a bit for database to process the transaction
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Then reload data to reflect changes
+                await loadData();
+                
+                // Show success feedback
+                console.log('✅ Dados recarregados após adição de tokens');
             } else {
                 const error = await response.json();
-                console.error('Error adding tokens:', error.message);
+                console.error('❌ Error adding tokens:', error.message);
+                alert(`Erro ao adicionar tokens: ${error.message}`);
             }
         } catch (error) {
-            console.error('Error adding tokens:', error);
+            console.error('❌ Error adding tokens:', error);
+            alert('Erro ao adicionar tokens. Tente novamente.');
         }
     };
 
@@ -151,10 +204,23 @@ export function GerenciarPlanosPersonalPage() {
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">Gerenciar Planos dos Personal Trainers</h1>
-                <p className="text-gray-600 mt-1">
-                    Gerencie os planos e tokens dos personal trainers cadastrados no sistema
-                </p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold">Gerenciar Planos dos Personal Trainers</h1>
+                        <p className="text-gray-600 mt-1">
+                            Gerencie os planos e tokens dos personal trainers cadastrados no sistema
+                        </p>
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={loadData}
+                        disabled={loading}
+                        className="flex items-center gap-2"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        {loading ? 'Atualizando...' : 'Atualizar'}
+                    </Button>
+                </div>
             </div>
 
             {/* Stats Cards */}
@@ -244,8 +310,8 @@ export function GerenciarPlanosPersonalPage() {
                                             <Users className="w-3 h-3" />
                                             {personal.alunosAtivos}/{personal.limiteAlunos} alunos
                                         </span>
-                                        <span>Plano: {personal.planoAtual}</span>
-                                        <span>{personal.percentualUso}% utilizado</span>
+                                        <span>Plano: {personal.planoDisplay || 'Sem plano'}</span>
+                                        <span>Utilização: {personal.percentualUso}%</span>
                                     </div>
                                 </div>
                                 

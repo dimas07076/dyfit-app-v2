@@ -118,9 +118,13 @@ router.get('/personal/:personalId/status', async (req, res) => {
  */
 router.post('/personal/:personalId/assign-plan', async (req, res) => {
     try {
+        await dbConnect();
+        
         const { personalId } = req.params;
         const { planoId, customDuration, motivo } = req.body;
         const adminId = (req as any).user.id;
+
+        console.log('🔄 Atribuindo plano:', { personalId, planoId, customDuration, motivo });
 
         const personal = await PersonalTrainer.findById(personalId);
         if (!personal) {
@@ -135,14 +139,18 @@ router.post('/personal/:personalId/assign-plan', async (req, res) => {
             motivo
         );
 
+        console.log('✅ Plano atribuído com sucesso:', personalPlano._id);
+
         res.status(201).json({
             message: 'Plano atribuído com sucesso',
-            personalPlano
+            personalPlano,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error assigning plan:', error);
+        console.error('❌ Error assigning plan:', error);
         res.status(500).json({ 
-            message: error instanceof Error ? error.message : 'Erro ao atribuir plano'
+            message: error instanceof Error ? error.message : 'Erro ao atribuir plano',
+            timestamp: new Date().toISOString()
         });
     }
 });
@@ -152,9 +160,13 @@ router.post('/personal/:personalId/assign-plan', async (req, res) => {
  */
 router.post('/personal/:personalId/add-tokens', async (req, res) => {
     try {
+        await dbConnect();
+        
         const { personalId } = req.params;
         const { quantidade, customDays, motivo } = req.body;
         const adminId = (req as any).user.id;
+
+        console.log('🔄 Adicionando tokens:', { personalId, quantidade, customDays, motivo });
 
         if (!quantidade || quantidade < 1) {
             return res.status(400).json({ message: 'Quantidade deve ser pelo menos 1' });
@@ -173,13 +185,19 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
             motivo
         );
 
+        console.log('✅ Tokens adicionados com sucesso:', token._id);
+
         res.status(201).json({
             message: 'Tokens adicionados com sucesso',
-            token
+            token,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error adding tokens:', error);
-        res.status(500).json({ message: 'Erro ao adicionar tokens' });
+        console.error('❌ Error adding tokens:', error);
+        res.status(500).json({ 
+            message: 'Erro ao adicionar tokens',
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
@@ -188,36 +206,83 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
  */
 router.get('/personal-trainers', async (req, res) => {
     try {
+        await dbConnect();
+        
+        console.log('📊 Buscando personal trainers com status de planos...');
+        
         const personalTrainers = await PersonalTrainer.find({ 
             role: 'Personal Trainer' 
         }).select('nome email createdAt');
+
+        console.log(`✅ Encontrados ${personalTrainers.length} personal trainers.`);
 
         const personalTrainersWithStatus = await Promise.all(
             personalTrainers.map(async (personal) => {
                 const personalId = personal._id?.toString();
                 if (!personalId) return null;
                 
-                const status = await PlanoService.getPersonalCurrentPlan(personalId);
-                return {
-                    _id: personal._id,
-                    nome: personal.nome,
-                    email: personal.email,
-                    createdAt: personal.createdAt,
-                    planoAtual: status.plano?.nome || 'Sem plano',
-                    alunosAtivos: status.alunosAtivos,
-                    limiteAlunos: status.limiteAtual,
-                    percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0
-                };
+                try {
+                    const status = await PlanoService.getPersonalCurrentPlan(personalId);
+                    
+                    // Enhanced data with plan ID and better formatting
+                    const planoNome = status.plano?.nome || 'Sem plano';
+                    const planoId = status.plano?._id || null;
+                    const planoDisplay = status.plano ? 
+                        `${status.plano.nome} (ID: ${status.plano._id})` : 
+                        'Sem plano';
+                    
+                    return {
+                        _id: personal._id,
+                        nome: personal.nome,
+                        email: personal.email,
+                        createdAt: personal.createdAt,
+                        planoAtual: planoNome,
+                        planoId: planoId,
+                        planoDisplay: planoDisplay,
+                        alunosAtivos: status.alunosAtivos,
+                        limiteAlunos: status.limiteAtual,
+                        percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
+                        hasActivePlan: !!status.plano,
+                        planDetails: status.plano ? {
+                            id: status.plano._id,
+                            nome: status.plano.nome,
+                            limiteAlunos: status.plano.limiteAlunos,
+                            preco: status.plano.preco
+                        } : null
+                    };
+                } catch (error) {
+                    console.error(`❌ Erro ao buscar status do personal ${personalId}:`, error);
+                    // Return basic info even if status fetch fails
+                    return {
+                        _id: personal._id,
+                        nome: personal.nome,
+                        email: personal.email,
+                        createdAt: personal.createdAt,
+                        planoAtual: 'Erro ao carregar',
+                        planoId: null,
+                        planoDisplay: 'Erro ao carregar',
+                        alunosAtivos: 0,
+                        limiteAlunos: 0,
+                        percentualUso: 0,
+                        hasActivePlan: false,
+                        planDetails: null
+                    };
+                }
             })
         );
 
         // Filter out null values
         const filteredResults = personalTrainersWithStatus.filter(Boolean);
+        
+        console.log(`✅ Retornando dados de ${filteredResults.length} personal trainers com status.`);
 
         res.json(filteredResults);
     } catch (error) {
-        console.error('Error fetching personal trainers:', error);
-        res.status(500).json({ message: 'Erro ao buscar personal trainers' });
+        console.error('❌ Erro ao buscar personal trainers:', error);
+        res.status(500).json({ 
+            message: 'Erro ao buscar personal trainers',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
     }
 });
 
