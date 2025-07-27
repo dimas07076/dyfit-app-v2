@@ -8,7 +8,7 @@ import { Textarea } from '../../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../../shared/types/planos';
 import { Badge } from '../../ui/badge';
-import { CalendarDays, Users, Clock, DollarSign } from 'lucide-react';
+import { CalendarDays, Users, Clock, DollarSign, CheckCircle } from 'lucide-react';
 
 interface PlanoModalProps {
     isOpen: boolean;
@@ -42,6 +42,7 @@ export function PlanoModal({
     const [loading, setLoading] = useState(false);
     const [detailedStatus, setDetailedStatus] = useState<DetailedPersonalStatus | null>(null);
     const [loadingStatus, setLoadingStatus] = useState(false);
+    const [operationSuccess, setOperationSuccess] = useState<string | null>(null);
     
     // Plan assignment form
     const [assignForm, setAssignForm] = useState<AssignPlanForm>({
@@ -63,6 +64,7 @@ export function PlanoModal({
             setMode('view');
             setAssignForm({ planoId: '', customDuration: undefined, motivo: '' });
             setTokenForm({ quantidade: 1, customDays: 30, motivo: '' });
+            setOperationSuccess(null);
             loadDetailedStatus();
         }
     }, [isOpen, personal]);
@@ -98,12 +100,15 @@ export function PlanoModal({
         if (!personal || !assignForm.planoId) return;
         
         setLoading(true);
+        setOperationSuccess(null);
         try {
+            console.log('🔄 Modal: Iniciando atribuição de plano...', { personal: personal._id, assignForm });
             await onAssignPlan(personal._id, assignForm);
-            // Don't close modal here, let parent component handle it
-            // The parent will reload data and close the modal
+            console.log('✅ Modal: Plano atribuído com sucesso');
+            setOperationSuccess('Plano atribuído com sucesso!');
+            // The parent component will handle modal closing and data refresh
         } catch (error) {
-            console.error('Error assigning plan:', error);
+            console.error('❌ Modal: Erro na atribuição de plano:', error);
         } finally {
             setLoading(false);
         }
@@ -113,12 +118,15 @@ export function PlanoModal({
         if (!personal || tokenForm.quantidade < 1) return;
         
         setLoading(true);
+        setOperationSuccess(null);
         try {
+            console.log('🔄 Modal: Iniciando adição de tokens...', { personal: personal._id, tokenForm });
             await onAddTokens(personal._id, tokenForm);
-            // Don't close modal here, let parent component handle it
-            // The parent will reload data and close the modal
+            console.log('✅ Modal: Tokens adicionados com sucesso');
+            setOperationSuccess('Tokens adicionados com sucesso!');
+            // The parent component will handle modal closing and data refresh
         } catch (error) {
-            console.error('Error adding tokens:', error);
+            console.error('❌ Modal: Erro na adição de tokens:', error);
         } finally {
             setLoading(false);
         }
@@ -153,6 +161,15 @@ export function PlanoModal({
                         {mode === 'add-tokens' && 'Adicione tokens avulsos ao personal trainer'}
                     </DialogDescription>
                 </DialogHeader>
+
+                {operationSuccess && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                        <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">{operationSuccess}</span>
+                        </div>
+                    </div>
+                )}
 
                 {mode === 'view' && (
                     <div className="space-y-6">
