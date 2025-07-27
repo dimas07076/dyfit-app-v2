@@ -211,7 +211,10 @@ export function GerenciarPlanosPersonalPage() {
                     </div>
                     <Button
                         variant="outline"
-                        onClick={loadData}
+                        onClick={() => {
+                            loadPlanosData();
+                            refreshPersonals();
+                        }}
                         disabled={loading}
                         className="flex items-center gap-2"
                     >
@@ -220,6 +223,17 @@ export function GerenciarPlanosPersonalPage() {
                     </Button>
                 </div>
             </div>
+
+            {/* Error Display */}
+            {personalTrainersError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                        <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+                        <span className="text-red-800 font-medium">Erro ao carregar personal trainers:</span>
+                    </div>
+                    <p className="text-red-700 mt-1">{personalTrainersError}</p>
+                </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
