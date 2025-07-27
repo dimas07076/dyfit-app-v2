@@ -25,6 +25,15 @@ export interface PersonalDetalhes {
     limiteAlunos?: number;
     dataFimAssinatura?: string;
     planoId?: string;
+    plano?: {
+        _id: string;
+        nome: string;
+        descricao?: string;
+        limiteAlunos: number;
+        preco: number;
+        duracao: number;
+        tipo: string;
+    };
 }
 
 interface VisualizarPersonalModalProps {
@@ -141,7 +150,11 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
                  </Badge>
               }
             />
-            <InfoItem label="Plano ID" value={personal.planoId} icon={<BarChartHorizontalBig className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
+            <InfoItem 
+              label="Plano" 
+              value={personal.plano ? `${personal.plano.nome} (ID: ${personal.plano._id})` : personal.planoId || 'Não definido'} 
+              icon={<BarChartHorizontalBig className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} 
+            />
             <InfoItem label="Limite de Alunos" value={personal.limiteAlunos} icon={<Users className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
             <InfoItem label="Fim da Assinatura" value={formatDate(personal.dataFimAssinatura)} icon={<CalendarDays className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
             

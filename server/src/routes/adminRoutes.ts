@@ -109,6 +109,7 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
     const PlanoService = (await import('../../services/PlanoService.js')).default;
     
     // Get current plan status to ensure data is synchronized
+    let planoData = null;
     try {
       const planStatus = await PlanoService.getPersonalCurrentPlan(id);
       
@@ -119,6 +120,17 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
         personal.limiteAlunos = planStatus.plano.limiteAlunos;
         personal.dataFimAssinatura = planStatus.personalPlano.dataVencimento;
         personal.dataInicioAssinatura = planStatus.personalPlano.dataInicio;
+        
+        // Store plan data for response
+        planoData = {
+          _id: planStatus.plano._id,
+          nome: planStatus.plano.nome,
+          descricao: planStatus.plano.descricao,
+          limiteAlunos: planStatus.plano.limiteAlunos,
+          preco: planStatus.plano.preco,
+          duracao: planStatus.plano.duracao,
+          tipo: planStatus.plano.tipo
+        };
       } else if (!planStatus.plano) {
         // No active plan
         personal.statusAssinatura = 'sem_assinatura';
@@ -129,7 +141,13 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
       // Continue with original personal data if plan status fetch fails
     }
     
-    res.status(200).json(personal);
+    // Prepare response with plan data included
+    const response = {
+      ...personal.toObject(),
+      plano: planoData
+    };
+    
+    res.status(200).json(response);
   } catch (error) {
     console.error(`[ADMIN ROUTES] Erro em GET /personal-trainers/${req.params.id}:`, error);
     next(error);
