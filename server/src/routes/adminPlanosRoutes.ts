@@ -222,7 +222,24 @@ router.get('/personal-trainers', async (req, res) => {
                 if (!personalId) return null;
                 
                 try {
+                    console.log(`🔍 [adminPlanosRoutes] Processando personal: ${personal.nome} (${personalId})`);
+                    
                     const status = await PlanoService.getPersonalCurrentPlan(personalId);
+                    
+                    console.log(`📊 [adminPlanosRoutes] Status retornado pelo PlanoService para ${personal.nome}:`, {
+                        plano: status.plano ? {
+                            _id: status.plano._id,
+                            nome: status.plano.nome,
+                            limiteAlunos: status.plano.limiteAlunos
+                        } : null,
+                        personalPlano: status.personalPlano ? {
+                            _id: status.personalPlano._id,
+                            planoId: status.personalPlano.planoId
+                        } : null,
+                        limiteAtual: status.limiteAtual,
+                        alunosAtivos: status.alunosAtivos,
+                        tokensAvulsos: status.tokensAvulsos
+                    });
                     
                     const planoNome = (status.plano && status.plano.nome) ? status.plano.nome : 'Sem plano';
                     const planoId = (status.plano && status.plano._id) ? status.plano._id : null;
@@ -238,7 +255,7 @@ router.get('/personal-trainers', async (req, res) => {
                         statusAssinatura: personal.statusAssinatura,
                         dataInicioAssinatura: personal.dataInicioAssinatura,
                         dataFimAssinatura: personal.dataFimAssinatura,
-                        planoId: personal.planoId, 
+                        planoId: planoId, // Use the planoId from the actual status, not from PersonalTrainer model
 
                         planoAtual: planoNome, 
                         planoDisplay: planoDisplay, 
@@ -254,9 +271,13 @@ router.get('/personal-trainers', async (req, res) => {
                         } : null
                     };
 
-                    // --- NOVO LOG DE DIAGNÓSTICO NO BACKEND ---
-                    console.log(`[adminPlanosRoutes] Dados finais para ${personal.nome} ANTES de enviar:`, JSON.stringify(personalData, null, 2));
-                    // --- FIM NOVO LOG DE DIAGNÓSTICO NO BACKEND ---
+                    console.log(`✅ [adminPlanosRoutes] Dados finais para ${personal.nome}:`, {
+                        planoAtual: personalData.planoAtual,
+                        planoDisplay: personalData.planoDisplay,
+                        planoId: personalData.planoId,
+                        hasActivePlan: personalData.hasActivePlan,
+                        planDetails: personalData.planDetails ? personalData.planDetails.nome : null
+                    });
 
                     return personalData;
                 } catch (error) {
