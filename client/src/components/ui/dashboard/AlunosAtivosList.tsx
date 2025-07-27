@@ -23,25 +23,33 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
     };
 
     return (
-        <div className="flex items-center justify-between p-4 border-b last:border-b-0">
+        <div className="flex items-center justify-between p-4 border-b last:border-b-0 hover:bg-gray-50/50 dark:hover:bg-slate-700/30 transition-colors duration-150">
             <div className="flex items-center gap-4">
-                <Avatar>
-                    <AvatarFallback>{getInitials(student.nome)}</AvatarFallback>
+                <Avatar className="ring-2 ring-blue-100 dark:ring-blue-900/30">
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold">
+                        {getInitials(student.nome)}
+                    </AvatarFallback>
                 </Avatar>
                 <div>
-                    <span className="font-semibold text-sm text-gray-800">{student.nome}</span>
+                    <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">{student.nome}</span>
                     {/* <<< CORREÇÃO: Trocado 'student.objetivo' por 'student.email' >>> */}
-                    <p className="text-xs text-gray-500">{student.email || "Email não disponível"}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{student.email || "Email não disponível"}</p>
                 </div>
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="hover:bg-gray-100 dark:hover:bg-slate-600">
+                        <MoreVertical className="h-4 w-4" />
+                    </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onView(student)}><Eye className="mr-2 h-4 w-4" /> Visualizar</DropdownMenuItem>
+                <DropdownMenuContent align="end" className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50">
+                    <DropdownMenuItem onClick={() => onView(student)} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                        <Eye className="mr-2 h-4 w-4" /> Visualizar
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                        <Link href={`/alunos/editar/${student._id}`}><Pencil className="mr-2 h-4 w-4" /> Editar Aluno</Link>
+                        <Link href={`/alunos/editar/${student._id}`} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                            <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
+                        </Link>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -73,20 +81,28 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
     
     return (
         <>
-            <Card className="bg-white dark:bg-slate-800 shadow-md">
+            <Card className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-white/20 dark:border-slate-700/50 shadow-xl">
                 <CardHeader>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div>
-                            <CardTitle>Alunos Ativos</CardTitle>
-                            <CardDescription>Seus alunos com planos de treino em andamento.</CardDescription>
+                            <CardTitle className="text-lg font-semibold text-gray-800 dark:text-gray-100">Alunos Ativos</CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-400">Seus alunos com planos de treino em andamento.</CardDescription>
                         </div>
                         <Link href="/alunos/novo">
-                            <Button size="sm"><UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno</Button>
+                            <Button size="sm" className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200">
+                                <UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno
+                            </Button>
                         </Link>
                     </div>
                     <div className="relative mt-4">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input type="search" placeholder="Buscar aluno ativo..." className="pl-9 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                        <Input 
+                            type="search" 
+                            placeholder="Buscar aluno ativo..." 
+                            className="pl-9 w-full bg-white/90 dark:bg-slate-800/90 border border-gray-200/50 dark:border-slate-700/50 focus:ring-2 focus:ring-blue-500/20" 
+                            value={searchQuery} 
+                            onChange={(e) => setSearchQuery(e.target.value)} 
+                        />
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">

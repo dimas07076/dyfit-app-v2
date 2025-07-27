@@ -104,8 +104,8 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   useEffect(() => {
     checkAlunoSession();
-    // O log de "Verificando sessão" foi movido para dentro de checkAlunoSession para ser mais preciso
-  }, [checkAlunoSession]);
+    // Initial check on mount
+  }, []); // Empty dependency array for initial check only
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {

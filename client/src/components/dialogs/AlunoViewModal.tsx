@@ -19,7 +19,7 @@ import { Aluno } from "@/types/aluno";
 import {
   Dumbbell, Edit, History, Mail, Phone, User, Weight, Ruler, Cake, Target, CalendarDays,
   BarChart, CheckCircle2, Sigma, FileText, View, PlusCircle, MoreVertical, Trash2,
-  Clock, MessageSquare, TrendingUp, CalendarCheck, Loader2
+  Clock, MessageSquare, TrendingUp, CalendarCheck, Loader2, Crown, Users, Zap
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -202,6 +202,14 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     const [activeTab, setActiveTab] = useState("detalhes");
     const [rotinaIdToDelete, setRotinaIdToDelete] = useState<string | null>(null);
 
+    // Query for trainer's plan status to show in aluno modal
+    const { data: trainerPlanStatus } = useQuery({
+        queryKey: ['trainerPlanStatus', aluno?.trainerId],
+        queryFn: () => fetchWithAuth(`/api/personal/meu-plano`),
+        enabled: !!aluno?.trainerId && open,
+        staleTime: 1000 * 60 * 5, // 5 minute cache
+    });
+
     const { data: rotinaDetalhada, isFetching: isFetchingRotina } = useQuery<RotinaListagemItem>({
         queryKey: ['rotinaDetalhes', rotinaIdParaVer],
         queryFn: () => fetchWithAuth(`/api/treinos/${rotinaIdParaVer}`),
@@ -311,7 +319,34 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                     <div className="flex">
                         <div className="w-1/3 bg-slate-50 dark:bg-slate-900/50 p-6 border-r dark:border-slate-800 hidden md:flex flex-col">
                             <div className="flex flex-col items-center text-center"><Avatar className="h-24 w-24 mb-4 border-4 border-primary/50"><AvatarFallback className="text-3xl bg-slate-200 dark:bg-slate-700 text-primary">{getInitials(aluno.nome)}</AvatarFallback></Avatar><h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{aluno.nome}</h2><p className="text-sm text-slate-500 dark:text-slate-400">{aluno.email}</p><Badge variant={aluno.status === "active" ? "success" : "destructive"} className="mt-3">{aluno.status === "active" ? "Ativo" : "Inativo"}</Badge></div>
-                            <div className="mt-8 space-y-4"><InfoItem icon={Mail} label="Email" value={aluno.email} /><InfoItem icon={Phone} label="Telefone" value={aluno.phone} /></div>
+                            <div className="mt-8 space-y-4">
+                                <InfoItem icon={Mail} label="Email" value={aluno.email} />
+                                <InfoItem icon={Phone} label="Telefone" value={aluno.phone} />
+                                
+                                {/* Plan Information Section */}
+                                {trainerPlanStatus && (
+                                    <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                        <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">Informações do Plano</h3>
+                                        <InfoItem 
+                                            icon={Crown} 
+                                            label="Plano" 
+                                            value={trainerPlanStatus.plano?.nome || "Sem plano ativo"} 
+                                        />
+                                        {trainerPlanStatus.tokensAvulsos > 0 && (
+                                            <InfoItem 
+                                                icon={Zap} 
+                                                label="Tokens Avulsos" 
+                                                value={`${trainerPlanStatus.tokensAvulsos} disponíveis`} 
+                                            />
+                                        )}
+                                        <InfoItem 
+                                            icon={Users} 
+                                            label="Vagas" 
+                                            value={`${trainerPlanStatus.alunosAtivos}/${trainerPlanStatus.limiteAtual}`} 
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="w-full md:w-2/3 p-6 flex flex-col">
                             <DialogHeader className="md:hidden mb-4 text-center">
