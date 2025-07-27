@@ -1,13 +1,21 @@
 // client/src/pages/admin/GerenciarPlanosPersonalPage.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
-import { Search, Users, TrendingUp, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { Search, Users, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '../../components/ui/table';
 
 export function GerenciarPlanosPersonalPage() {
     // Use the new custom hook for centralized state management
@@ -15,11 +23,9 @@ export function GerenciarPlanosPersonalPage() {
         personalTrainers,
         planos,
         loading,
-        error,
         fetchPersonals,
         assignPlan,
         addTokens,
-        clearError
     } = usePersonalTrainers();
 
     // Local UI state
@@ -202,7 +208,7 @@ export function GerenciarPlanosPersonalPage() {
                 </CardContent>
             </Card>
 
-            {/* Personal Trainers List */}
+            {/* Personal Trainers List in Table */}
             <Card>
                 <CardHeader>
                     <CardTitle>Personal Trainers ({filteredPersonals.length})</CardTitle>
@@ -211,59 +217,81 @@ export function GerenciarPlanosPersonalPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {filteredPersonals.map((personal) => (
-                            <div
-                                key={personal._id}
-                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <h3 className="font-semibold">{personal.nome}</h3>
-                                        {getStatusBadge(personal.percentualUso)}
-                                    </div>
-                                    <p className="text-sm text-gray-600 mb-1">{personal.email}</p>
-                                    <div className="flex items-center gap-4 text-sm">
-                                        <span className="flex items-center gap-1">
-                                            <Users className="w-3 h-3" />
-                                            {personal.alunosAtivos}/{personal.limiteAlunos} alunos
-                                        </span>
-                                        <span>Plano: {personal.planoAtual || 'Sem plano'}</span>
-                                        <span>Utilização: {personal.percentualUso ?? 0}%</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                    {/* Usage Progress Bar */}
-                                    <div className="w-24">
-                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div 
-                                                className={`h-2 rounded-full transition-all ${
-                                                    personal.percentualUso >= 90 ? 'bg-red-500' :
-                                                    personal.percentualUso >= 70 ? 'bg-yellow-500' : 'bg-green-500'
-                                                }`}
-                                                style={{ width: `${Math.min(personal.percentualUso, 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => openModal(personal)}
-                                    >
-                                        Gerenciar
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-
-                        {filteredPersonals.length === 0 && (
-                            <div className="text-center py-8 text-gray-500">
-                                {searchTerm ? 'Nenhum personal encontrado para a busca.' : 'Nenhum personal trainer cadastrado.'}
-                            </div>
-                        )}
-                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Status do Plano</TableHead>
+                                <TableHead>Alunos (Ativos/Limite)</TableHead>
+                                <TableHead>Utilização</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredPersonals.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                                        {searchTerm ? 'Nenhum personal encontrado para a busca.' : 'Nenhum personal trainer cadastrado.'}
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredPersonals.map((personal) => (
+                                    <TableRow key={personal._id}>
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-3">
+                                                {personal.nome}
+                                                {getStatusBadge(personal.percentualUso)} {/* Usando a função getStatusBadge aqui */}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{personal.email}</TableCell>
+                                        <TableCell>
+                                            {personal.hasActivePlan ? (
+                                                <div className="flex items-center gap-1 text-green-600">
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    <span className="font-medium">{personal.planoDisplay || personal.planDetails?.nome || 'Detalhes do plano não disponíveis'}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1 text-red-500">
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    <span>Sem Plano Ativo</span>
+                                                </div>
+                                            )}
+                                            {personal.planDetails && (
+                                                <p className="text-xs text-gray-500">Limite: {personal.planDetails.limiteAlunos} alunos</p>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {personal.alunosAtivos}/{personal.limiteAlunos}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <span>{personal.percentualUso ?? 0}%</span>
+                                                <div className="w-24 bg-gray-200 rounded-full h-2">
+                                                    <div 
+                                                        className={`h-2 rounded-full transition-all ${
+                                                            personal.percentualUso >= 90 ? 'bg-red-500' :
+                                                            personal.percentualUso >= 70 ? 'bg-yellow-500' : 'bg-green-500'
+                                                        }`}
+                                                        style={{ width: `${Math.min(personal.percentualUso, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openModal(personal)}
+                                            >
+                                                Gerenciar
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
 

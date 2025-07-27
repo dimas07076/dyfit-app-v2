@@ -43,42 +43,27 @@ export function usePersonalTrainers(): UsePersonalTrainersReturn {
    */
   const fetchPersonals = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
-    
     try {
       console.log('🔄 [usePersonalTrainers] Carregando dados...');
-      
-      // Fetch both personal trainers and plans in parallel
-      const [personalResponse, planosResponse] = await Promise.all([
-        fetchWithAuth<PersonalTrainerWithStatus[]>('/api/admin/personal-trainers'),
-        fetchWithAuth<Plano[]>('/api/admin/planos')
-      ]);
+      // Explicitly cast the fetched data to the expected type
+      const personalTrainersData = await fetchWithAuth('/api/admin/personal-trainers') as PersonalTrainerWithStatus[];
+      const planosData = await fetchWithAuth('/api/admin/planos') as Plano[];
+
+      // --- NOVO LOG DE DIAGNÓSTICO NO FRONTEND ---
+      console.log('[usePersonalTrainers] Dados completos de personalTrainers recebidos NO FRONTEND:', JSON.stringify(personalTrainersData, null, 2));
+      // --- FIM NOVO LOG DE DIAGNÓSTICO NO FRONTEND ---
 
       setState(prev => ({
         ...prev,
-        personalTrainers: personalResponse || [],
-        planos: planosResponse || [],
+        personalTrainers: personalTrainersData,
+        planos: planosData,
         loading: false,
-        error: null,
       }));
-
-      console.log('✅ [usePersonalTrainers] Dados carregados com sucesso', {
-        personalTrainers: personalResponse?.length || 0,
-        planos: planosResponse?.length || 0,
-      });
-
+      console.log('✅ [usePersonalTrainers] Dados carregados com sucesso', { personalTrainers: personalTrainersData.length, planos: planosData.length });
     } catch (error) {
       console.error('❌ [usePersonalTrainers] Erro ao carregar dados:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao carregar dados';
-      
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage,
-      }));
-
-      // Use existing error handling infrastructure
-      handleApiError(error, 'Erro ao carregar dados');
+      handleApiError(error, 'Erro ao carregar dados dos personal trainers');
+      setState(prev => ({ ...prev, loading: false, error: 'Erro ao carregar dados' }));
     }
   }, []);
 
@@ -165,6 +150,6 @@ export function usePersonalTrainers(): UsePersonalTrainersReturn {
     fetchPersonals,
     assignPlan,
     addTokens,
-    clearError,
+    clearError
   };
 }

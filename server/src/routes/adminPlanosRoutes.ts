@@ -212,7 +212,7 @@ router.get('/personal-trainers', async (req, res) => {
         
         const personalTrainers = await PersonalTrainer.find({ 
             role: 'Personal Trainer' 
-        }).select('nome email createdAt');
+        }).select('nome email createdAt statusAssinatura limiteAlunos dataInicioAssinatura dataFimAssinatura planoId');
 
         console.log(`✅ Encontrados ${personalTrainers.length} personal trainers.`);
 
@@ -224,23 +224,26 @@ router.get('/personal-trainers', async (req, res) => {
                 try {
                     const status = await PlanoService.getPersonalCurrentPlan(personalId);
                     
-                    // Enhanced data with better formatting - fix edge cases
                     const planoNome = (status.plano && status.plano.nome) ? status.plano.nome : 'Sem plano';
                     const planoId = (status.plano && status.plano._id) ? status.plano._id : null;
                     const planoDisplay = (status.plano && status.plano.nome) ? 
                         status.plano.nome : 
                         'Sem plano';
                     
-                    return {
+                    const personalData = {
                         _id: personal._id,
                         nome: personal.nome,
                         email: personal.email,
                         createdAt: personal.createdAt,
-                        planoAtual: planoNome,
-                        planoId: planoId,
-                        planoDisplay: planoDisplay,
+                        statusAssinatura: personal.statusAssinatura,
+                        dataInicioAssinatura: personal.dataInicioAssinatura,
+                        dataFimAssinatura: personal.dataFimAssinatura,
+                        planoId: personal.planoId, 
+
+                        planoAtual: planoNome, 
+                        planoDisplay: planoDisplay, 
                         alunosAtivos: status.alunosAtivos,
-                        limiteAlunos: status.limiteAtual,
+                        limiteAlunos: status.limiteAtual, 
                         percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
                         hasActivePlan: !!(status.plano && status.plano.nome),
                         planDetails: (status.plano && status.plano.nome) ? {
@@ -250,9 +253,14 @@ router.get('/personal-trainers', async (req, res) => {
                             preco: status.plano.preco
                         } : null
                     };
+
+                    // --- NOVO LOG DE DIAGNÓSTICO NO BACKEND ---
+                    console.log(`[adminPlanosRoutes] Dados finais para ${personal.nome} ANTES de enviar:`, JSON.stringify(personalData, null, 2));
+                    // --- FIM NOVO LOG DE DIAGNÓSTICO NO BACKEND ---
+
+                    return personalData;
                 } catch (error) {
                     console.error(`❌ Erro ao buscar status do personal ${personalId}:`, error);
-                    // Return basic info even if status fetch fails
                     return {
                         _id: personal._id,
                         nome: personal.nome,
@@ -271,12 +279,11 @@ router.get('/personal-trainers', async (req, res) => {
             })
         );
 
-        // Filter out null values
         const filteredResults = personalTrainersWithStatus.filter(Boolean);
         
         console.log(`✅ Retornando dados de ${filteredResults.length} personal trainers com status.`);
 
-        res.json(filteredResults);
+        res.json(filteredResults); 
     } catch (error) {
         console.error('❌ Erro ao buscar personal trainers:', error);
         res.status(500).json({ 

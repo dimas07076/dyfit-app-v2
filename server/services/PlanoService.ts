@@ -80,6 +80,14 @@ export class PlanoService {
                 model: 'Plano'
             }).sort({ dataInicio: -1 });
 
+            // --- DIAGNOSTIC LOG ---
+            console.log(`[PlanoService] personalPlanoAtivo para ${personalTrainerId}:`, personalPlanoAtivo);
+            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
+                console.log(`[PlanoService] Populated planoId type: ${typeof personalPlanoAtivo.planoId}`);
+                console.log(`[PlanoService] Populated planoId content:`, personalPlanoAtivo.planoId);
+            }
+            // --- END DIAGNOSTIC LOG ---
+
             const alunosAtivos = await Aluno.countDocuments({
                 trainerId: personalTrainerId,
                 status: 'active'
@@ -88,28 +96,15 @@ export class PlanoService {
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
             
             let limiteAtual = 0;
-            let plano = null;
+            let plano: IPlano | null = null; // Explicitly type plano as IPlano | null
 
-            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-                // Handle both populated and non-populated cases more robustly
-                let planoDoc: any = null;
-                
-                if (typeof personalPlanoAtivo.planoId === 'object' && 
-                    personalPlanoAtivo.planoId !== null &&
-                    'nome' in personalPlanoAtivo.planoId) {
-                    // planoId is populated with the actual Plano document
-                    planoDoc = personalPlanoAtivo.planoId;
-                } else {
-                    // planoId is not populated, it's just an ObjectId - fetch manually
-                    planoDoc = await Plano.findById(personalPlanoAtivo.planoId);
-                }
-                
-                if (planoDoc) {
-                    plano = planoDoc;
-                    limiteAtual = plano.limiteAlunos || 0;
-                }
+            // Ensure planoId is populated and is an object before accessing its properties
+            if (personalPlanoAtivo && personalPlanoAtivo.planoId && typeof personalPlanoAtivo.planoId === 'object' && 'nome' in personalPlanoAtivo.planoId) {
+                // Correção do erro de tipagem: converte para 'unknown' primeiro
+                plano = personalPlanoAtivo.planoId as unknown as IPlano;
+                limiteAtual = plano.limiteAlunos || 0;
             } else {
-                console.log(`❌ No active plan found for personal ${personalTrainerId}`);
+                console.log(`❌ No active plan document found or populated for personal ${personalTrainerId}`);
             }
 
             limiteAtual += tokensAtivos;
