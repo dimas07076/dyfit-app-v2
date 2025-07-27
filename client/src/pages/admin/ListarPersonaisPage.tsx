@@ -100,6 +100,14 @@ export default function ListarPersonaisPage() {
     }
   };
 
+  // Add a function to handle modal close and data refresh
+  const handleModalClose = () => {
+    setIsViewModalOpen(false);
+    setPersonalParaVisualizar(null);
+    // Invalidate and refetch the list to get updated data
+    queryClient.invalidateQueries({ queryKey: ['adminPersonalTrainersList'] });
+  };
+
   if (isLoading) return <div className="flex h-[calc(100vh-150px)] items-center justify-center"><LoadingSpinner text="Carregando lista de personais..." /></div>;
   if (queryError) return <ErrorMessage title="Erro ao Carregar Personais" message={queryError?.message || "Não foi possível buscar a lista de personais."} />;
 
@@ -214,10 +222,7 @@ export default function ListarPersonaisPage() {
 
       <VisualizarPersonalModal
         isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false);
-          setPersonalParaVisualizar(null);
-        }}
+        onClose={handleModalClose}
         personal={personalParaVisualizar}
         isLoading={isLoadingPersonalDetails}
       />

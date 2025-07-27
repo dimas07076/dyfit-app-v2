@@ -104,6 +104,31 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
     if (!personal) {
       return res.status(404).json({ mensagem: "Personal trainer não encontrado." });
     }
+    
+    // Import PlanoService to get updated plan status
+    const PlanoService = (await import('../../services/PlanoService.js')).default;
+    
+    // Get current plan status to ensure data is synchronized
+    try {
+      const planStatus = await PlanoService.getPersonalCurrentPlan(id);
+      
+      // Update the personal data with current plan information if available
+      if (planStatus.plano && planStatus.personalPlano) {
+        personal.planoId = planStatus.plano._id?.toString() || personal.planoId;
+        personal.statusAssinatura = 'ativa';
+        personal.limiteAlunos = planStatus.plano.limiteAlunos;
+        personal.dataFimAssinatura = planStatus.personalPlano.dataVencimento;
+        personal.dataInicioAssinatura = planStatus.personalPlano.dataInicio;
+      } else if (!planStatus.plano) {
+        // No active plan
+        personal.statusAssinatura = 'sem_assinatura';
+        personal.limiteAlunos = 0;
+      }
+    } catch (planError) {
+      console.error('Error getting plan status for personal:', planError);
+      // Continue with original personal data if plan status fetch fails
+    }
+    
     res.status(200).json(personal);
   } catch (error) {
     console.error(`[ADMIN ROUTES] Erro em GET /personal-trainers/${req.params.id}:`, error);
