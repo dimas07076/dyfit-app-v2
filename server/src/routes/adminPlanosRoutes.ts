@@ -224,11 +224,11 @@ router.get('/personal-trainers', async (req, res) => {
                 try {
                     const status = await PlanoService.getPersonalCurrentPlan(personalId);
                     
-                    // Enhanced data with plan ID and better formatting
+                    // Enhanced data with better formatting - remove duplicate plan ID display
                     const planoNome = status.plano?.nome || 'Sem plano';
                     const planoId = status.plano?._id || null;
                     const planoDisplay = status.plano ? 
-                        `${status.plano.nome} (ID: ${status.plano._id})` : 
+                        status.plano.nome : 
                         'Sem plano';
                     
                     return {

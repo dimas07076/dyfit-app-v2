@@ -310,8 +310,8 @@ export function GerenciarPlanosPersonalPage() {
                                             <Users className="w-3 h-3" />
                                             {personal.alunosAtivos}/{personal.limiteAlunos} alunos
                                         </span>
-                                        <span>Plano: {personal.planoDisplay || 'Sem plano'}</span>
-                                        <span>Utilização: {personal.percentualUso}%</span>
+                                        <span>Plano: {personal.planoAtual || 'Sem plano'}</span>
+                                        <span>Utilização: {personal.percentualUso ?? 0}%</span>
                                     </div>
                                 </div>
                                 

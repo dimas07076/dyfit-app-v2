@@ -38,8 +38,11 @@ export function PlanoStatusCard({
         vagasDisponiveis = 0
     } = planStatus;
 
+    // Ensure percentualUso displays properly - show 0% when null/undefined
+    const displayPercentualUso = percentualUso ?? 0;
+
     const getStatusInfo = () => {
-        if (percentualUso >= 90) {
+        if (displayPercentualUso >= 90) {
             return {
                 variant: 'destructive' as const,
                 icon: AlertTriangle,
@@ -49,7 +52,7 @@ export function PlanoStatusCard({
                 borderColor: 'border-red-200'
             };
         }
-        if (percentualUso >= 70) {
+        if (displayPercentualUso >= 70) {
             return {
                 variant: 'default' as const,
                 icon: Clock,
@@ -147,10 +150,10 @@ export function PlanoStatusCard({
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium">Utilização do Plano</span>
-                        <span className="text-sm text-gray-600">{percentualUso}%</span>
+                        <span className="text-sm text-gray-600">{displayPercentualUso}%</span>
                     </div>
                     <Progress 
-                        value={percentualUso} 
+                        value={displayPercentualUso} 
                         className="h-3"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -202,9 +205,9 @@ export function PlanoStatusCard({
                             <Button 
                                 onClick={onUpgradeClick}
                                 className="flex-1"
-                                variant={percentualUso >= 90 ? "destructive" : "default"}
+                                variant={displayPercentualUso >= 90 ? "destructive" : "default"}
                             >
-                                {percentualUso >= 90 ? 'Upgrade Urgente' : 'Fazer Upgrade'}
+                                {displayPercentualUso >= 90 ? 'Upgrade Urgente' : 'Fazer Upgrade'}
                             </Button>
                         )}
                         

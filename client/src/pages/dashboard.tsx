@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useUser } from "@/context/UserContext";
 import { apiRequest } from "@/lib/queryClient"; 
+import { useThrottle } from "@/hooks/useDebounce";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/dashboard/stats-card";
@@ -28,6 +29,13 @@ export default function Dashboard() {
   const { user } = useUser();
   const trainerId = user?.id; 
   const saudacaoNome = user?.firstName || user?.username || "Personal";
+
+  // Throttled upgrade handler to prevent multiple rapid clicks
+  const handleUpgradeClick = useThrottle(() => {
+    console.log('Upgrade clicked');
+    // TODO: Navigate to upgrade page or show modal
+    // Example: setLocationWouter("/upgrade") or openUpgradeModal()
+  }, 1000); // 1 second throttle
 
   const { 
     data: dashboardStats, 
@@ -99,10 +107,7 @@ export default function Dashboard() {
             <PlanoStatusCard
               planStatus={planStatus}
               showUpgradeButton={true}
-              onUpgradeClick={() => {
-                // Could navigate to upgrade page or show modal
-                console.log('Upgrade clicked');
-              }}
+              onUpgradeClick={handleUpgradeClick}
             />
           )}
           
