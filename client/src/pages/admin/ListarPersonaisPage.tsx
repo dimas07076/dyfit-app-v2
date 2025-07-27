@@ -54,7 +54,25 @@ export default function ListarPersonaisPage() {
 
   const { data: personais, isLoading, error: queryError } = useQuery<PersonalListadoItem[], Error>({
     queryKey: ['adminPersonalTrainersList'],
-    queryFn: () => apiRequest<PersonalListadoItem[]>("GET", "/api/admin/personal-trainers"),
+    queryFn: async () => {
+      console.log('%c[FRONTEND] Buscando lista de personal trainers...', 'color: blue; font-weight: bold;');
+      const data = await apiRequest<PersonalListadoItem[]>("GET", "/api/admin/personal-trainers");
+      console.log('%c[FRONTEND] Dados recebidos:', 'color: green;', data);
+      
+      // Log detalhado dos dados de cada personal
+      data.forEach((personal, index) => {
+        console.log(`[FRONTEND] Personal ${index + 1}:`, {
+          nome: personal.nome,
+          email: personal.email,
+          planoId: (personal as any).planoId,
+          planoDisplay: (personal as any).planoDisplay,
+          planDetails: (personal as any).planDetails,
+          plano: (personal as any).plano
+        });
+      });
+      
+      return data;
+    },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -134,12 +152,40 @@ export default function ListarPersonaisPage() {
                 <TableHead className="w-[250px] font-semibold text-gray-700 dark:text-gray-300">Nome</TableHead>
                 <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Email</TableHead>
                 <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Função (Role)</TableHead>
+                <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Plano Atual</TableHead>
                 <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Data de Criação</TableHead>
                 <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {personais.map((personal) => (
+              {personais.map((personal) => {
+                // Helper function to get plan display text with fallbacks
+                const getPlanoDisplay = (personal: any) => {
+                  console.log(`[FRONTEND] Processando plano para ${personal.nome}:`, {
+                    planoDisplay: personal.planoDisplay,
+                    planDetails: personal.planDetails,
+                    plano: personal.plano,
+                    planoId: personal.planoId
+                  });
+                  
+                  if (personal.planoDisplay) {
+                    return personal.planoDisplay;
+                  }
+                  if (personal.planDetails?.nome) {
+                    return personal.planDetails.nome;
+                  }
+                  if (personal.plano?.nome) {
+                    return personal.plano.nome;
+                  }
+                  if (personal.planoId) {
+                    return `Plano (ID: ${personal.planoId.substring(0, 8)}...)`;
+                  }
+                  return 'Sem plano ativo';
+                };
+
+                const planoText = getPlanoDisplay(personal);
+                
+                return (
                 <TableRow key={personal._id} className="dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
                   <TableCell className="font-medium text-gray-900 dark:text-gray-100">{personal.nome}</TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">{personal.email}</TableCell>
@@ -150,6 +196,14 @@ export default function ListarPersonaisPage() {
                                       'border-blue-500 text-blue-600 bg-blue-100 dark:bg-sky-900/60 dark:text-sky-300 dark:border-sky-700'}`}>
                         {personal.role.toLowerCase() === 'admin' && <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />}
                         {personal.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-300">
+                    <Badge variant={planoText === 'Sem plano ativo' ? 'secondary' : 'default'}
+                           className={planoText === 'Sem plano ativo' ? 
+                                     'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
+                                     'bg-green-100 text-green-600 dark:bg-green-900/60 dark:text-green-300'}>
+                      {planoText}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
@@ -188,7 +242,8 @@ export default function ListarPersonaisPage() {
                     </Popover>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
