@@ -186,14 +186,34 @@ export function PlanoModal({
                                             <CalendarDays className="w-4 h-4 text-blue-600" />
                                         </div>
                                         <p className="text-sm text-gray-600">Plano Atual</p>
-                                        <p className="font-semibold text-xs">
-                                            {detailedStatus?.currentPlan?.plano?.nome || personal.planoAtual || 'Sem plano'}
-                                        </p>
-                                        {detailedStatus?.currentPlan?.plano?._id && (
-                                            <p className="text-xs text-gray-500">
-                                                ID: {detailedStatus.currentPlan.plano._id}
-                                            </p>
-                                        )}
+                                        
+                                        {/* Debug logging for plan display */}
+                                        {(() => {
+                                            const planName = detailedStatus?.currentPlan?.plano?.nome || personal.planoAtual || 'Sem plano';
+                                            const planId = detailedStatus?.currentPlan?.plano?._id;
+                                            
+                                            console.log(`🔍 [PlanoModal] Exibindo plano atual para ${personal.nome}:`, {
+                                                detailedPlanName: detailedStatus?.currentPlan?.plano?.nome,
+                                                personalPlanoAtual: personal.planoAtual,
+                                                finalPlanName: planName,
+                                                planId: planId,
+                                                personal_planoDisplay: personal.planoDisplay,
+                                                personal_planDetails: personal.planDetails
+                                            });
+                                            
+                                            return (
+                                                <>
+                                                    <p className="font-semibold text-xs">
+                                                        {planName}
+                                                    </p>
+                                                    {planId && (
+                                                        <p className="text-xs text-gray-500">
+                                                            ID: {planId}
+                                                        </p>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                     
                                     <div className="text-center">

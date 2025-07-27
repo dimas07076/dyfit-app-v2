@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Plan Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .plan-info {
+            background: #f0f8ff;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+        .usage-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .usage-fill {
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.3s;
+        }
+        .usage-fill.warning { background: #FF9800; }
+        .usage-fill.danger { background: #F44336; }
+    </style>
+</head>
+<body>
+    <h1>Personal Trainer Plan Display Test</h1>
+    <p>This test shows how plan information should be displayed on the cards.</p>
+    
+    <div class="card">
+        <h3>João Silva</h3>
+        <p>Email: joao@example.com</p>
+        <div class="plan-info">
+            <strong>Plano:</strong> Start
+            <br>
+            <strong>Utilização:</strong> 3/5 alunos (60%)
+            <div class="usage-bar">
+                <div class="usage-fill" style="width: 60%"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>Maria Santos</h3>
+        <p>Email: maria@example.com</p>
+        <div class="plan-info">
+            <strong>Plano:</strong> Pro
+            <br>
+            <strong>Utilização:</strong> 12/15 alunos (80%)
+            <div class="usage-bar">
+                <div class="usage-fill warning" style="width: 80%"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>Pedro Costa</h3>
+        <p>Email: pedro@example.com</p>
+        <div class="plan-info">
+            <strong>Plano:</strong> Premium
+            <br>
+            <strong>Utilização:</strong> 28/30 alunos (93%)
+            <div class="usage-bar">
+                <div class="usage-fill danger" style="width: 93%"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>Ana Lima</h3>
+        <p>Email: ana@example.com</p>
+        <div class="plan-info">
+            <strong>Plano:</strong> Sem plano
+            <br>
+            <strong>Utilização:</strong> 0/0 alunos (0%)
+            <div class="usage-bar">
+                <div class="usage-fill" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+    
+    <h2>Debug Information</h2>
+    <p>This test demonstrates that the UI should show:</p>
+    <ul>
+        <li>Personal trainer name and email</li>
+        <li>Current plan name (e.g., "Start", "Pro", "Premium", or "Sem plano")</li>
+        <li>Usage statistics (active students / limit)</li>
+        <li>Visual usage bar with color coding</li>
+        <li>Percentage of plan utilization</li>
+    </ul>
+    
+    <script>
+        console.log('🔍 Test Data Structure Example:');
+        const testPersonal = {
+            _id: "123",
+            nome: "João Silva",
+            email: "joao@example.com", 
+            planoAtual: "Start",
+            planoDisplay: "Start",
+            planDetails: {
+                id: "plan_start",
+                nome: "Start", 
+                limiteAlunos: 5,
+                preco: 29.90
+            },
+            alunosAtivos: 3,
+            limiteAlunos: 5,
+            percentualUso: 60,
+            hasActivePlan: true
+        };
+        
+        console.log('Sample personal trainer data:', testPersonal);
+        console.log('Plan name should be displayed as:', testPersonal.planDetails?.nome || testPersonal.planoDisplay || testPersonal.planoAtual);
+    </script>
+</body>
+</html>

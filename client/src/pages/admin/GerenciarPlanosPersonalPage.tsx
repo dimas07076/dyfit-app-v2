@@ -3,10 +3,11 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Search, RefreshCw, Mail, User } from 'lucide-react';
+import { Search, RefreshCw, Mail, User, CreditCard } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
+import { Badge } from '../../components/ui/badge';
 
 export function GerenciarPlanosPersonalPage() {
     // Use the new custom hook for centralized state management
@@ -44,6 +45,15 @@ export function GerenciarPlanosPersonalPage() {
         };
     }, [fetchPersonals]);
 
+    // Debug: Track component re-renders
+    useEffect(() => {
+        console.log('🔄 [GerenciarPlanosPersonalPage] Componente re-renderizado com novos dados:', {
+            personalTrainersCount: personalTrainers.length,
+            loading,
+            timestamp: new Date().toISOString()
+        });
+    }, [personalTrainers, loading]);
+
     const handleAssignPlan = async (personalId: string, data: AssignPlanForm) => {
         try {
             await assignPlan(personalId, data);
@@ -79,6 +89,25 @@ export function GerenciarPlanosPersonalPage() {
         personal.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         personal.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // === DEBUG LOGS ===
+    console.log('🔍 [GerenciarPlanosPersonalPage] Estado atual do componente:', {
+        personalTrainersCount: personalTrainers.length,
+        filteredPersonalsCount: filteredPersonals.length,
+        loading,
+        searchTerm
+    });
+    
+    if (personalTrainers.length > 0) {
+        console.log('📊 [GerenciarPlanosPersonalPage] Amostra de dados recebidos:', personalTrainers.slice(0, 2).map(p => ({
+            nome: p.nome,
+            planoAtual: p.planoAtual,
+            planoDisplay: p.planoDisplay,
+            planDetails: p.planDetails,
+            hasActivePlan: p.hasActivePlan
+        })));
+    }
+    // === FIM DEBUG LOGS ===
 
     if (loading) {
         return (
@@ -155,45 +184,144 @@ export function GerenciarPlanosPersonalPage() {
                     </Card>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {filteredPersonals.map((personal) => (
-                            <Card 
-                                key={personal._id} 
-                                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-gray-200 bg-gradient-to-br from-white to-blue-50/30"
-                            >
-                                <CardContent className="p-6">
-                                    <div className="space-y-4">
-                                        {/* Name */}
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-                                                {personal.nome.charAt(0).toUpperCase()}
+                        {filteredPersonals.map((personal) => {
+                            // === DEBUG LOGS POR PERSONAL ===
+                            console.log(`🧑‍💼 [GerenciarPlanosPersonalPage] Renderizando personal ${personal.nome}:`, {
+                                planoAtual: personal.planoAtual,
+                                planoDisplay: personal.planoDisplay,
+                                planDetails: personal.planDetails,
+                                hasActivePlan: personal.hasActivePlan,
+                                alunosAtivos: personal.alunosAtivos,
+                                limiteAlunos: personal.limiteAlunos,
+                                percentualUso: personal.percentualUso
+                            });
+                            // === FIM DEBUG LOGS POR PERSONAL ===
+                            
+                            // Helper function to get plan display info
+                            const getPlanDisplayInfo = () => {
+                                console.log(`📋 [GerenciarPlanosPersonalPage] Calculando info do plano para ${personal.nome}:`, {
+                                    planoDisplay: personal.planoDisplay,
+                                    planoAtual: personal.planoAtual,
+                                    planDetails: personal.planDetails,
+                                    hasActivePlan: personal.hasActivePlan
+                                });
+                                
+                                if (personal.planDetails && personal.planDetails.nome) {
+                                    console.log(`✅ [GerenciarPlanosPersonalPage] Usando planDetails.nome: "${personal.planDetails.nome}"`);
+                                    return {
+                                        name: personal.planDetails.nome,
+                                        hasActivePlan: true,
+                                        variant: 'default' as const
+                                    };
+                                }
+                                
+                                if (personal.planoDisplay && personal.planoDisplay !== 'Sem plano') {
+                                    console.log(`✅ [GerenciarPlanosPersonalPage] Usando planoDisplay: "${personal.planoDisplay}"`);
+                                    return {
+                                        name: personal.planoDisplay,
+                                        hasActivePlan: personal.hasActivePlan,
+                                        variant: personal.hasActivePlan ? 'default' : 'secondary' as const
+                                    };
+                                }
+                                
+                                if (personal.planoAtual && personal.planoAtual !== 'Sem plano') {
+                                    console.log(`✅ [GerenciarPlanosPersonalPage] Usando planoAtual: "${personal.planoAtual}"`);
+                                    return {
+                                        name: personal.planoAtual,
+                                        hasActivePlan: personal.hasActivePlan,
+                                        variant: personal.hasActivePlan ? 'default' : 'secondary' as const
+                                    };
+                                }
+                                
+                                console.log(`⚠️ [GerenciarPlanosPersonalPage] Nenhum plano encontrado, usando "Sem plano"`);
+                                return {
+                                    name: 'Sem plano',
+                                    hasActivePlan: false,
+                                    variant: 'outline' as const
+                                };
+                            };
+                            
+                            const planInfo = getPlanDisplayInfo();
+                            
+                            return (
+                                <Card 
+                                    key={personal._id} 
+                                    className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-gray-200 bg-gradient-to-br from-white to-blue-50/30"
+                                >
+                                    <CardContent className="p-6">
+                                        <div className="space-y-4">
+                                            {/* Name */}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                                                    {personal.nome.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-lg text-gray-800 group-hover:text-blue-600 transition-colors">
+                                                        {personal.nome}
+                                                    </h3>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className="font-semibold text-lg text-gray-800 group-hover:text-blue-600 transition-colors">
-                                                    {personal.nome}
-                                                </h3>
+                                            
+                                            {/* Email */}
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <Mail className="w-4 h-4 text-blue-500" />
+                                                <span className="text-sm truncate">{personal.email}</span>
+                                            </div>
+                                            
+                                            {/* Plan Information */}
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <CreditCard className="w-4 h-4 text-green-500" />
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm">Plano:</span>
+                                                    <Badge variant={planInfo.variant} className="text-xs">
+                                                        {planInfo.name}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Usage Information */}
+                                            {planInfo.hasActivePlan && (
+                                                <div className="text-sm text-gray-600">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span>Utilização:</span>
+                                                        <span className="font-medium">
+                                                            {personal.alunosAtivos || 0}/{personal.limiteAlunos || 0} alunos
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                        <div 
+                                                            className={`h-2 rounded-full transition-all duration-300 ${
+                                                                (personal.percentualUso || 0) >= 90 ? 'bg-red-500' :
+                                                                (personal.percentualUso || 0) >= 70 ? 'bg-yellow-500' : 
+                                                                'bg-green-500'
+                                                            }`}
+                                                            style={{ width: `${Math.min(personal.percentualUso || 0, 100)}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        {personal.percentualUso || 0}% utilizado
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Action Button */}
+                                            <div className="pt-2">
+                                                <Button
+                                                    onClick={() => {
+                                                        console.log(`🔄 [GerenciarPlanosPersonalPage] Abrindo modal para ${personal.nome}`);
+                                                        openModal(personal);
+                                                    }}
+                                                    className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
+                                                    size="sm"
+                                                >
+                                                    Gerenciar Plano
+                                                </Button>
                                             </div>
                                         </div>
-                                        
-                                        {/* Email */}
-                                        <div className="flex items-center gap-2 text-gray-600">
-                                            <Mail className="w-4 h-4 text-blue-500" />
-                                            <span className="text-sm truncate">{personal.email}</span>
-                                        </div>
-                                        
-                                        {/* Action Button */}
-                                        <div className="pt-2">
-                                            <Button
-                                                onClick={() => openModal(personal)}
-                                                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
-                                                size="sm"
-                                            >
-                                                Gerenciar Plano
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
                     </div>
                 )}
             </div>
