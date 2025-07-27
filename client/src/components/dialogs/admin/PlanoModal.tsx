@@ -7,8 +7,7 @@ import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../../shared/types/planos';
-import { Badge } from '../../ui/badge';
-import { CalendarDays, Users, Clock, DollarSign } from 'lucide-react';
+import { CalendarDays, Clock, DollarSign } from 'lucide-react';
 
 interface PlanoModalProps {
     isOpen: boolean;
@@ -124,17 +123,7 @@ export function PlanoModal({
         }
     };
 
-    const getStatusColor = (percentual: number) => {
-        if (percentual >= 90) return 'bg-red-500';
-        if (percentual >= 70) return 'bg-yellow-500';
-        return 'bg-green-500';
-    };
 
-    const getStatusText = (percentual: number) => {
-        if (percentual >= 90) return 'Crítico';
-        if (percentual >= 70) return 'Atenção';
-        return 'Normal';
-    };
 
     if (!personal) return null;
 
@@ -171,106 +160,55 @@ export function PlanoModal({
                             </div>
                         </div>
 
-                        {/* Current Plan Status */}
+                        {/* Current Plan Information */}
                         <div className="bg-white border p-4 rounded-lg">
-                            <h3 className="font-semibold mb-3">Status Atual</h3>
+                            <h3 className="font-semibold mb-3">Plano Atual</h3>
                             {loadingStatus ? (
                                 <div className="flex items-center justify-center py-4">
                                     <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                    <span className="ml-2 text-sm text-gray-600">Carregando status...</span>
+                                    <span className="ml-2 text-sm text-gray-600">Carregando informações...</span>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full mx-auto mb-1">
-                                            <CalendarDays className="w-4 h-4 text-blue-600" />
-                                        </div>
-                                        <p className="text-sm text-gray-600">Plano Atual</p>
-                                        <p className="font-semibold text-xs">
-                                            {detailedStatus?.currentPlan?.plano?.nome || personal.planoAtual || 'Sem plano'}
+                                <div className="text-center">
+                                    <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mx-auto mb-3">
+                                        <CalendarDays className="w-6 h-6 text-blue-600" />
+                                    </div>
+                                    <p className="text-lg font-semibold text-gray-800 mb-1">
+                                        {detailedStatus?.currentPlan?.plano?.nome || personal.planoAtual || 'Sem plano ativo'}
+                                    </p>
+                                    {!detailedStatus?.currentPlan?.plano && !personal.planoAtual && (
+                                        <p className="text-sm text-gray-500">
+                                            Nenhum plano foi atribuído a este personal trainer
                                         </p>
-                                        {detailedStatus?.currentPlan?.plano?._id && (
-                                            <p className="text-xs text-gray-500">
-                                                ID: {detailedStatus.currentPlan.plano._id}
-                                            </p>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full mx-auto mb-1">
-                                            <Users className="w-4 h-4 text-green-600" />
-                                        </div>
-                                        <p className="text-sm text-gray-600">Alunos Ativos</p>
-                                        <p className="font-semibold">
-                                            {(detailedStatus?.activeStudents ?? personal.alunosAtivos) || 0}/
-                                            {(detailedStatus?.totalLimit ?? personal.limiteAlunos) || 0}
-                                        </p>
-                                    </div>
-                                    
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full mx-auto mb-1">
-                                            <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso || 0)}`} />
-                                        </div>
-                                        <p className="text-sm text-gray-600">Status</p>
-                                        <Badge variant={(personal.percentualUso || 0) >= 90 ? 'destructive' : (personal.percentualUso || 0) >= 70 ? 'default' : 'secondary'}>
-                                            {getStatusText(personal.percentualUso || 0)}
-                                        </Badge>
-                                    </div>
-                                    
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full mx-auto mb-1">
-                                            <div className="text-orange-600 text-xs font-bold">{personal.percentualUso || 0}%</div>
-                                        </div>
-                                        <p className="text-sm text-gray-600">Utilização</p>
-                                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                            <div 
-                                                className={`h-2 rounded-full ${getStatusColor(personal.percentualUso || 0)}`}
-                                                style={{ width: `${Math.min(personal.percentualUso || 0, 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
                         </div>
 
-                        {/* Additional Details */}
-                        {detailedStatus && (
+                        {/* Plan Details */}
+                        {detailedStatus && detailedStatus.currentPlan?.plano && (
                             <div className="bg-gray-50 p-4 rounded-lg">
-                                <h3 className="font-semibold mb-2">Detalhes do Plano</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    {detailedStatus.currentPlan?.plano && (
-                                        <>
-                                            <div>
-                                                <span className="text-gray-600">Plano ID:</span>
-                                                <p className="font-medium font-mono">{detailedStatus.currentPlan.plano._id}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-gray-600">Limite de Alunos:</span>
-                                                <p className="font-medium">{detailedStatus.currentPlan.plano.limiteAlunos}</p>
-                                            </div>
-                                        </>
-                                    )}
+                                <h3 className="font-semibold mb-2">Informações do Plano</h3>
+                                <div className="grid grid-cols-1 gap-3 text-sm">
+                                    <div>
+                                        <span className="text-gray-600">Nome do Plano:</span>
+                                        <p className="font-medium">{detailedStatus.currentPlan.plano.nome}</p>
+                                    </div>
                                     {detailedStatus.currentPlan?.personalPlano && (
                                         <>
                                             <div>
-                                                <span className="text-gray-600">Início da Assinatura:</span>
+                                                <span className="text-gray-600">Data de Cadastro:</span>
                                                 <p className="font-medium">
                                                     {new Date(detailedStatus.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')}
                                                 </p>
                                             </div>
                                             <div>
-                                                <span className="text-gray-600">Fim da Assinatura:</span>
+                                                <span className="text-gray-600">Validade:</span>
                                                 <p className="font-medium">
                                                     {new Date(detailedStatus.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')}
                                                 </p>
                                             </div>
                                         </>
-                                    )}
-                                    {detailedStatus.activeTokens?.length > 0 && (
-                                        <div className="col-span-2">
-                                            <span className="text-gray-600">Tokens Ativos:</span>
-                                            <p className="font-medium">{detailedStatus.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens adicionais</p>
-                                        </div>
                                     )}
                                 </div>
                             </div>
