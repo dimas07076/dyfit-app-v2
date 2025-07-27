@@ -247,18 +247,22 @@ export function GerenciarPlanosPersonalPage() {
                                         <TableCell>{personal.email}</TableCell>
                                         <TableCell>
                                             {personal.hasActivePlan ? (
-                                                <div className="flex items-center gap-1 text-green-600">
-                                                    <CheckCircle className="w-4 h-4" />
-                                                    <span className="font-medium">{personal.planoDisplay || personal.planDetails?.nome || 'Detalhes do plano não disponíveis'}</span>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle className="w-4 h-4 text-green-600" />
+                                                        <span className="font-semibold text-lg text-gray-900">
+                                                            {personal.planoAtual || personal.planoDisplay || personal.planDetails?.nome || 'Plano Ativo'}
+                                                        </span>
+                                                    </div>
+                                                    {personal.planDetails && (
+                                                        <p className="text-sm text-gray-600">Limite: {personal.planDetails.limiteAlunos} alunos</p>
+                                                    )}
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-1 text-red-500">
-                                                    <AlertTriangle className="w-4 h-4" />
-                                                    <span>Sem Plano Ativo</span>
+                                                <div className="flex items-center gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                                                    <span className="font-semibold text-lg text-red-600">Sem Plano Ativo</span>
                                                 </div>
-                                            )}
-                                            {personal.planDetails && (
-                                                <p className="text-xs text-gray-500">Limite: {personal.planDetails.limiteAlunos} alunos</p>
                                             )}
                                         </TableCell>
                                         <TableCell>
