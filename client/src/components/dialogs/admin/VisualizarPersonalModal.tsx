@@ -84,6 +84,15 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
   useEffect(() => {
     if (isOpen) {
         console.log('%c[MODAL COMPONENT] Modal FOI MONTADO/ABERTO.', 'color: green; font-weight: bold;');
+        if (personal) {
+          console.log('%c[MODAL COMPONENT] Dados do personal recebidos:', 'color: blue;', {
+            nome: personal.nome,
+            planoId: personal.planoId,
+            plano: personal.plano,
+            planoDisplay: (personal as any).planoDisplay,
+            planDetails: (personal as any).planDetails
+          });
+        }
     }
     // A função de limpeza do useEffect será chamada quando o componente for desmontado
     // ou antes do próximo efeito ser executado.
@@ -92,7 +101,7 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
             console.log('%c[MODAL COMPONENT] Limpeza do efeito do modal. Próximo render ou desmontagem.', 'color: yellow;');
         }
     };
-  }, [isOpen]);
+  }, [isOpen, personal]);
   // =============================================================
 
   return (
@@ -152,7 +161,38 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
             />
             <InfoItem 
               label="Plano" 
-              value={personal.plano ? `${personal.plano.nome} (ID: ${personal.plano._id})` : personal.planoId || 'Não definido'} 
+              value={(() => {
+                // Enhanced plan display with multiple fallbacks and logging
+                console.log('[MODAL] Processando dados do plano:', {
+                  plano: personal.plano,
+                  planoDisplay: (personal as any).planoDisplay,
+                  planDetails: (personal as any).planDetails,
+                  planoId: personal.planoId
+                });
+                
+                if ((personal as any).planoDisplay) {
+                  console.log('[MODAL] ✅ Usando planoDisplay:', (personal as any).planoDisplay);
+                  return (personal as any).planoDisplay;
+                }
+                
+                if ((personal as any).planDetails?.nome) {
+                  console.log('[MODAL] ✅ Usando planDetails.nome:', (personal as any).planDetails.nome);
+                  return (personal as any).planDetails.nome;
+                }
+                
+                if (personal.plano?.nome) {
+                  console.log('[MODAL] ✅ Usando plano.nome:', personal.plano.nome);
+                  return `${personal.plano.nome} (ID: ${personal.plano._id})`;
+                }
+                
+                if (personal.planoId) {
+                  console.log('[MODAL] ⚠️ Usando fallback planoId:', personal.planoId);
+                  return `Plano ID: ${personal.planoId}`;
+                }
+                
+                console.log('[MODAL] ❌ Nenhum dado de plano encontrado');
+                return 'Não definido';
+              })()} 
               icon={<BarChartHorizontalBig className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} 
             />
             <InfoItem label="Limite de Alunos" value={personal.limiteAlunos} icon={<Users className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />

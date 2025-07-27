@@ -38,6 +38,8 @@ router.post('/personal-trainers', async (req: Request, res: Response, next: Next
 router.get('/personal-trainers', async (req: Request, res: Response, next: NextFunction) => {
   await dbConnect();
   try {
+    console.log('%c[ADMIN ROUTES] Iniciando busca de personal trainers...', 'color: blue; font-weight: bold;');
+    
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 0;
     const sortQuery = (req.query.sort as string)?.split(':');
     
@@ -53,7 +55,56 @@ router.get('/personal-trainers', async (req: Request, res: Response, next: NextF
     }
     
     const personais = await personaisQuery.exec();
-    res.status(200).json(personais);
+    console.log(`[ADMIN ROUTES] Encontrados ${personais.length} personal trainers`);
+    
+    // Import PlanoService to get plan data for each personal
+    const PlanoService = (await import('../../services/PlanoService.js')).default;
+    
+    // Populate plan data for each personal trainer
+    const personaisWithPlanos = await Promise.all(
+      personais.map(async (personal) => {
+        let planoData = null;
+        let planoDisplay = 'Sem plano ativo';
+        
+        try {
+          if (personal.planoId) {
+            console.log(`[ADMIN ROUTES] Buscando dados do plano para personal ${personal._id} (planoId: ${personal.planoId})`);
+            const personalId = personal._id?.toString() || '';
+            const planStatus = await PlanoService.getPersonalCurrentPlan(personalId);
+            
+            if (planStatus.plano && planStatus.personalPlano) {
+              planoData = {
+                _id: planStatus.plano._id,
+                nome: planStatus.plano.nome,
+                descricao: planStatus.plano.descricao,
+                limiteAlunos: planStatus.plano.limiteAlunos,
+                preco: planStatus.plano.preco,
+                duracao: planStatus.plano.duracao,
+                tipo: planStatus.plano.tipo
+              };
+              planoDisplay = planStatus.plano.nome;
+              console.log(`[ADMIN ROUTES] ✅ Plano encontrado para ${personal.nome}: ${planStatus.plano.nome}`);
+            } else {
+              console.log(`[ADMIN ROUTES] ⚠️  Nenhum plano ativo encontrado para ${personal.nome} (ID: ${personal._id})`);
+            }
+          } else {
+            console.log(`[ADMIN ROUTES] ℹ️  Personal ${personal.nome} não possui planoId definido`);
+          }
+        } catch (planError) {
+          console.error(`[ADMIN ROUTES] ❌ Erro ao buscar plano para personal ${personal._id}:`, planError);
+        }
+        
+        return {
+          ...personal.toObject(),
+          plano: planoData,
+          planoDisplay,
+          planDetails: planoData
+        };
+      })
+    );
+    
+    console.log('%c[ADMIN ROUTES] ✅ Dados de planos populados com sucesso', 'color: green; font-weight: bold;');
+    res.status(200).json(personaisWithPlanos);
   } catch (error) {
     console.error('[ADMIN ROUTES] Erro em GET /personal-trainers:', error);
     next(error);
