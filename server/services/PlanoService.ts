@@ -75,7 +75,10 @@ export class PlanoService {
                 personalTrainerId,
                 ativo: true,
                 dataVencimento: { $gt: new Date() }
-            }).populate('planoId').sort({ dataInicio: -1 });
+            }).populate({
+                path: 'planoId',
+                model: 'Plano'
+            }).sort({ dataInicio: -1 });
 
             const alunosAtivos = await Aluno.countDocuments({
                 trainerId: personalTrainerId,
@@ -88,8 +91,25 @@ export class PlanoService {
             let plano = null;
 
             if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-                plano = personalPlanoAtivo.planoId as any;
-                limiteAtual = plano.limiteAlunos || 0;
+                // Handle both populated and non-populated cases more robustly
+                let planoDoc: any = null;
+                
+                if (typeof personalPlanoAtivo.planoId === 'object' && 
+                    personalPlanoAtivo.planoId !== null &&
+                    'nome' in personalPlanoAtivo.planoId) {
+                    // planoId is populated with the actual Plano document
+                    planoDoc = personalPlanoAtivo.planoId;
+                } else {
+                    // planoId is not populated, it's just an ObjectId - fetch manually
+                    planoDoc = await Plano.findById(personalPlanoAtivo.planoId);
+                }
+                
+                if (planoDoc) {
+                    plano = planoDoc;
+                    limiteAtual = plano.limiteAlunos || 0;
+                }
+            } else {
+                console.log(`❌ No active plan found for personal ${personalTrainerId}`);
             }
 
             limiteAtual += tokensAtivos;

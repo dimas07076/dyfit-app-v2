@@ -224,10 +224,10 @@ router.get('/personal-trainers', async (req, res) => {
                 try {
                     const status = await PlanoService.getPersonalCurrentPlan(personalId);
                     
-                    // Enhanced data with better formatting - remove duplicate plan ID display
-                    const planoNome = status.plano?.nome || 'Sem plano';
-                    const planoId = status.plano?._id || null;
-                    const planoDisplay = status.plano ? 
+                    // Enhanced data with better formatting - fix edge cases
+                    const planoNome = (status.plano && status.plano.nome) ? status.plano.nome : 'Sem plano';
+                    const planoId = (status.plano && status.plano._id) ? status.plano._id : null;
+                    const planoDisplay = (status.plano && status.plano.nome) ? 
                         status.plano.nome : 
                         'Sem plano';
                     
@@ -242,8 +242,8 @@ router.get('/personal-trainers', async (req, res) => {
                         alunosAtivos: status.alunosAtivos,
                         limiteAlunos: status.limiteAtual,
                         percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
-                        hasActivePlan: !!status.plano,
-                        planDetails: status.plano ? {
+                        hasActivePlan: !!(status.plano && status.plano.nome),
+                        planDetails: (status.plano && status.plano.nome) ? {
                             id: status.plano._id,
                             nome: status.plano.nome,
                             limiteAlunos: status.plano.limiteAlunos,
