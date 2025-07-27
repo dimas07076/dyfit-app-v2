@@ -6,25 +6,37 @@ import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Search, Users, TrendingUp, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
-import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
+import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
+import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
 
 export function GerenciarPlanosPersonalPage() {
-    const [personalTrainers, setPersonalTrainers] = useState<PersonalTrainerWithStatus[]>([]);
-    const [planos, setPlanos] = useState<Plano[]>([]);
-    const [loading, setLoading] = useState(true);
+    // Use the new custom hook for centralized state management
+    const {
+        personalTrainers,
+        planos,
+        loading,
+        error,
+        fetchPersonals,
+        assignPlan,
+        addTokens,
+        clearError
+    } = usePersonalTrainers();
+
+    // Local UI state
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPersonal, setSelectedPersonal] = useState<PersonalTrainerWithStatus | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
     useEffect(() => {
-        loadData();
+        // Load initial data
+        fetchPersonals();
         
         // Add keyboard shortcut for manual refresh (F5 or Ctrl+R)
         const handleKeyPress = (event: KeyboardEvent) => {
             if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
                 event.preventDefault();
                 console.log('🔄 Refresh manual detectado - recarregando dados...');
-                loadData();
+                fetchPersonals();
             }
         };
 
@@ -33,125 +45,31 @@ export function GerenciarPlanosPersonalPage() {
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-    }, []);
-
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            console.log('🔄 Carregando dados do painel administrativo...');
-            
-            const [personalResponse, planosResponse] = await Promise.all([
-                fetch('/api/admin/personal-trainers', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                    }
-                }),
-                fetch('/api/admin/planos', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                    }
-                })
-            ]);
-
-            if (personalResponse.ok) {
-                const personalData = await personalResponse.json();
-                console.log('✅ Dados dos personal trainers carregados:', personalData.length);
-                setPersonalTrainers(personalData);
-            } else {
-                console.error('❌ Erro ao carregar personal trainers:', personalResponse.status);
-            }
-
-            if (planosResponse.ok) {
-                const planosData = await planosResponse.json();
-                console.log('✅ Dados dos planos carregados:', planosData.length);
-                setPlanos(planosData);
-            } else {
-                console.error('❌ Erro ao carregar planos:', planosResponse.status);
-            }
-        } catch (error) {
-            console.error('❌ Error loading data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [fetchPersonals]);
 
     const handleAssignPlan = async (personalId: string, data: AssignPlanForm) => {
         try {
-            console.log('🔄 Atribuindo plano...', { personalId, data });
+            await assignPlan(personalId, data);
             
-            const response = await fetch(`/api/admin/personal/${personalId}/assign-plan`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                console.log('✅ Plano atribuído com sucesso:', result);
-                
-                // Close modal first
-                setModalOpen(false);
-                setSelectedPersonal(null);
-                
-                // Wait a bit for database to process the transaction
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Then reload data to reflect changes
-                await loadData();
-                
-                // Show success feedback
-                console.log('✅ Dados recarregados após atribuição de plano');
-            } else {
-                const error = await response.json();
-                console.error('❌ Error assigning plan:', error.message);
-                alert(`Erro ao atribuir plano: ${error.message}`);
-            }
+            // Close modal after successful operation
+            setModalOpen(false);
+            setSelectedPersonal(null);
         } catch (error) {
-            console.error('❌ Error assigning plan:', error);
-            alert('Erro ao atribuir plano. Tente novamente.');
+            // Error handling is done in the hook, just keep modal open for retry
+            console.error('❌ Error in handleAssignPlan:', error);
         }
     };
 
     const handleAddTokens = async (personalId: string, data: AddTokensForm) => {
         try {
-            console.log('🔄 Adicionando tokens...', { personalId, data });
+            await addTokens(personalId, data);
             
-            const response = await fetch(`/api/admin/personal/${personalId}/add-tokens`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                console.log('✅ Tokens adicionados com sucesso:', result);
-                
-                // Close modal first
-                setModalOpen(false);
-                setSelectedPersonal(null);
-                
-                // Wait a bit for database to process the transaction
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Then reload data to reflect changes
-                await loadData();
-                
-                // Show success feedback
-                console.log('✅ Dados recarregados após adição de tokens');
-            } else {
-                const error = await response.json();
-                console.error('❌ Error adding tokens:', error.message);
-                alert(`Erro ao adicionar tokens: ${error.message}`);
-            }
+            // Close modal after successful operation
+            setModalOpen(false);
+            setSelectedPersonal(null);
         } catch (error) {
-            console.error('❌ Error adding tokens:', error);
-            alert('Erro ao adicionar tokens. Tente novamente.');
+            // Error handling is done in the hook, just keep modal open for retry
+            console.error('❌ Error in handleAddTokens:', error);
         }
     };
 
@@ -213,7 +131,7 @@ export function GerenciarPlanosPersonalPage() {
                     </div>
                     <Button
                         variant="outline"
-                        onClick={loadData}
+                        onClick={fetchPersonals}
                         disabled={loading}
                         className="flex items-center gap-2"
                     >
