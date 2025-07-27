@@ -51,6 +51,17 @@ export function usePersonalTrainers(): UsePersonalTrainersReturn {
 
       // --- NOVO LOG DE DIAGNÓSTICO NO FRONTEND ---
       console.log('[usePersonalTrainers] Dados completos de personalTrainers recebidos NO FRONTEND:', JSON.stringify(personalTrainersData, null, 2));
+      
+      // Validate that plan data is being received correctly
+      personalTrainersData.forEach((personal, index) => {
+        console.log(`📊 [usePersonalTrainers] Personal ${index + 1} - ${personal.nome}:`, {
+          planoAtual: personal.planoAtual,
+          planoDisplay: personal.planoDisplay,
+          planDetails: personal.planDetails,
+          hasActivePlan: personal.hasActivePlan,
+          percentualUso: personal.percentualUso
+        });
+      });
       // --- FIM NOVO LOG DE DIAGNÓSTICO NO FRONTEND ---
 
       setState(prev => ({
@@ -59,6 +70,18 @@ export function usePersonalTrainers(): UsePersonalTrainersReturn {
         planos: planosData,
         loading: false,
       }));
+      
+      console.log('🔄 [usePersonalTrainers] Estado atualizado. Novos dados:', {
+        personalTrainersCount: personalTrainersData.length,
+        planosCount: planosData.length,
+        firstPersonalSample: personalTrainersData[0] ? {
+          nome: personalTrainersData[0].nome,
+          planoAtual: personalTrainersData[0].planoAtual,
+          planoDisplay: personalTrainersData[0].planoDisplay,
+          planDetails: personalTrainersData[0].planDetails
+        } : 'Nenhum personal encontrado'
+      });
+      
       console.log('✅ [usePersonalTrainers] Dados carregados com sucesso', { personalTrainers: personalTrainersData.length, planos: planosData.length });
     } catch (error) {
       console.error('❌ [usePersonalTrainers] Erro ao carregar dados:', error);
