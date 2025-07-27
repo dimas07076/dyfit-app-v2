@@ -45,6 +45,15 @@ export function GerenciarPlanosPersonalPage() {
         };
     }, [fetchPersonals]);
 
+    // Debug: Track component re-renders
+    useEffect(() => {
+        console.log('🔄 [GerenciarPlanosPersonalPage] Componente re-renderizado com novos dados:', {
+            personalTrainersCount: personalTrainers.length,
+            loading,
+            timestamp: new Date().toISOString()
+        });
+    }, [personalTrainers, loading]);
+
     const handleAssignPlan = async (personalId: string, data: AssignPlanForm) => {
         try {
             await assignPlan(personalId, data);
