@@ -118,9 +118,13 @@ router.get('/personal/:personalId/status', async (req, res) => {
  */
 router.post('/personal/:personalId/assign-plan', async (req, res) => {
     try {
+        await dbConnect();
+        
         const { personalId } = req.params;
         const { planoId, customDuration, motivo } = req.body;
         const adminId = (req as any).user.id;
+
+        console.log('🔄 Atribuindo plano:', { personalId, planoId, customDuration, motivo });
 
         const personal = await PersonalTrainer.findById(personalId);
         if (!personal) {
@@ -135,14 +139,18 @@ router.post('/personal/:personalId/assign-plan', async (req, res) => {
             motivo
         );
 
+        console.log('✅ Plano atribuído com sucesso:', personalPlano._id);
+
         res.status(201).json({
             message: 'Plano atribuído com sucesso',
-            personalPlano
+            personalPlano,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error assigning plan:', error);
+        console.error('❌ Error assigning plan:', error);
         res.status(500).json({ 
-            message: error instanceof Error ? error.message : 'Erro ao atribuir plano'
+            message: error instanceof Error ? error.message : 'Erro ao atribuir plano',
+            timestamp: new Date().toISOString()
         });
     }
 });
@@ -152,9 +160,13 @@ router.post('/personal/:personalId/assign-plan', async (req, res) => {
  */
 router.post('/personal/:personalId/add-tokens', async (req, res) => {
     try {
+        await dbConnect();
+        
         const { personalId } = req.params;
         const { quantidade, customDays, motivo } = req.body;
         const adminId = (req as any).user.id;
+
+        console.log('🔄 Adicionando tokens:', { personalId, quantidade, customDays, motivo });
 
         if (!quantidade || quantidade < 1) {
             return res.status(400).json({ message: 'Quantidade deve ser pelo menos 1' });
@@ -173,13 +185,19 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
             motivo
         );
 
+        console.log('✅ Tokens adicionados com sucesso:', token._id);
+
         res.status(201).json({
             message: 'Tokens adicionados com sucesso',
-            token
+            token,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error adding tokens:', error);
-        res.status(500).json({ message: 'Erro ao adicionar tokens' });
+        console.error('❌ Error adding tokens:', error);
+        res.status(500).json({ 
+            message: 'Erro ao adicionar tokens',
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
