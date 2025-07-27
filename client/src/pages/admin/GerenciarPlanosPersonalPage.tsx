@@ -23,6 +23,8 @@ export function GerenciarPlanosPersonalPage() {
     const loadData = async () => {
         setLoading(true);
         try {
+            console.log('🔄 Carregando dados do painel administrativo...');
+            
             const [personalResponse, planosResponse] = await Promise.all([
                 fetch('/api/admin/personal-trainers', {
                     headers: {
@@ -38,15 +40,21 @@ export function GerenciarPlanosPersonalPage() {
 
             if (personalResponse.ok) {
                 const personalData = await personalResponse.json();
+                console.log('✅ Dados dos personal trainers carregados:', personalData.length);
                 setPersonalTrainers(personalData);
+            } else {
+                console.error('❌ Erro ao carregar personal trainers:', personalResponse.status);
             }
 
             if (planosResponse.ok) {
                 const planosData = await planosResponse.json();
+                console.log('✅ Dados dos planos carregados:', planosData.length);
                 setPlanos(planosData);
+            } else {
+                console.error('❌ Erro ao carregar planos:', planosResponse.status);
             }
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('❌ Error loading data:', error);
         } finally {
             setLoading(false);
         }
@@ -54,6 +62,8 @@ export function GerenciarPlanosPersonalPage() {
 
     const handleAssignPlan = async (personalId: string, data: AssignPlanForm) => {
         try {
+            console.log('🔄 Atribuindo plano...', { personalId, data });
+            
             const response = await fetch(`/api/admin/personal/${personalId}/assign-plan`, {
                 method: 'POST',
                 headers: {
@@ -64,21 +74,30 @@ export function GerenciarPlanosPersonalPage() {
             });
 
             if (response.ok) {
-                await loadData(); // Reload data
-                // Close modal and refresh selected personal data
+                const result = await response.json();
+                console.log('✅ Plano atribuído com sucesso:', result);
+                
+                // Close modal first
                 setModalOpen(false);
                 setSelectedPersonal(null);
+                
+                // Then reload data to reflect changes
+                await loadData();
             } else {
                 const error = await response.json();
-                console.error('Error assigning plan:', error.message);
+                console.error('❌ Error assigning plan:', error.message);
+                alert(`Erro ao atribuir plano: ${error.message}`);
             }
         } catch (error) {
-            console.error('Error assigning plan:', error);
+            console.error('❌ Error assigning plan:', error);
+            alert('Erro ao atribuir plano. Tente novamente.');
         }
     };
 
     const handleAddTokens = async (personalId: string, data: AddTokensForm) => {
         try {
+            console.log('🔄 Adicionando tokens...', { personalId, data });
+            
             const response = await fetch(`/api/admin/personal/${personalId}/add-tokens`, {
                 method: 'POST',
                 headers: {
@@ -89,16 +108,23 @@ export function GerenciarPlanosPersonalPage() {
             });
 
             if (response.ok) {
-                await loadData(); // Reload data
-                // Close modal and refresh selected personal data
+                const result = await response.json();
+                console.log('✅ Tokens adicionados com sucesso:', result);
+                
+                // Close modal first
                 setModalOpen(false);
                 setSelectedPersonal(null);
+                
+                // Then reload data to reflect changes
+                await loadData();
             } else {
                 const error = await response.json();
-                console.error('Error adding tokens:', error.message);
+                console.error('❌ Error adding tokens:', error.message);
+                alert(`Erro ao adicionar tokens: ${error.message}`);
             }
         } catch (error) {
-            console.error('Error adding tokens:', error);
+            console.error('❌ Error adding tokens:', error);
+            alert('Erro ao adicionar tokens. Tente novamente.');
         }
     };
 
@@ -244,8 +270,8 @@ export function GerenciarPlanosPersonalPage() {
                                             <Users className="w-3 h-3" />
                                             {personal.alunosAtivos}/{personal.limiteAlunos} alunos
                                         </span>
-                                        <span>Plano: {personal.planoAtual}</span>
-                                        <span>{personal.percentualUso}% utilizado</span>
+                                        <span>Plano: {personal.planoDisplay || 'Sem plano'}</span>
+                                        <span>Utilização: {personal.percentualUso}%</span>
                                     </div>
                                 </div>
                                 
