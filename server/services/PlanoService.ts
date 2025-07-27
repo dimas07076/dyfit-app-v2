@@ -65,36 +65,46 @@ export class PlanoService {
         alunosAtivos: number;
         tokensAvulsos: number;
     }> {
-        const personalPlanoAtivo = await PersonalPlano.findOne({
-            personalTrainerId,
-            ativo: true,
-            dataVencimento: { $gt: new Date() }
-        }).populate('planoId').sort({ dataInicio: -1 });
+        try {
+            // Validate input
+            if (!personalTrainerId) {
+                throw new Error('Personal trainer ID é obrigatório');
+            }
 
-        const alunosAtivos = await Aluno.countDocuments({
-            trainerId: personalTrainerId,
-            status: 'active'
-        });
+            const personalPlanoAtivo = await PersonalPlano.findOne({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            }).populate('planoId').sort({ dataInicio: -1 });
 
-        const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
-        
-        let limiteAtual = 0;
-        let plano = null;
+            const alunosAtivos = await Aluno.countDocuments({
+                trainerId: personalTrainerId,
+                status: 'active'
+            });
 
-        if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-            plano = personalPlanoAtivo.planoId as any;
-            limiteAtual = plano.limiteAlunos;
+            const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
+            
+            let limiteAtual = 0;
+            let plano = null;
+
+            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
+                plano = personalPlanoAtivo.planoId as any;
+                limiteAtual = plano.limiteAlunos || 0;
+            }
+
+            limiteAtual += tokensAtivos;
+
+            return {
+                plano,
+                personalPlano: personalPlanoAtivo,
+                limiteAtual,
+                alunosAtivos,
+                tokensAvulsos: tokensAtivos
+            };
+        } catch (error) {
+            console.error('❌ Erro ao buscar plano atual do personal:', error);
+            throw error;
         }
-
-        limiteAtual += tokensAtivos;
-
-        return {
-            plano,
-            personalPlano: personalPlanoAtivo,
-            limiteAtual,
-            alunosAtivos,
-            tokensAvulsos: tokensAtivos
-        };
     }
 
     /**
@@ -121,13 +131,30 @@ export class PlanoService {
      * Get active tokens for a personal trainer
      */
     async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
-        const tokens = await TokenAvulso.find({
-            personalTrainerId,
-            ativo: true,
-            dataVencimento: { $gt: new Date() }
-        });
+        try {
+            // Validate input
+            if (!personalTrainerId) {
+                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
+                return 0;
+            }
 
-        return tokens.reduce((total, token) => total + token.quantidade, 0);
+            const tokens = await TokenAvulso.find({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            });
+
+            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            
+            if (total > 0) {
+                console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
+            }
+            
+            return total;
+        } catch (error) {
+            console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
+            return 0; // Return 0 instead of throwing to prevent cascade failures
+        }
     }
 
     /**
