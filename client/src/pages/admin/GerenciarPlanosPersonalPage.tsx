@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Search, RefreshCw, Mail, User } from 'lucide-react';
+import { Search, RefreshCw, Mail, User, Crown } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
@@ -179,6 +179,14 @@ export function GerenciarPlanosPersonalPage() {
                                             <Mail className="w-4 h-4 text-blue-500" />
                                             <span className="text-sm truncate">{personal.email}</span>
                                         </div>
+                                        
+                                        {/* Plan Name */}
+                                        {personal.planoDisplay && (
+                                            <div className="flex items-center gap-2 text-gray-500">
+                                                <Crown className="w-3 h-3 text-purple-400" />
+                                                <span className="text-xs font-medium">{personal.planoDisplay}</span>
+                                            </div>
+                                        )}
                                         
                                         {/* Action Button */}
                                         <div className="pt-2">
