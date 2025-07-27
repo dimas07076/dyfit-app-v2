@@ -7,24 +7,37 @@ import { Input } from '../../components/ui/input';
 import { Search, Users, TrendingUp, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
+import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
 
 export function GerenciarPlanosPersonalPage() {
-    const [personalTrainers, setPersonalTrainers] = useState<PersonalTrainerWithStatus[]>([]);
+    // Use the new centralized hook for personal trainers with deep immutability
+    const { 
+        personals: personalTrainers, 
+        loading: personalTrainersLoading, 
+        error: personalTrainersError,
+        refreshPersonals,
+        updatePersonal
+    } = usePersonalTrainers();
+
     const [planos, setPlanos] = useState<Plano[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [planosLoading, setPlanosLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPersonal, setSelectedPersonal] = useState<PersonalTrainerWithStatus | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
+    // Compute overall loading state
+    const loading = personalTrainersLoading || planosLoading;
+
     useEffect(() => {
-        loadData();
+        loadPlanosData();
         
         // Add keyboard shortcut for manual refresh (F5 or Ctrl+R)
         const handleKeyPress = (event: KeyboardEvent) => {
             if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
                 event.preventDefault();
                 console.log('🔄 Refresh manual detectado - recarregando dados...');
-                loadData();
+                loadPlanosData();
+                refreshPersonals(); // Refresh personal trainers using the hook
             }
         };
 
@@ -33,33 +46,18 @@ export function GerenciarPlanosPersonalPage() {
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-    }, []);
+    }, [refreshPersonals]);
 
-    const loadData = async () => {
-        setLoading(true);
+    const loadPlanosData = async () => {
+        setPlanosLoading(true);
         try {
-            console.log('🔄 Carregando dados do painel administrativo...');
+            console.log('🔄 Carregando dados dos planos...');
             
-            const [personalResponse, planosResponse] = await Promise.all([
-                fetch('/api/admin/personal-trainers', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                    }
-                }),
-                fetch('/api/admin/planos', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                    }
-                })
-            ]);
-
-            if (personalResponse.ok) {
-                const personalData = await personalResponse.json();
-                console.log('✅ Dados dos personal trainers carregados:', personalData.length);
-                setPersonalTrainers(personalData);
-            } else {
-                console.error('❌ Erro ao carregar personal trainers:', personalResponse.status);
-            }
+            const planosResponse = await fetch('/api/admin/planos', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                }
+            });
 
             if (planosResponse.ok) {
                 const planosData = await planosResponse.json();
@@ -69,9 +67,9 @@ export function GerenciarPlanosPersonalPage() {
                 console.error('❌ Erro ao carregar planos:', planosResponse.status);
             }
         } catch (error) {
-            console.error('❌ Error loading data:', error);
+            console.error('❌ Error loading planos data:', error);
         } finally {
-            setLoading(false);
+            setPlanosLoading(false);
         }
     };
 
@@ -100,10 +98,10 @@ export function GerenciarPlanosPersonalPage() {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
                 // Then reload data to reflect changes
-                await loadData();
+                await refreshPersonals(); // Refresh personal trainers data using the hook
                 
                 // Show success feedback
-                console.log('✅ Dados recarregados após atribuição de plano');
+                console.log('✅ Dados de personal trainers recarregados após atribuição de plano');
             } else {
                 const error = await response.json();
                 console.error('❌ Error assigning plan:', error.message);
@@ -140,10 +138,10 @@ export function GerenciarPlanosPersonalPage() {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
                 // Then reload data to reflect changes
-                await loadData();
+                await refreshPersonals(); // Refresh personal trainers data using the hook
                 
                 // Show success feedback
-                console.log('✅ Dados recarregados após adição de tokens');
+                console.log('✅ Dados de personal trainers recarregados após adição de tokens');
             } else {
                 const error = await response.json();
                 console.error('❌ Error adding tokens:', error.message);
