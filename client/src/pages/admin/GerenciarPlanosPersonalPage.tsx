@@ -2,20 +2,11 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
-import { Search, Users, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, Crown, Mail, User } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '../../components/ui/table';
 
 export function GerenciarPlanosPersonalPage() {
     // Use the new custom hook for centralized state management
@@ -89,29 +80,6 @@ export function GerenciarPlanosPersonalPage() {
         personal.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const getStatusBadge = (percentual: number) => {
-        if (percentual >= 90) {
-            return <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Crítico
-            </Badge>;
-        }
-        if (percentual >= 70) {
-            return <Badge variant="default" className="flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Atenção
-            </Badge>;
-        }
-        return <Badge variant="secondary" className="flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" /> Normal
-        </Badge>;
-    };
-
-    const stats = {
-        total: personalTrainers.length,
-        critical: personalTrainers.filter(p => p.percentualUso >= 90).length,
-        attention: personalTrainers.filter(p => p.percentualUso >= 70 && p.percentualUso < 90).length,
-        normal: personalTrainers.filter(p => p.percentualUso < 70).length,
-    };
-
     if (loading) {
         return (
             <div className="container mx-auto p-6">
@@ -126,174 +94,117 @@ export function GerenciarPlanosPersonalPage() {
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
-            <div>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold">Gerenciar Planos dos Personal Trainers</h1>
-                        <p className="text-gray-600 mt-1">
-                            Gerencie os planos e tokens dos personal trainers cadastrados no sistema
-                        </p>
-                    </div>
-                    <Button
-                        variant="outline"
-                        onClick={fetchPersonals}
-                        disabled={loading}
-                        className="flex items-center gap-2"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        {loading ? 'Atualizando...' : 'Atualizar'}
-                    </Button>
+        <div className="container mx-auto p-6 space-y-8">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        Personal Trainers
+                    </h1>
+                    <p className="text-gray-600 mt-2">
+                        Gerencie os planos dos personal trainers de forma simples e moderna
+                    </p>
                 </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de Personals</CardTitle>
-                        <Users className="w-4 h-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.total}</div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Status Crítico</CardTitle>
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{stats.critical}</div>
-                        <p className="text-xs text-muted-foreground">≥90% de utilização</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Necessita Atenção</CardTitle>
-                        <Clock className="w-4 h-4 text-yellow-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-yellow-600">{stats.attention}</div>
-                        <p className="text-xs text-muted-foreground">70-89% de utilização</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Status Normal</CardTitle>
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{stats.normal}</div>
-                        <p className="text-xs text-muted-foreground">&lt;70% de utilização</p>
-                    </CardContent>
-                </Card>
+                <Button
+                    variant="outline"
+                    onClick={fetchPersonals}
+                    disabled={loading}
+                    className="flex items-center gap-2 hover:bg-blue-50 border-blue-200"
+                >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    {loading ? 'Atualizando...' : 'Atualizar'}
+                </Button>
             </div>
 
             {/* Search */}
-            <Card>
+            <Card className="border-blue-100 shadow-sm">
                 <CardContent className="pt-6">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-4 h-4" />
                         <Input
                             placeholder="Buscar por nome ou email..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10"
+                            className="pl-10 border-blue-200 focus:border-blue-400 focus:ring-blue-400"
                         />
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Personal Trainers List in Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Personal Trainers ({filteredPersonals.length})</CardTitle>
-                    <CardDescription>
-                        Lista de todos os personal trainers com seus status de planos atuais
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Status do Plano</TableHead>
-                                <TableHead>Alunos (Ativos/Limite)</TableHead>
-                                <TableHead>Utilização</TableHead>
-                                <TableHead className="text-right">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredPersonals.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                                        {searchTerm ? 'Nenhum personal encontrado para a busca.' : 'Nenhum personal trainer cadastrado.'}
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredPersonals.map((personal) => (
-                                    <TableRow key={personal._id}>
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-3">
-                                                {personal.nome}
-                                                {getStatusBadge(personal.percentualUso)} {/* Usando a função getStatusBadge aqui */}
+            {/* Personal Trainers Grid */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-800">
+                        Personal Trainers ({filteredPersonals.length})
+                    </h2>
+                </div>
+
+                {filteredPersonals.length === 0 ? (
+                    <Card className="border-gray-200">
+                        <CardContent className="py-16">
+                            <div className="text-center text-gray-500">
+                                <User className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg font-medium mb-2">
+                                    {searchTerm ? 'Nenhum personal encontrado' : 'Nenhum personal trainer cadastrado'}
+                                </p>
+                                <p className="text-sm">
+                                    {searchTerm ? 'Tente ajustar sua busca.' : 'Quando você adicionar personal trainers, eles aparecerão aqui.'}
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {filteredPersonals.map((personal) => (
+                            <Card 
+                                key={personal._id} 
+                                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-gray-200 bg-gradient-to-br from-white to-blue-50/30"
+                            >
+                                <CardContent className="p-6">
+                                    <div className="space-y-4">
+                                        {/* Name */}
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                                                {personal.nome.charAt(0).toUpperCase()}
                                             </div>
-                                        </TableCell>
-                                        <TableCell>{personal.email}</TableCell>
-                                        <TableCell>
-                                            {personal.hasActivePlan ? (
-                                                <div className="flex items-center gap-1 text-green-600">
-                                                    <CheckCircle className="w-4 h-4" />
-                                                    <span className="font-medium">{personal.planoDisplay || personal.planDetails?.nome || 'Detalhes do plano não disponíveis'}</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1 text-red-500">
-                                                    <AlertTriangle className="w-4 h-4" />
-                                                    <span>Sem Plano Ativo</span>
-                                                </div>
-                                            )}
-                                            {personal.planDetails && (
-                                                <p className="text-xs text-gray-500">Limite: {personal.planDetails.limiteAlunos} alunos</p>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {personal.alunosAtivos}/{personal.limiteAlunos}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <span>{personal.percentualUso ?? 0}%</span>
-                                                <div className="w-24 bg-gray-200 rounded-full h-2">
-                                                    <div 
-                                                        className={`h-2 rounded-full transition-all ${
-                                                            personal.percentualUso >= 90 ? 'bg-red-500' :
-                                                            personal.percentualUso >= 70 ? 'bg-yellow-500' : 'bg-green-500'
-                                                        }`}
-                                                        style={{ width: `${Math.min(personal.percentualUso, 100)}%` }}
-                                                    />
-                                                </div>
+                                            <div>
+                                                <h3 className="font-semibold text-lg text-gray-800 group-hover:text-blue-600 transition-colors">
+                                                    {personal.nome}
+                                                </h3>
                                             </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
+                                        </div>
+                                        
+                                        {/* Email */}
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                            <Mail className="w-4 h-4 text-blue-500" />
+                                            <span className="text-sm truncate">{personal.email}</span>
+                                        </div>
+                                        
+                                        {/* Plan */}
+                                        <div className="flex items-center gap-2">
+                                            <Crown className="w-4 h-4 text-purple-500" />
+                                            <span className="text-sm font-medium text-gray-700">
+                                                {personal.planoDisplay || personal.planDetails?.nome || 'Sem Plano Ativo'}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Action Button */}
+                                        <div className="pt-2">
                                             <Button
-                                                variant="outline"
-                                                size="sm"
                                                 onClick={() => openModal(personal)}
+                                                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
+                                                size="sm"
                                             >
-                                                Gerenciar
+                                                Gerenciar Plano
                                             </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {/* Modal */}
             <PlanoModal
