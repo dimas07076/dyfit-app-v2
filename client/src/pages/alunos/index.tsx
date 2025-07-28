@@ -126,9 +126,11 @@ export default function StudentsIndex() {
                         <Button variant="outline" onClick={() => setIsInviteModalOpen(true)}>
                             <Mail className="h-4 w-4 mr-2" /> Convidar Aluno
                         </Button>
-                        <Link href="/alunos/novo">
-                            <Button><Plus className="h-4 w-4 mr-2" /> Adicionar Aluno</Button>
-                        </Link>
+                        <Button asChild>
+                            <Link href="/alunos/novo">
+                                <Plus className="h-4 w-4 mr-2" /> Adicionar Aluno
+                            </Link>
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
