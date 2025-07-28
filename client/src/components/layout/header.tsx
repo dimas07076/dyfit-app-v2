@@ -76,10 +76,9 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
       "opacity-0 -translate-y-full pointer-events-none": !isScrolled,
       "opacity-100 translate-y-0": isScrolled,
       "bg-transparent border-transparent text-white": isAluno && !isScrolled,
-      "bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b shadow-sm text-card-foreground":
-        isAluno && isScrolled,
-      "bg-card border-b text-card-foreground": !isAluno,
-      "shadow-sm": !isAluno && isScrolled,
+      "glass bg-white/10 border-white/20 text-white": isAluno && isScrolled,
+      "glass bg-card/95 border-border/50 text-card-foreground shadow-glass": !isAluno,
+      "shadow-elevated": !isAluno && isScrolled,
       "shadow-none border-transparent": !isAluno && !isScrolled,
     }
   );
