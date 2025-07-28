@@ -12,17 +12,11 @@ router.get("/", authenticateToken, async (req, res, next) => {
         const criadorId = req.user?.id;
         if (!criadorId)
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
-        // Inicia o objeto de query com o criadorId
         const query = { criadorId: new Types.ObjectId(criadorId) };
-        // Adiciona o filtro por tipo, se presente na query string
         if (req.query.tipo) {
             query.tipo = req.query.tipo;
         }
-        // O parâmetro trainerId já é o criadorId, então não precisamos adicioná-lo novamente
-        // se já estamos filtrando por criadorId. Se a intenção é permitir que um admin
-        // veja modelos de outros personais, a lógica precisaria ser mais complexa
-        // e envolver autorização de admin. Por enquanto, mantemos o filtro pelo criadorId do token.
-        const rotinas = await Treino.find(query) // Usa o objeto de query
+        const rotinas = await Treino.find(query)
             .populate({ path: 'alunoId', select: 'nome' })
             .populate({ path: 'pastaId', select: 'nome' })
             .populate({
@@ -36,7 +30,6 @@ router.get("/", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// <<< ADIÇÃO: Nova rota para buscar uma única rotina por ID >>>
 router.get("/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
@@ -70,7 +63,6 @@ router.post("/", authenticateToken, async (req, res, next) => {
         const criadorId = req.user?.id;
         if (!criadorId)
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
-        // Garante que isCopied seja false por padrão para novas criações
         const dadosRotina = { ...req.body, criadorId: new Types.ObjectId(criadorId), isCopied: false };
         const novaRotina = new Treino(dadosRotina);
         await novaRotina.save();
@@ -107,8 +99,8 @@ router.post("/associar-modelo", authenticateToken, async (req, res, next) => {
             criadorId: new Types.ObjectId(criadorId),
             alunoId: new Types.ObjectId(alunoId),
             pastaId: null,
-            titulo: modeloRestante.titulo, // Remove o sufixo "(Ficha de Aluno)"
-            isCopied: true, // <<< NOVO: Marca como cópia ao associar modelo >>>
+            titulo: modeloRestante.titulo,
+            isCopied: true,
             diasDeTreino: diasDeTreino?.map((dia) => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
@@ -145,8 +137,9 @@ router.post("/associar-modelo", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// <<< ADIÇÃO: Nova rota para copiar uma rotina individual e transformá-la em modelo >>>
-router.post("/copiar-para-modelo/:id", authenticateToken, async (req, res, next) => {
+// <<< INÍCIO DA ROTA CORRIGIDA >>>
+// Esta rota agora CRIA um novo modelo a partir de uma rotina existente, em vez de modificá-la.
+router.post("/:id/tornar-modelo", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {
         const { id } = req.params;
@@ -157,20 +150,20 @@ router.post("/copiar-para-modelo/:id", authenticateToken, async (req, res, next)
         if (!criadorId) {
             return res.status(401).json({ mensagem: "Usuário não autenticado." });
         }
-        // Encontra a rotina individual original
-        const rotinaOriginal = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId), tipo: 'individual' });
+        // 1. Encontra a rotina original para copiar. Pode ser 'individual' ou 'modelo'.
+        const rotinaOriginal = await Treino.findOne({ _id: id, criadorId: new Types.ObjectId(criadorId) });
         if (!rotinaOriginal) {
-            return res.status(404).json({ mensagem: "Rotina individual não encontrada ou você não tem permissão para copiá-la." });
+            return res.status(404).json({ mensagem: "Rotina não encontrada ou você não tem permissão para copiá-la." });
         }
-        // Cria uma cópia profunda da rotina
-        const { _id, criadoEm, atualizadoEm, alunoId, ...restanteDaRotina } = rotinaOriginal.toObject();
+        // 2. Cria uma cópia profunda da rotina, removendo campos específicos.
+        const { _id, criadoEm, atualizadoEm, alunoId, pastaId, ...restanteDaRotina } = rotinaOriginal.toObject();
         const novaRotinaModeloData = {
             ...restanteDaRotina,
             tipo: 'modelo', // Define o tipo como 'modelo'
             alunoId: null, // Remove a associação com o aluno
-            pastaId: null, // Remove a associação com pasta (opcional, pode ser ajustado)
-            titulo: restanteDaRotina.titulo, // Remove o sufixo "(Cópia Modelo)"
-            isCopied: true, // <<< NOVO: Marca como cópia ao converter para modelo >>>
+            pastaId: null, // Remove a associação com pasta
+            titulo: restanteDaRotina.titulo, // Mantém o título original
+            isCopied: true, // Marca como uma cópia
             diasDeTreino: restanteDaRotina.diasDeTreino?.map((dia) => ({
                 identificadorDia: dia.identificadorDia,
                 nomeSubFicha: dia.nomeSubFicha,
@@ -191,8 +184,10 @@ router.post("/copiar-para-modelo/:id", authenticateToken, async (req, res, next)
                 }) ?? []
             })) ?? []
         };
+        // 3. Salva a nova rotina como um novo documento.
         const novaRotinaModelo = new Treino(novaRotinaModeloData);
         await novaRotinaModelo.save();
+        // 4. Popula e retorna o NOVO modelo criado.
         const rotinaPopulada = await Treino.findById(novaRotinaModelo._id)
             .populate({ path: 'alunoId', select: 'nome' })
             .populate({ path: 'pastaId', select: 'nome' })
@@ -200,13 +195,14 @@ router.post("/copiar-para-modelo/:id", authenticateToken, async (req, res, next)
             path: 'diasDeTreino',
             populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
         });
-        res.status(201).json(rotinaPopulada);
+        res.status(201).json(rotinaPopulada); // Usa 201 Created para indicar criação de novo recurso
     }
     catch (error) {
         console.error("Erro ao copiar rotina para modelo:", error);
         next(error);
     }
 });
+// <<< FIM DA ROTA CORRIGIDA >>>
 router.put("/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     try {

@@ -243,7 +243,7 @@ router.get('/personal-trainers', async (req, res) => {
                         planoAtual: planoNome, 
                         planoDisplay: planoDisplay, 
                         alunosAtivos: status.alunosAtivos,
-                        limiteAlunos: status.limiteAtual, 
+                        limiteAlunos: status.limiteAtual, // Total limit: base plan + active tokens
                         percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
                         hasActivePlan: !!(status.plano && status.plano.nome),
                         planDetails: (status.plano && status.plano.nome) ? {
