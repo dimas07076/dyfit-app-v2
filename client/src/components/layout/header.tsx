@@ -191,8 +191,10 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <WouterLink href="/perfil/editar">
-                      <UserIcon className="mr-2 h-4 w-4" />
-                      <span>Editar Perfil</span>
+                      <>
+                        <UserIcon className="mr-2 h-4 w-4" />
+                        <span>Editar Perfil</span>
+                      </>
                     </WouterLink>
                   </DropdownMenuItem>
                   <DropdownMenuItem
