@@ -5,6 +5,11 @@ import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
 import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
+// Type for PersonalPlano with populated planoId
+interface IPersonalPlanoPopulated extends Omit<IPersonalPlano, 'planoId'> {
+    planoId: IPlano;
+}
+
 // Initial plans configuration
 const INITIAL_PLANS = [
     {
@@ -71,22 +76,26 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
+            console.log(`🔍 [PlanoService] Buscando plano ativo para personal: ${personalTrainerId}`);
+
             const personalPlanoAtivo = await PersonalPlano.findOne({
                 personalTrainerId,
                 ativo: true,
                 dataVencimento: { $gt: new Date() }
             }).populate({
                 path: 'planoId',
-                model: 'Plano'
-            }).sort({ dataInicio: -1 });
+                model: 'Plano',
+                select: 'nome descricao limiteAlunos preco duracao tipo ativo'
+            }).sort({ dataInicio: -1 }).exec();
 
-            // --- DIAGNOSTIC LOG ---
-            console.log(`[PlanoService] personalPlanoAtivo para ${personalTrainerId}:`, personalPlanoAtivo);
-            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-                console.log(`[PlanoService] Populated planoId type: ${typeof personalPlanoAtivo.planoId}`);
-                console.log(`[PlanoService] Populated planoId content:`, personalPlanoAtivo.planoId);
-            }
-            // --- END DIAGNOSTIC LOG ---
+            console.log(`📊 [PlanoService] PersonalPlano encontrado para ${personalTrainerId}:`, {
+                found: !!personalPlanoAtivo,
+                personalPlanoId: personalPlanoAtivo?._id,
+                planoIdField: personalPlanoAtivo?.planoId,
+                planoIdType: typeof personalPlanoAtivo?.planoId,
+                isPopulated: personalPlanoAtivo?.planoId && typeof personalPlanoAtivo.planoId === 'object',
+                hasNomeProperty: personalPlanoAtivo?.planoId && typeof personalPlanoAtivo.planoId === 'object' && 'nome' in personalPlanoAtivo.planoId
+            });
 
             const alunosAtivos = await Aluno.countDocuments({
                 trainerId: personalTrainerId,
@@ -96,28 +105,61 @@ export class PlanoService {
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
             
             let limiteAtual = 0;
-            let plano: IPlano | null = null; // Explicitly type plano as IPlano | null
+            let plano: IPlano | null = null;
 
-            // Ensure planoId is populated and is an object before accessing its properties
-            if (personalPlanoAtivo && personalPlanoAtivo.planoId && typeof personalPlanoAtivo.planoId === 'object' && 'nome' in personalPlanoAtivo.planoId) {
-                // Correção do erro de tipagem: converte para 'unknown' primeiro
-                plano = personalPlanoAtivo.planoId as unknown as IPlano;
-                limiteAtual = plano.limiteAlunos || 0;
+            // Check if we have an active PersonalPlano with populated planoId
+            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
+                // Check if planoId is properly populated (should be an object, not just the ObjectId string)
+                if (typeof personalPlanoAtivo.planoId === 'object' && personalPlanoAtivo.planoId !== null && 'nome' in personalPlanoAtivo.planoId) {
+                    // The planoId is properly populated with the Plano document
+                    plano = personalPlanoAtivo.planoId as unknown as IPlano;
+                    limiteAtual = plano.limiteAlunos || 0;
+                    
+                    console.log(`✅ [PlanoService] Plano encontrado e populado: ${plano.nome} (${plano._id}) - Limite: ${plano.limiteAlunos}`);
+                } else {
+                    // The planoId was not populated properly, it's still just an ObjectId
+                    console.warn(`⚠️ [PlanoService] PlanoId não foi populado corretamente. Tentando busca manual. PlanoId: ${personalPlanoAtivo.planoId}`);
+                    
+                    // Fallback: manually fetch the plan
+                    try {
+                        const manualPlano = await Plano.findById(personalPlanoAtivo.planoId).exec();
+                        if (manualPlano) {
+                            plano = manualPlano;
+                            limiteAtual = plano.limiteAlunos || 0;
+                            console.log(`✅ [PlanoService] Plano encontrado via busca manual: ${plano.nome} (${plano._id}) - Limite: ${plano.limiteAlunos}`);
+                        } else {
+                            console.error(`❌ [PlanoService] Plano não encontrado na busca manual. PlanoId: ${personalPlanoAtivo.planoId}`);
+                        }
+                    } catch (manualError) {
+                        console.error(`❌ [PlanoService] Erro na busca manual do plano:`, manualError);
+                    }
+                }
             } else {
-                console.log(`❌ No active plan document found or populated for personal ${personalTrainerId}`);
+                console.log(`ℹ️ [PlanoService] Nenhum PersonalPlano ativo encontrado para personal ${personalTrainerId}`);
             }
 
             limiteAtual += tokensAtivos;
 
-            return {
+            const result = {
                 plano,
                 personalPlano: personalPlanoAtivo,
                 limiteAtual,
                 alunosAtivos,
                 tokensAvulsos: tokensAtivos
             };
+
+            console.log(`📋 [PlanoService] Resultado final para ${personalTrainerId}:`, {
+                planoNome: plano?.nome || 'Sem plano',
+                planoId: plano?._id || null,
+                limiteAtual,
+                alunosAtivos,
+                tokensAvulsos: tokensAtivos,
+                hasPersonalPlano: !!personalPlanoAtivo
+            });
+
+            return result;
         } catch (error) {
-            console.error('❌ Erro ao buscar plano atual do personal:', error);
+            console.error('❌ [PlanoService] Erro ao buscar plano atual do personal:', error);
             throw error;
         }
     }
