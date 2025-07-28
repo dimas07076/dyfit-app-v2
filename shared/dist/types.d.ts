@@ -1,3 +1,6 @@
+export * from './types/common';
+export * from './types/personal';
+export * from './types/sessaoTypes';
 export interface Aluno {
     _id: string;
     firstName: string;
