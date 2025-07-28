@@ -3,10 +3,10 @@ import React, { useState, useContext, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { AlunoContext } from '@/context/AlunoContext';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock, User, GraduationCap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { apiRequest } from '@/lib/queryClient';
 
 interface AlunoLoginApiResponse {
@@ -14,7 +14,6 @@ interface AlunoLoginApiResponse {
     token: string;
     refreshToken: string;
     aluno: { id: string; nome: string; email: string; role: 'Aluno'; personalId: string; };
-    // <<< ADIÇÃO: Adicionando o campo 'code' opcional à resposta de erro >>>
     code?: string;
 }
 
@@ -49,18 +48,14 @@ export default function AlunoLoginPage() {
             loginAluno?.(response.token);
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
         } catch (err: any) {
-            // <<< ALTERAÇÃO: Lógica de erro aprimorada para tratar o caso de conta inativa >>>
             const errorMessage = err.message || 'Credenciais inválidas ou erro no servidor.';
-            const errorCode = err.code; // O 'code' virá do erro lançado pela nossa API
+            const errorCode = err.code;
 
             if (errorCode === 'ACCOUNT_INACTIVE') {
-                // Se a conta estiver inativa, mostramos uma mensagem específica
                 setError('Sua conta está inativa. Por favor, entre em contato com seu personal trainer para reativá-la.');
             } else {
-                // Para todos os outros erros, mostramos a mensagem genérica
                 setError(errorMessage);
             }
-            // O toast continua mostrando o erro técnico para o caso de precisarmos depurar
             toast({ title: "Erro no Login", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
@@ -68,47 +63,94 @@ export default function AlunoLoginPage() {
     };
     
     if (isLoadingAluno) {
-        return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> <span className="ml-2">Verificando sessão...</span></div>;
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+                <div className="text-white text-center space-y-4">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto" />
+                    <span className="text-lg">Verificando sessão...</span>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
-            {/* Lado do Formulário (Comum para mobile e desktop) */}
-            <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 
-                           bg-gradient-to-br from-sky-500 to-blue-700 lg:bg-none">
-                
-                <div className="w-full max-w-sm space-y-8">
-                     {/* Logo (Apenas no Mobile) */}
-                    <div className="lg:hidden text-center">
-                        <img src="/images/logo-branco.png" alt="Logo DyFit" className="h-24 mx-auto" />
+        <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 lg:grid lg:grid-cols-2">
+            {/* Left Side - Login Form */}
+            <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+                <div className="w-full max-w-md space-y-8">
+                    {/* Logo and Title Section */}
+                    <div className="text-center space-y-6 animate-fade-in">
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="p-3 bg-gradient-to-r from-white/20 to-white/10 rounded-xl shadow-glass border border-white/20">
+                                <User className="h-8 w-8 text-white" />
+                            </div>
+                            <span className="text-3xl font-bold text-white">DyFit</span>
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold text-white">Entrar como Aluno</h1>
+                            <p className="text-white/80 mt-2">Acesse seus treinos e acompanhe seu progresso</p>
+                        </div>
                     </div>
 
-                    <Card className="w-full animate-in fade-in-50 slide-in-from-bottom-10 duration-500 lg:border-none lg:shadow-none lg:bg-transparent">
-                        <CardHeader className="text-center">
-                            {/* Logo (Apenas no Desktop) */}
-                            <img src="/logodyfit.png" alt="Logo DyFit" className="h-14 mx-auto hidden lg:block" />
-                            <CardTitle className="text-3xl font-bold lg:text-gray-900 lg:dark:text-white">Entrar como Aluno</CardTitle>
-                            <CardDescription className="lg:text-gray-600 lg:dark:text-gray-400">Acesse seus treinos e seu progresso.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleLoginAluno} className="grid gap-4">
-                                {error && ( <p className="text-red-500 text-sm text-center -mt-2 mb-2 p-2 bg-red-50 dark:bg-red-900/30 rounded-md">{error}</p> )}
-                                <div className="grid gap-2 relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                    <Input id="email-aluno" type="email" placeholder="seu.email@exemplo.com" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} autoComplete="email" className="pl-10 h-12 text-base bg-white/80 dark:bg-slate-800/80 lg:bg-background" />
+                    {/* Login Form Card */}
+                    <Card className="glass border-white/20 shadow-glass animate-slide-up">
+                        <CardContent className="p-6">
+                            <form onSubmit={handleLoginAluno} className="space-y-6">
+                                {error && (
+                                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm animate-slide-down">
+                                        {error}
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-4">
+                                    <div className="relative">
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                        <Input 
+                                            id="email-aluno" 
+                                            type="email" 
+                                            placeholder="seu.email@exemplo.com" 
+                                            required 
+                                            value={email} 
+                                            onChange={(e) => setEmail(e.target.value)} 
+                                            disabled={isLoading} 
+                                            autoComplete="email" 
+                                            className="pl-12 h-12 text-base bg-background/95 backdrop-blur-sm" 
+                                        />
+                                    </div>
+                                    
+                                    <div className="relative">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                        <Input 
+                                            id="password-aluno" 
+                                            type="password" 
+                                            placeholder="Sua senha" 
+                                            required 
+                                            value={password} 
+                                            onChange={(e) => setPassword(e.target.value)} 
+                                            disabled={isLoading} 
+                                            autoComplete="current-password" 
+                                            className="pl-12 h-12 text-base bg-background/95 backdrop-blur-sm" 
+                                        />
+                                    </div>
                                 </div>
-                                <div className="grid gap-2 relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                    <Input id="password-aluno" type="password" placeholder="Sua senha" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} autoComplete="current-password" className="pl-10 h-12 text-base bg-white/80 dark:bg-slate-800/80 lg:bg-background" />
-                                </div>
-                                <Button type="submit" className="w-full h-12 text-base font-semibold mt-2" disabled={isLoading}>
-                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+
+                                <Button 
+                                    type="submit" 
+                                    size="lg"
+                                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" 
+                                    disabled={isLoading}
+                                    loading={isLoading}
+                                >
                                     Entrar
                                 </Button>
                             </form>
-                            <div className="mt-6 text-center text-sm">
-                                <Link href="/login" className="inline-flex items-center text-muted-foreground hover:text-primary transition-colors">
-                                    <ArrowLeft className="mr-1 h-4 w-4" />
+                            
+                            <div className="mt-6 text-center">
+                                <Link 
+                                    href="/login" 
+                                    className="inline-flex items-center text-muted-foreground hover:text-white transition-colors group"
+                                >
+                                    <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
                                     Voltar para seleção de perfil
                                 </Link>
                             </div>
@@ -117,9 +159,21 @@ export default function AlunoLoginPage() {
                 </div>
             </div>
 
-            {/* Lado da Imagem (Apenas no Desktop) */}
-            <div className="hidden bg-muted lg:block">
-                <img src="/images/login-aluno.png" alt="Imagem de um aluno treinando" className="h-full w-full object-cover dark:brightness-[0.8]" />
+            {/* Right Side - Visual Element (Desktop only) */}
+            <div className="hidden lg:flex items-center justify-center p-8">
+                <div className="w-full h-full rounded-2xl bg-gradient-to-br from-white/10 to-white/5 glass border border-white/10 flex items-center justify-center animate-scale-in">
+                    <div className="text-center text-white space-y-6">
+                        <div className="w-32 h-32 mx-auto bg-gradient-to-r from-white/20 to-white/10 rounded-full flex items-center justify-center mb-8 shadow-glass border border-white/20">
+                            <GraduationCap className="h-16 w-16" />
+                        </div>
+                        <div className="space-y-3">
+                            <h2 className="text-2xl font-bold">Sua jornada fitness continua!</h2>
+                            <p className="text-white/80 max-w-sm">
+                                Acesse seus treinos personalizados e acompanhe sua evolução
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

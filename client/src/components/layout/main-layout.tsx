@@ -17,11 +17,17 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
   const DesktopSpecificSidebar = aluno && !user ? AlunoSidebar : (user ? Sidebar : null);
   
-  // Fundo do container PAI
-  const backgroundClass = aluno ? "bg-gradient-to-br from-indigo-600 to-blue-400" : "bg-blue-50 dark:bg-slate-900";
-  // Fundo do container do CONTEÚDO (transparente para aluno, padrão para personal)
-  const contentContainerClass = aluno ? "bg-transparent" : "";
-
+  // Modern gradient backgrounds for different user types
+  const backgroundClass = aluno 
+    ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500" 
+    : user?.role?.toLowerCase() === 'admin'
+    ? "bg-gradient-to-br from-slate-900 via-purple-900 to-indigo-900"
+    : "bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-blue-900 dark:to-indigo-900";
+  
+  // Content container styling
+  const contentContainerClass = aluno 
+    ? "bg-transparent" 
+    : "bg-background/95 backdrop-blur-sm";
 
   useEffect(() => {
     const mainEl = mainScrollRef.current;
@@ -31,26 +37,21 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     return () => { mainEl.removeEventListener('scroll', handleScroll); };
   }, []);
 
-
   return (
-    // O container pai agora SÓ tem a cor de fundo gradiente/azul
-    <div className={cn("flex h-screen", backgroundClass)}>
+    <div className={cn("flex h-screen transition-all duration-500", backgroundClass)}>
       {DesktopSpecificSidebar && (
         <div className="hidden md:flex md:flex-shrink-0">
-          {/* Sidebar tem seu próprio fundo, então não é afetado */}
-          <div className="flex flex-col w-64 lg:w-72 bg-card text-card-foreground">
+          <div className="flex flex-col w-64 lg:w-72 bg-card/95 backdrop-blur-md text-card-foreground border-r border-border shadow-xl">
             <DesktopSpecificSidebar />
           </div>
         </div>
       )}
 
-      {/* Container do conteúdo agora tem a classe dinâmica e o overflow-hidden */}
       <div className={cn("flex flex-col flex-1 w-0 text-foreground overflow-hidden", contentContainerClass)}>
         <Header isScrolled={isScrolled} isAluno={!!aluno} />
 
-        <main ref={mainScrollRef} className="flex-1 relative overflow-y-auto focus:outline-none">
-          {/* O padding foi movido para um div interno para o scroll funcionar corretamente */}
-          <div className="p-4 md:p-6 pb-16 md:pb-6">
+        <main ref={mainScrollRef} className="flex-1 relative overflow-y-auto focus:outline-none scrollbar-hide">
+          <div className="p-4 md:p-6 pb-16 md:pb-6 animate-fade-in">
             {children}
           </div>
         </main>
