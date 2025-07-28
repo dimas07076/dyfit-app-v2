@@ -11,15 +11,15 @@ const ProfileButton = ({ href, text, icon: Icon, description }: {
 }) => (
   <Link 
     href={href}
-    className="group relative overflow-hidden bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-1 interactive touch-target"
+    className="group relative overflow-hidden bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl p-6 min-h-[80px] transition-all duration-300 hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-1 interactive touch-target block"
   >
     <div className="flex items-center gap-4">
-      <div className="p-3 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+      <div className="p-3 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors flex-shrink-0">
         <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1 text-left">
-        <h3 className="font-semibold text-lg">{text}</h3>
-        <p className="text-primary-foreground/80 text-sm">{description}</p>
+        <h3 className="font-semibold text-lg leading-tight">{text}</h3>
+        <p className="text-primary-foreground/80 text-sm mt-1 leading-relaxed">{description}</p>
       </div>
     </div>
     <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -34,7 +34,7 @@ const ActionButton = ({ onClick, text, icon: Icon, className }: {
 }) => (
   <button
     onClick={onClick}
-    className={`flex items-center justify-center gap-3 w-full font-semibold py-3 px-6 rounded-xl text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 interactive touch-target ${className}`}
+    className={`flex items-center justify-center gap-3 w-full font-semibold py-4 px-6 min-h-[56px] rounded-xl text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 interactive touch-target ${className}`}
   >
     <Icon className="h-5 w-5" />
     <span>{text}</span>
@@ -54,10 +54,11 @@ export default function LandingLoginPage() {
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-6">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-gradient-primary rounded-xl shadow-glass">
-                                    <Dumbbell className="h-8 w-8" />
-                                </div>
-                                <span className="text-2xl font-bold text-gradient">DyFit</span>
+                                <img 
+                                    src="/logodyfit.png" 
+                                    alt="DyFit Logo" 
+                                    className="h-12 w-auto object-contain"
+                                />
                             </div>
                             
                             <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
@@ -121,21 +122,22 @@ export default function LandingLoginPage() {
 
             {/* LAYOUT MOBILE */}
             <div className="lg:hidden min-h-screen flex flex-col relative p-6">
-                <main className="flex-grow flex flex-col justify-center items-center text-center space-y-8">
+                <main className="flex-grow flex flex-col justify-center items-center text-center space-y-8 px-4">
                     <div className="animate-fade-in space-y-6">
-                        <div className="flex items-center justify-center gap-3 mb-6">
-                            <div className="p-3 bg-gradient-primary rounded-xl shadow-glass">
-                                <Dumbbell className="h-8 w-8" />
-                            </div>
-                            <span className="text-3xl font-bold text-gradient">DyFit</span>
+                        <div className="flex items-center justify-center mb-8">
+                            <img 
+                                src="/logodyfit.png" 
+                                alt="DyFit Logo" 
+                                className="h-16 w-auto object-contain"
+                            />
                         </div>
                         
-                        <h1 className="text-4xl font-bold leading-tight">
+                        <h1 className="text-4xl font-bold leading-tight px-4">
                             Seu treino{' '}
                             <span className="text-gradient">começa aqui</span>
                         </h1>
                         
-                        <p className="text-lg text-slate-300 max-w-sm mx-auto">
+                        <p className="text-lg text-slate-300 max-w-xs mx-auto leading-relaxed">
                             Escolha como deseja entrar na plataforma
                         </p>
                     </div>
@@ -164,7 +166,7 @@ export default function LandingLoginPage() {
                     </div>
                 </main>
                 
-                <footer className="w-full pt-8 text-center text-sm text-slate-400">
+                <footer className="w-full pt-6 text-center text-sm text-slate-400">
                     <p>© {new Date().getFullYear()} DyFit. Todos os direitos reservados.</p>
                 </footer>
             </div>
