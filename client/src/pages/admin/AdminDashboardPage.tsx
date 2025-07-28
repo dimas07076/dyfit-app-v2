@@ -96,10 +96,22 @@ export default function AdminDashboardPage() {
       <div className="grid gap-8 md:grid-cols-3">
         <div className="md:col-span-1 space-y-4">
             <h2 className="text-xl font-semibold">Ações Rápidas</h2>
-            <Link href="/admin/criar-personal"><Button className="w-full justify-start"><UserPlus className="mr-2 h-4 w-4"/>Criar Novo Personal</Button></Link>
-            <Link href="/admin/convites"><Button className="w-full justify-start"><Mail className="mr-2 h-4 w-4"/>Gerenciar Convites</Button></Link>
+            <Button asChild className="w-full justify-start">
+              <Link href="/admin/criar-personal">
+                <UserPlus className="mr-2 h-4 w-4"/>Criar Novo Personal
+              </Link>
+            </Button>
+            <Button asChild className="w-full justify-start">
+              <Link href="/admin/convites">
+                <Mail className="mr-2 h-4 w-4"/>Gerenciar Convites
+              </Link>
+            </Button>
             {/* <<< CORREÇÃO DE ROTA: Link para Gerenciar Exercícios deve apontar para a rota do personal >>> */}
-            <Link href="/exercises"><Button className="w-full justify-start"><List className="mr-2 h-4 w-4"/>Gerenciar Exercícios</Button></Link>
+            <Button asChild className="w-full justify-start">
+              <Link href="/exercises">
+                <List className="mr-2 h-4 w-4"/>Gerenciar Exercícios
+              </Link>
+            </Button>
         </div>
         <div className="md:col-span-2">
             <h2 className="text-xl font-semibold mb-4">Personais Recentes</h2>
