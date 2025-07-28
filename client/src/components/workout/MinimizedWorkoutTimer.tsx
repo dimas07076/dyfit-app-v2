@@ -9,11 +9,23 @@ interface MinimizedWorkoutTimerProps {
   className?: string;
 }
 
+/**
+ * Minimized Workout Timer Component
+ * 
+ * Displays a floating timer button when a workout is active.
+ * Only visible for students (aluno) and hidden on the workout execution page itself.
+ * 
+ * Features:
+ * - Shows elapsed workout time in MM:SS format
+ * - Different colors for active (green) vs resting (yellow) states
+ * - Clicking navigates back to the active workout page
+ * - Auto-hides when workout is not active or on workout page
+ */
 export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ className }) => {
   const { isWorkoutActive, elapsedTime, currentFichaId, isResting } = useWorkoutPlayer();
   const [location, navigate] = useLocation();
 
-  // Don't show timer on the workout execution page itself
+  // Don't show timer on the workout execution page itself to avoid duplication
   const isOnWorkoutPage = location.includes('/aluno/ficha/');
 
   // Don't show if workout is not active or if on workout page
@@ -39,7 +51,7 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
     }
   };
 
-  // Determine button style based on state
+  // Determine button style based on workout state
   const getButtonStyle = () => {
     if (isResting) {
       return "bg-yellow-600 text-white hover:bg-yellow-700 border-yellow-500/30";
@@ -47,21 +59,13 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
     return "bg-green-600 text-white hover:bg-green-700 border-green-500/30";
   };
 
-  // Get appropriate icon and title based on state
-  const getIconAndTitle = () => {
+  // Get appropriate title based on state
+  const getTitle = () => {
     if (isResting) {
-      return {
-        title: "Descansando - Clique para voltar ao treino",
-        icon: Timer
-      };
+      return "Descansando - Clique para voltar ao treino";
     }
-    return {
-      title: "Treino ativo - Clique para voltar ao treino",
-      icon: Timer
-    };
+    return "Treino ativo - Clique para voltar ao treino";
   };
-
-  const { title, icon: IconComponent } = getIconAndTitle();
 
   return (
     <Button
@@ -69,8 +73,11 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
       variant="secondary"
       size="sm"
       className={cn(
+        // Fixed positioning - bottom right, above mobile nav
         "fixed bottom-20 right-4 z-50 h-12 px-4 shadow-lg",
+        // Dynamic styling based on workout state
         getButtonStyle(),
+        // Visual enhancements
         "backdrop-blur-sm",
         "transition-all duration-200 ease-in-out",
         "animate-in fade-in-0 slide-in-from-bottom-4",
@@ -78,9 +85,9 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
         "hover:scale-105 active:scale-95",
         className
       )}
-      title={title}
+      title={getTitle()}
     >
-      <IconComponent className="w-4 h-4 mr-2" />
+      <Timer className="w-4 h-4 mr-2" />
       <span className="font-mono text-sm font-bold">
         {formatTime(elapsedTime)}
       </span>
