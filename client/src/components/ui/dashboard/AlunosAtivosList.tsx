@@ -48,7 +48,10 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                         <Link href={`/alunos/editar/${student._id}`} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                            <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
+                            <>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Editar Aluno
+                            </>
                         </Link>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
