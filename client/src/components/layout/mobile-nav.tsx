@@ -2,7 +2,7 @@
 // <<< ALTERAÇÃO: 'React' foi removido da importação, mantendo apenas 'useState' >>>
 import { useState } from 'react';
 import { Link as WouterLink, useLocation } from "wouter"; 
-import { Home, Users, Dumbbell, Menu as MenuIcon, ListChecks } from "lucide-react";
+import { Home, Users, Dumbbell, Menu as MenuIcon, ListChecks, UserCog, List } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { useAluno } from "@/context/AlunoContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -18,7 +18,7 @@ export default function MobileNav() {
   const closeSheet = () => setIsSheetOpen(false);
 
   const isActive = (path: string): boolean => {
-    if (path === "/aluno/dashboard" || path === "/") {
+    if (path === "/aluno/dashboard" || path === "/" || path === "/admin") {
         return location === path;
     }
     return location.startsWith(path);
@@ -57,6 +57,34 @@ export default function MobileNav() {
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-72 bg-card border-r dark:border-border/50">
             <AlunoSidebar onNavigate={closeSheet} />
+          </SheetContent>
+        </Sheet>
+      </nav>
+    );
+  } else if (user && user.role?.toLowerCase() === 'admin') {
+    return (
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border flex justify-around items-stretch h-16 z-20">
+        <WouterLink href="/admin" className={getNavLinkClasses("/admin")}>
+          <Home size={22} strokeWidth={isActive("/admin") ? 2.5 : 2} />
+          <span className="mt-1">Início</span>
+        </WouterLink>
+        <WouterLink href="/admin/personais" className={getNavLinkClasses("/admin/personais")}>
+          <UserCog size={22} strokeWidth={isActive("/admin/personais") ? 2.5 : 2} />
+          <span className="mt-1">Gerenciar Personais</span>
+        </WouterLink>
+        <WouterLink href="/exercises" className={getNavLinkClasses("/exercises")}>
+          <List size={22} strokeWidth={isActive("/exercises") ? 2.5 : 2} />
+          <span className="mt-1">Gerenciar Exercícios</span>
+        </WouterLink>
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetTrigger asChild>
+            <button className={getButtonSheetClasses()}>
+              <MenuIcon size={22} strokeWidth={2} />
+              <span className="mt-1">Menu</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-72 bg-card border-r dark:border-border/50">
+            <Sidebar onNavigate={closeSheet} /> 
           </SheetContent>
         </Sheet>
       </nav>
