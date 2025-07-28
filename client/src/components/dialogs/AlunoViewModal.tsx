@@ -1,7 +1,7 @@
 // client/src/components/dialogs/AlunoViewModal.tsx
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter'; // Import useLocation
 import { fetchWithAuth, apiRequest } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -92,8 +92,17 @@ const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRot
                                 <Button variant="ghost" size="icon" className="h-8 w-8"> <MoreVertical className="h-4 w-4" /> </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => onVisualizarRotina(rotina._id)}> <View className="mr-2 h-4 w-4" /> Visualizar </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onDeleteRotina(rotina._id, rotina.titulo)} className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/40"> <Trash2 className="mr-2 h-4 w-4" /> Remover </DropdownMenuItem>
+                                {/* CORREÇÃO: Removido asChild do DropdownMenuItem e aplicado estilos diretamente ao Link */}
+                                <Link href="#" onClick={() => onVisualizarRotina(rotina._id)} className="flex items-center px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                                    <span className="flex items-center"> {/* Garante um único filho para o Link */}
+                                        <View className="mr-2 h-4 w-4" /> Visualizar
+                                    </span>
+                                </Link>
+                                <DropdownMenuItem onClick={() => onDeleteRotina(rotina._id, rotina.titulo)} className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/40">
+                                    <span className="flex items-center"> {/* Garante um único filho para o DropdownMenuItem */}
+                                        <Trash2 className="mr-2 h-4 w-4" /> Remover
+                                    </span>
+                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
@@ -189,9 +198,11 @@ const InfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label
 const KpiCard = ({ title, value, icon: Icon }: { title: string, value: string | number, icon: React.ElementType }) => ( <Card className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"> <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> <CardTitle className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</CardTitle> <Icon className="h-4 w-4 text-slate-500" /> </CardHeader> <CardContent> <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">{value}</div> </CardContent> </Card> );
 
 const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChange }) => {
+    console.log("AlunoViewModal is rendering. Open:", open, "Aluno:", aluno?.nome); // Added log
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog } = useConfirmDialog();
+    const [, navigate] = useLocation(); // Initialize navigate from wouter
 
     const [rotinaIdParaVer, setRotinaIdParaVer] = useState<string | null>(null);
     const [isRotinaViewModalOpen, setIsRotinaViewModalOpen] = useState(false);
@@ -217,36 +228,43 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     });
 
     useEffect(() => {
+        console.log("AlunoViewModal useEffect - rotinaDetalhada:", rotinaDetalhada, "isFetchingRotina:", isFetchingRotina, "rotinaIdParaVer:", rotinaIdParaVer); // Added log
         if (rotinaDetalhada && !isFetchingRotina && rotinaIdParaVer) {
             setIsRotinaViewModalOpen(true);
         }
     }, [rotinaDetalhada, isFetchingRotina, rotinaIdParaVer]);
 
     const handleVisualizarRotina = (rotinaId: string) => {
+        console.log("handleVisualizarRotina called with ID:", rotinaId); // Added log
         setRotinaIdParaVer(rotinaId);
     };
 
     const handleEditFromView = (rotina: RotinaListagemItem) => {
+        console.log("handleEditFromView called for rotina:", rotina.titulo); // Added log
         setRotinaParaEditar(rotina);
         setIsRotinaViewModalOpen(false);
         setIsRotinaFormModalOpen(true);
     };
 
     const handlePlayVideo = (url: string) => {
+        console.log("handlePlayVideo called with URL:", url); // Added log
         setVideoUrl(url);
     };
 
     const handleAssociarRotina = () => {
+        console.log("handleAssociarRotina called."); // Added log
         setIsSelectModeloRotinaModalOpen(true);
     };
 
     const deleteRotinaMutation = useMutation({
         mutationFn: (rotinaId: string) => apiRequest("DELETE", `/api/treinos/${rotinaId}`),
         onSuccess: () => {
+            console.log("Rotina deleted successfully."); // Added log
             toast({ title: "Sucesso!", description: "Rotina removida com sucesso." });
             queryClient.invalidateQueries({ queryKey: ["alunoRotinas", aluno?._id] });
         },
         onError: (error: any) => {
+            console.error("Error deleting rotina:", error); // Added log
             toast({ variant: "destructive", title: "Erro ao Remover", description: error.message || "Não foi possível remover a rotina." });
         },
         onSettled: () => {
@@ -256,6 +274,7 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     });
     
     const handleDeleteRotina = (rotinaId: string, rotinaTitulo: string) => {
+        console.log("handleDeleteRotina called for ID:", rotinaId, "Title:", rotinaTitulo); // Added log
         setRotinaIdToDelete(rotinaId); 
         openConfirmDialog({
             titulo: "Confirmar Remoção",
@@ -265,6 +284,7 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     };
 
     const handleConfirmDelete = () => {
+        console.log("handleConfirmDelete called."); // Added log
         if (rotinaIdToDelete) {
             deleteRotinaMutation.mutate(rotinaIdToDelete);
         }
@@ -272,32 +292,40 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
 
     const associateModelMutation = useMutation({
         mutationFn: async ({ fichaModeloId, alunoId }: { fichaModeloId: string; alunoId: string }) => {
+            console.log("Associating model:", fichaModeloId, "to aluno:", alunoId); // Added log
             return apiRequest("POST", "/api/treinos/associar-modelo", { fichaModeloId, alunoId });
         },
         onSuccess: (data) => {
+            console.log("Model associated successfully:", data); // Added log
             toast({ title: "Sucesso!", description: `Ficha "${data.titulo}" criada para o aluno.` });
             queryClient.invalidateQueries({ queryKey: ["alunoRotinas", aluno?._id] });
         },
         onError: (error: any) => {
+            console.error("Error associating model:", error); // Added log
             toast({ variant: "destructive", title: "Erro ao Associar", description: error.message });
         },
         onSettled: () => setIsSelectModeloRotinaModalOpen(false)
     });
 
     const handleSelectModelAndAssociate = (modelId: string) => {
+        console.log("handleSelectModelAndAssociate called with model ID:", modelId); // Added log
         if (aluno?._id) {
             associateModelMutation.mutate({ fichaModeloId: modelId, alunoId: aluno._id });
         }
     };
 
     const handleEditSuccess = (rotinaAtualizada: RotinaListagemItem) => {
+        console.log("handleEditSuccess called for rotina:", rotinaAtualizada.titulo); // Added log
         queryClient.invalidateQueries({ queryKey: ['alunoRotinas', aluno?._id] });
         queryClient.invalidateQueries({ queryKey: ['rotinaDetalhes', rotinaAtualizada._id] });
         setRotinaParaEditar(null);
         setRotinaIdParaVer(null);
     };
 
-    if (!aluno) return null;
+    if (!aluno) {
+        console.log("Aluno is null, not rendering AlunoViewModal."); // Added log
+        return null;
+    }
 
     const getInitials = (nome: string) => nome?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || '?';
     const formatDateBR = (dateStr?: string) => {
@@ -367,7 +395,15 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                                 <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} /></TabsContent>
                                 <TabsContent value="historico"><HistoricoTab alunoId={aluno._id} isActive={activeTab === "historico"} /></TabsContent>
                             </Tabs>
-                            <DialogFooter className="mt-auto pt-6"><Button variant="outline" asChild><Link href={`/alunos/editar/${aluno._id}`}> <Edit className="mr-2 h-4 w-4" /> Editar Aluno </Link></Button></DialogFooter>
+                            <DialogFooter className="mt-auto pt-6">
+                                {/* CORREÇÃO: Removido 'asChild' do Button e usando navegação programática com 'useLocation' */}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => navigate(`/alunos/editar/${aluno._id}`)}
+                                >
+                                    <Edit className="mr-2 h-4 w-4" /> Editar Aluno
+                                </Button>
+                            </DialogFooter>
                         </div>
                     </div>
                 </DialogContent>
