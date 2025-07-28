@@ -37,7 +37,7 @@ export default function MobileNav() {
 
   if (aluno) {
     return (
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border flex justify-around items-stretch h-16 z-20">
+      <nav className="md:hidden mobile-nav-fixed bg-card border-t border-border flex justify-around items-stretch h-16 z-20">
         <WouterLink href="/aluno/dashboard" className={getNavLinkClasses("/aluno/dashboard")}>
           <Home size={22} strokeWidth={isActive("/aluno/dashboard") ? 2.5 : 2} />
           <span className="mt-1">Início</span>
@@ -63,7 +63,7 @@ export default function MobileNav() {
     );
   } else if (user) {
     return (
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border flex justify-around items-stretch h-16 z-20">
+      <nav className="md:hidden mobile-nav-fixed bg-card border-t border-border flex justify-around items-stretch h-16 z-20">
         <WouterLink href="/" className={getNavLinkClasses("/")}>
           <Home size={22} strokeWidth={isActive("/") ? 2.5 : 2} />
           <span className="mt-1">Início</span>

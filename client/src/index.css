@@ -262,6 +262,17 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  /* Mobile Navigation Fixed Positioning Utilities */
+  .mobile-nav-fixed {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+    -webkit-transform: none !important;
+    will-change: auto !important;
+  }
 }
 
 /* Keyframe Animations */
