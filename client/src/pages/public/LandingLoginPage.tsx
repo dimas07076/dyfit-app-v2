@@ -1,96 +1,170 @@
 // client/src/pages/public/LandingLoginPage.tsx
 import { Link } from 'wouter';
-import { Shield, User, Download } from 'lucide-react';
+import { Shield, User, Download, Dumbbell, TrendingUp, Users } from 'lucide-react';
 import { usePWAInstall } from '@/context/PWAInstallContext';
 
-const ProfileButton = ({ href, text, icon: Icon, className }: { href: string, text: string, icon: React.ElementType, className: string }) => (
-    <Link 
-        href={href}
-        className={`flex items-center justify-center gap-3 w-full text-white font-semibold py-3 px-6 rounded-lg text-center shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300 ease-in-out ${className}`}
-    >
-        <Icon className="h-5 w-5" />
-        <span>{text}</span>
-    </Link>
+const ProfileButton = ({ href, text, icon: Icon, description }: { 
+  href: string; 
+  text: string; 
+  icon: React.ElementType; 
+  description: string;
+}) => (
+  <Link 
+    href={href}
+    className="group relative overflow-hidden bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-1 interactive touch-target"
+  >
+    <div className="flex items-center gap-4">
+      <div className="p-3 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+        <Icon className="h-6 w-6" />
+      </div>
+      <div className="flex-1 text-left">
+        <h3 className="font-semibold text-lg">{text}</h3>
+        <p className="text-primary-foreground/80 text-sm">{description}</p>
+      </div>
+    </div>
+    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+  </Link>
 );
 
-const ActionButton = ({ onClick, text, icon: Icon, className }: { onClick: () => void, text: string, icon: React.ElementType, className: string }) => (
-    <button
-        onClick={onClick}
-        className={`flex items-center justify-center gap-3 w-full text-white font-semibold py-3 px-6 rounded-lg text-center shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300 ease-in-out ${className}`}
-    >
-        <Icon className="h-5 w-5" />
-        <span>{text}</span>
-    </button>
+const ActionButton = ({ onClick, text, icon: Icon, className }: { 
+  onClick: () => void; 
+  text: string; 
+  icon: React.ElementType; 
+  className: string;
+}) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center justify-center gap-3 w-full font-semibold py-3 px-6 rounded-xl text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 interactive touch-target ${className}`}
+  >
+    <Icon className="h-5 w-5" />
+    <span>{text}</span>
+  </button>
 );
 
 
 export default function LandingLoginPage() {
-    // <<< ALTERAÇÃO: A variável "canInstall" volta a ser usada >>>
     const { canInstall, triggerInstallPrompt } = usePWAInstall();
 
     return (
-        <div className="min-h-screen text-white antialiased">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white antialiased">
             {/* LAYOUT DESKTOP */}
-            <div className="hidden lg:flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 py-8">
-                <main className="w-full max-w-4xl mx-auto grid grid-cols-2 gap-0 items-center bg-slate-800/20 backdrop-blur-sm border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-                    <div className="w-full h-full relative animate-in fade-in zoom-in-95 duration-700">
-                        <img src="/images/illustration-fitness.jpg" alt="Personal trainer auxiliando aluna" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-6 right-6 flex items-center gap-4 z-10">
-                            <a href="#" aria-label="Baixar na App Store"><img src="/images/app-store-badge.png" alt="Baixar na App Store" className="h-10 w-auto opacity-80 hover:opacity-100 transition-opacity" /></a>
-                            <a href="#" aria-label="Disponível no Google Play"><img src="/images/GooglePlay.png" alt="Disponível no Google Play" className="h-12 w-auto opacity-80 hover:opacity-100 transition-opacity" /></a>
+            <div className="hidden lg:flex min-h-screen flex-col items-center justify-center px-4 py-8">
+                <main className="w-full max-w-6xl mx-auto grid grid-cols-2 gap-12 items-center">
+                    {/* Left Side - Hero Content */}
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-gradient-primary rounded-xl shadow-glass">
+                                    <Dumbbell className="h-8 w-8" />
+                                </div>
+                                <span className="text-2xl font-bold text-gradient">DyFit</span>
+                            </div>
+                            
+                            <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
+                                Sua jornada fitness,{' '}
+                                <span className="text-gradient">simplificada</span>
+                            </h1>
+                            
+                            <p className="text-xl text-slate-300 leading-relaxed max-w-lg">
+                                A plataforma completa que conecta personal trainers e alunos. 
+                                Gerencie treinos, acompanhe progressos e alcance seus objetivos.
+                            </p>
+                        </div>
+
+                        {/* Feature highlights */}
+                        <div className="grid grid-cols-2 gap-4 pt-6">
+                            <div className="flex items-center gap-3 text-slate-300">
+                                <TrendingUp className="h-5 w-5 text-primary" />
+                                <span className="text-sm">Acompanhamento em tempo real</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-300">
+                                <Users className="h-5 w-5 text-primary" />
+                                <span className="text-sm">Comunicação direta</span>
+                            </div>
                         </div>
                     </div>
-                    <div className="p-12 flex flex-col items-start text-left animate-in fade-in slide-in-from-bottom-8 duration-700">
-                        <img src="/logodyfit.png" alt="Logo DyFit" className="h-16 mb-6" />
-                        <h1 className="text-5xl font-extrabold tracking-tight text-white">Sua jornada fitness, <span className="text-blue-400">simplificada.</span></h1>
-                        <p className="mt-4 text-lg text-slate-300 max-w-md">A plataforma completa para personal trainers e seus alunos. Escolha seu perfil para começar.</p>
-                        <div className="w-full max-w-xs flex flex-col gap-4 mt-8">
-                            <ProfileButton href="/login/personal" text="Sou Personal Trainer" icon={Shield} className="bg-blue-600 hover:bg-blue-500" />
-                            <ProfileButton href="/login/aluno" text="Sou Aluno" icon={User} className="bg-indigo-500 hover:bg-indigo-400" />
-                            {/* <<< ALTERAÇÃO: A condição "canInstall" foi REINTRODUZIDA >>> */}
-                            {canInstall && (
-                                <ActionButton 
-                                    onClick={triggerInstallPrompt} 
-                                    text="Instalar Aplicativo" 
-                                    icon={Download} 
-                                    className="bg-green-600 hover:bg-green-500" 
+
+                    {/* Right Side - Action Cards */}
+                    <div className="space-y-6 animate-slide-up">
+                        <div className="bg-card/20 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-glass">
+                            <h2 className="text-2xl font-semibold mb-6 text-center">Escolha seu perfil</h2>
+                            <div className="space-y-4">
+                                <ProfileButton 
+                                    href="/login/personal" 
+                                    text="Personal Trainer" 
+                                    icon={Shield} 
+                                    description="Gerencie seus alunos e treinos"
                                 />
-                            )}
+                                <ProfileButton 
+                                    href="/login/aluno" 
+                                    text="Aluno" 
+                                    icon={User} 
+                                    description="Acesse seus treinos e progresso"
+                                />
+                                {canInstall && (
+                                    <ActionButton 
+                                        onClick={triggerInstallPrompt} 
+                                        text="Instalar Aplicativo" 
+                                        icon={Download} 
+                                        className="bg-gradient-to-r from-success to-success/80 hover:from-success/90 hover:to-success text-success-foreground" 
+                                    />
+                                )}
+                            </div>
                         </div>
                     </div>
                 </main>
-                <footer className="w-full pt-8 text-center text-sm text-gray-500">
+                
+                <footer className="w-full pt-8 text-center text-sm text-slate-400">
                     <p>© {new Date().getFullYear()} DyFit. Todos os direitos reservados.</p>
                 </footer>
             </div>
 
             {/* LAYOUT MOBILE */}
-            <div className="lg:hidden min-h-screen flex flex-col bg-slate-900 relative p-6">
-                <div className="absolute inset-0 z-0">
-                    <img src="/images/illustration-fitness.jpg" alt="" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"></div>
-                </div>
-                <main className="relative z-10 flex-grow flex flex-col justify-center items-center text-center">
-                    <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
-                        <img src="/logodyfit.png" alt="Logo DyFit" className="h-16 mx-auto" />
-                        <h1 className="mt-4 text-4xl font-extrabold tracking-tight">Seu treino começa aqui</h1>
-                        <p className="mt-6 mb-8 text-lg text-slate-300">Escolha como deseja entrar:</p>
-                        <div className="w-full max-w-xs mx-auto flex flex-col gap-4">
-                            <ProfileButton href="/login/personal" text="Sou Personal Trainer" icon={Shield} className="bg-blue-600 hover:bg-blue-500" />
-                            <ProfileButton href="/login/aluno" text="Sou Aluno" icon={User} className="bg-indigo-500 hover:bg-indigo-400" />
-                            {/* <<< ALTERAÇÃO: A condição "canInstall" foi REINTRODUZIDA >>> */}
-                            {canInstall && (
-                                <ActionButton 
-                                    onClick={triggerInstallPrompt} 
-                                    text="Instalar Aplicativo" 
-                                    icon={Download} 
-                                    className="bg-green-600 hover:bg-green-500" 
-                                />
-                            )}
+            <div className="lg:hidden min-h-screen flex flex-col relative p-6">
+                <main className="flex-grow flex flex-col justify-center items-center text-center space-y-8">
+                    <div className="animate-fade-in space-y-6">
+                        <div className="flex items-center justify-center gap-3 mb-6">
+                            <div className="p-3 bg-gradient-primary rounded-xl shadow-glass">
+                                <Dumbbell className="h-8 w-8" />
+                            </div>
+                            <span className="text-3xl font-bold text-gradient">DyFit</span>
                         </div>
+                        
+                        <h1 className="text-4xl font-bold leading-tight">
+                            Seu treino{' '}
+                            <span className="text-gradient">começa aqui</span>
+                        </h1>
+                        
+                        <p className="text-lg text-slate-300 max-w-sm mx-auto">
+                            Escolha como deseja entrar na plataforma
+                        </p>
+                    </div>
+
+                    <div className="w-full max-w-sm space-y-4 animate-slide-up">
+                        <ProfileButton 
+                            href="/login/personal" 
+                            text="Personal Trainer" 
+                            icon={Shield} 
+                            description="Gerencie seus alunos"
+                        />
+                        <ProfileButton 
+                            href="/login/aluno" 
+                            text="Aluno" 
+                            icon={User} 
+                            description="Acesse seus treinos"
+                        />
+                        {canInstall && (
+                            <ActionButton 
+                                onClick={triggerInstallPrompt} 
+                                text="Instalar App" 
+                                icon={Download} 
+                                className="bg-gradient-to-r from-success to-success/80 hover:from-success/90 hover:to-success text-success-foreground" 
+                            />
+                        )}
                     </div>
                 </main>
-                <footer className="relative z-10 w-full pt-8 text-center text-sm text-gray-500">
+                
+                <footer className="w-full pt-8 text-center text-sm text-slate-400">
                     <p>© {new Date().getFullYear()} DyFit. Todos os direitos reservados.</p>
                 </footer>
             </div>
