@@ -39,7 +39,6 @@ export default function TreinosPage() {
     const [videoUrlToPlay, setVideoUrlToPlay] = useState<string | null>(null);
     const [buscaAluno, setBuscaAluno] = useState("");
 
-    // Estados para a nova funcionalidade de "Tornar Modelo"
     const [isConvertToModelAlertOpen, setIsConvertToModelAlertOpen] = useState(false);
     const [rotinaParaConverterEmModelo, setRotinaParaConverterEmModelo] = useState<RotinaListagemItem | null>(null);
 
@@ -69,16 +68,25 @@ export default function TreinosPage() {
 
     const moveRotinaMutation = useMutation<RotinaListagemItem, Error, { rotinaId: string; pastaId: string | null }>({ mutationFn: ({ rotinaId, pastaId }) => apiRequest("PUT", `/api/treinos/${rotinaId}/pasta`, { pastaId }), onSuccess: (updatedRotina) => { toast({ title: "Sucesso!", description: `Rotina "${updatedRotina.titulo}" movida.` }); queryClient.setQueryData<RotinaListagemItem[]>(["/api/treinos"], (oldData) => { if (!oldData) return [updatedRotina]; return oldData.map(r => r._id === updatedRotina._id ? updatedRotina : r); }); }, onError: (err) => toast({ variant: "destructive", title: "Erro ao Mover", description: err.message }), });
 
-    // Nova mutação para copiar e transformar em modelo
+    // <<< INÍCIO DA ALTERAÇÃO >>>
     const convertToModelMutation = useMutation<RotinaListagemItem, Error, string>({
-      mutationFn: (rotinaId) => apiRequest("POST", `/api/treinos/copiar-para-modelo/${rotinaId}`),
+      // 1. URL da API corrigida para a rota unificada.
+      mutationFn: (rotinaId) => apiRequest("POST", `/api/treinos/${rotinaId}/tornar-modelo`),
       onSuccess: (newModelRotina) => {
         toast({ title: "Sucesso!", description: `Rotina "${newModelRotina.titulo}" criada como modelo.` });
-        queryClient.invalidateQueries({ queryKey: ["/api/treinos"] }); // Invalida para recarregar todas as rotinas
+        
+        // 2. Implementada a atualização manual e instantânea do cache.
+        queryClient.setQueryData<RotinaListagemItem[]>(['/api/treinos'], (oldData) => {
+            if (oldData) {
+                return [newModelRotina, ...oldData];
+            }
+            return [newModelRotina];
+        });
       },
       onError: (err) => toast({ variant: "destructive", title: "Erro ao Converter", description: err.message }),
       onSettled: () => setIsConvertToModelAlertOpen(false),
     });
+    // <<< FIM DA ALTERAÇÃO >>>
 
     const handleOpenCreateModal = () => { setRotinaParaEditar(null); setIsRotinaModalOpen(true); };
     const handleOpenEditModal = (r: RotinaListagemItem) => { setIsViewModalOpen(false); setRotinaParaEditar(r); setIsRotinaModalOpen(true); };
@@ -93,13 +101,11 @@ export default function TreinosPage() {
     const handlePastaSuccess = () => { queryClient.invalidateQueries({ queryKey: ["/api/pastas/treinos"] }); setIsPastaModalOpen(false); setPastaParaEditar(null); };
     const handlePlayVideo = (url: string) => setVideoUrlToPlay(url);
 
-    // Nova função para abrir o modal de confirmação de "Tornar Modelo"
     const handleConvertToModelClick = (rotina: RotinaListagemItem) => {
       setRotinaParaConverterEmModelo(rotina);
       setIsConvertToModelAlertOpen(true);
     };
 
-    // Função para confirmar a conversão para modelo
     const handleConfirmConvertToModel = () => {
       if (rotinaParaConverterEmModelo) {
         convertToModelMutation.mutate(rotinaParaConverterEmModelo._id);
@@ -124,7 +130,6 @@ export default function TreinosPage() {
     const rotinasPorPasta = pastas.sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map(p => ({ ...p, rotinas: rotinasModelo.filter(r => (typeof r.pastaId === 'string' ? r.pastaId : r.pastaId?._id) === p._id) }));
     const rotinasSemPasta = rotinasModelo.filter(r => !r.pastaId);
 
-    // Adicionado onConvertToModel aos handlers
     const cardHandlers = { 
       onView: handleOpenViewModal, 
       onEdit: handleOpenEditModal, 
@@ -132,7 +137,7 @@ export default function TreinosPage() {
       onAssign: handleAssignClick, 
       onMoveToFolder: handleMoveToFolder, 
       onRemoveFromFolder: handleRemoveFromFolder,
-      onConvertToModel: handleConvertToModelClick, // Passa a nova função
+      onConvertToModel: handleConvertToModelClick,
     };
 
     return (
@@ -162,7 +167,6 @@ export default function TreinosPage() {
                                 <AccordionItem value={pasta._id} key={pasta._id} className="border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 shadow-sm">
                                     <AccordionTrigger className="px-4 py-3 hover:no-underline font-semibold text-lg">
                                         <div className="flex-grow flex items-center gap-3"><Folder className="h-5 w-5 text-primary"/> {pasta.nome} <Badge variant="secondary">{pasta.rotinas.length}</Badge></div>
-                                        {/* Ajuste para evitar aninhamento de botões */}
                                         <div className="flex-shrink-0 flex items-center gap-1">
                                             <span 
                                                 className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-7 w-7 cursor-pointer" 
@@ -219,12 +223,11 @@ export default function TreinosPage() {
                 onEdit={handleOpenEditModal} 
                 onAssign={handleAssignClick} 
                 onPlayVideo={handlePlayVideo} 
-                onConvertToModel={handleConvertToModelClick} // Passa a nova função para o RotinaViewModal
+                onConvertToModel={handleConvertToModelClick}
             />
             {isAssociarModeloModalOpen && rotinaModeloParaAssociar && <AssociarModeloAlunoModal isOpen={isAssociarModeloModalOpen} onClose={() => setIsAssociarModeloModalOpen(false)} fichaModeloId={rotinaModeloParaAssociar.id} fichaModeloTitulo={rotinaModeloParaAssociar.titulo}/>}
             <PastaFormModal isOpen={isPastaModalOpen} onClose={() => {setIsPastaModalOpen(false); setPastaParaEditar(null);}} onSuccessCallback={handlePastaSuccess} initialData={pastaParaEditar} />
             
-            {/* AlertDialog para confirmar exclusão (já existente) */}
             <AlertDialog open={isDeleteAlertOpen} onOpenChange={(open) => !open && setIsDeleteAlertOpen(false)}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -238,7 +241,6 @@ export default function TreinosPage() {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Novo AlertDialog para confirmar conversão para modelo */}
             <AlertDialog open={isConvertToModelAlertOpen} onOpenChange={(open) => !open && setIsConvertToModelAlertOpen(false)}>
               <AlertDialogContent>
                 <AlertDialogHeader>
