@@ -1,7 +1,7 @@
 // client/src/components/ui/dashboard/AlunosAtivosList.tsx
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,10 +16,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 // Componente de Card para um único aluno (similar ao que já existia)
 const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno) => void }) => {
+    const [, navigate] = useLocation();
+    
     const getInitials = (nome: string) => {
         const partes = nome.split(' ').filter(Boolean);
         if (partes.length > 1) return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
         return partes[0] ? partes[0].substring(0, 2).toUpperCase() : '?';
+    };
+
+    const handleEditClick = () => {
+        navigate(`/alunos/editar/${student._id}`);
     };
 
     return (
@@ -32,7 +38,6 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                 </Avatar>
                 <div>
                     <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">{student.nome}</span>
-                    {/* <<< CORREÇÃO: Trocado 'student.objetivo' por 'student.email' >>> */}
                     <p className="text-xs text-gray-500 dark:text-gray-400">{student.email || "Email não disponível"}</p>
                 </div>
             </div>
@@ -46,10 +51,8 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                     <DropdownMenuItem onClick={() => onView(student)} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
                         <Eye className="mr-2 h-4 w-4" /> Visualizar
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                        <Link href={`/alunos/editar/${student._id}`} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                            <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
-                        </Link>
+                    <DropdownMenuItem onClick={handleEditClick} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                        <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -62,6 +65,7 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [, navigate] = useLocation();
 
     const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({
         queryKey: ['alunosAtivos', trainerId],
@@ -78,6 +82,10 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
         setSelectedStudent(student);
         setIsViewModalOpen(true);
     };
+
+    const handleAddStudentClick = () => {
+        navigate("/alunos/novo");
+    };
     
     return (
         <>
@@ -88,11 +96,13 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                             <CardTitle className="text-lg font-semibold text-gray-800 dark:text-gray-100">Alunos Ativos</CardTitle>
                             <CardDescription className="text-gray-600 dark:text-gray-400">Seus alunos com planos de treino em andamento.</CardDescription>
                         </div>
-                        <Link href="/alunos/novo">
-                            <Button size="sm" className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200">
-                                <UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno
-                            </Button>
-                        </Link>
+                        <Button 
+                            size="sm" 
+                            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                            onClick={handleAddStudentClick}
+                        >
+                            <UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno
+                        </Button>
                     </div>
                     <div className="relative mt-4">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
