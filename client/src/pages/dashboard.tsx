@@ -19,9 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonalPlanStatus } from "../../../shared/types/planos";
 
 // Lazy load heavy components for better performance
-const AlunosAtivosList = lazy(() => import("@/components/ui/dashboard/AlunosAtivosList").then(module => ({
-  default: module.AlunosAtivosList
-})));
+const AlunosAtivosList = lazy(() => import("@/components/ui/dashboard/AlunosAtivosList"));
 
 // <<< ALTERAÇÃO: Interface de dados atualizada >>>
 interface DashboardStatsData {

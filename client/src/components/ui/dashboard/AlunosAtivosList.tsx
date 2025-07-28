@@ -58,7 +58,7 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
 };
 
 // Componente principal da lista
-export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
+function AlunosAtivosList({ trainerId }: { trainerId: string }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -141,3 +141,5 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
         </>
     );
 }
+
+export default AlunosAtivosList;
