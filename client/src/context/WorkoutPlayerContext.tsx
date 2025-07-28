@@ -10,7 +10,7 @@ interface WorkoutExercise {
 
 interface WorkoutPlayerContextType {
   isWorkoutActive: boolean;
-  startWorkout: (exercises: WorkoutExercise[]) => void;
+  startWorkout: (exercises: WorkoutExercise[], workoutId?: string, dayId?: string) => void;
   stopWorkout: () => void;
   resetWorkout: () => void;
   resumeWorkout: () => void; // <-- 1. MUDANÇA: Expõe a nova função de resumir
@@ -23,7 +23,9 @@ interface WorkoutPlayerContextType {
   getExerciseLoad: (exerciseId: string) => string;
   restTimeRemaining: number | null;
   isResting: boolean;
-  workoutStartTime: Date | null; 
+  workoutStartTime: Date | null;
+  currentWorkoutId: string | null;
+  currentDayId: string | null;
 }
 
 const WorkoutPlayerContext = createContext<WorkoutPlayerContextType | undefined>(undefined);
@@ -40,6 +42,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
   const [isResting, setIsResting] = useState<boolean>(false);
 
   const [workoutStartTime, setWorkoutStartTime] = useState<Date | null>(null);
+  const [currentWorkoutId, setCurrentWorkoutId] = useState<string | null>(null);
+  const [currentDayId, setCurrentDayId] = useState<string | null>(null);
 
   const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
   const restTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -78,7 +82,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     }, 1000);
   };
 
-  const startWorkout = useCallback((initialExercises: WorkoutExercise[]) => {
+  const startWorkout = useCallback((initialExercises: WorkoutExercise[], workoutId?: string, dayId?: string) => {
     resetWorkout(); // Garante que qualquer estado anterior seja limpo antes de começar
     setExercises(initialExercises);
     setIsWorkoutActive(true);
@@ -86,6 +90,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     setCompletedExercises(new Set());
     setExerciseLoads({});
     setActiveExerciseId(findNextActiveExercise(initialExercises, new Set()));
+    setCurrentWorkoutId(workoutId || null);
+    setCurrentDayId(dayId || null);
   }, [findNextActiveExercise]);
 
   const stopWorkout = useCallback(() => {
@@ -110,6 +116,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     setElapsedTime(0);
     setIsResting(false);
     setRestTimeRemaining(null);
+    setCurrentWorkoutId(null);
+    setCurrentDayId(null);
     clearTimers();
   }, []);
   
@@ -160,6 +168,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     restTimeRemaining,
     isResting,
     workoutStartTime,
+    currentWorkoutId,
+    currentDayId,
   };
 
   return (
