@@ -118,12 +118,12 @@ export default function ListarPersonaisPage() {
           <UserCog className="mr-3 h-8 w-8 text-primary" />
           Gerenciar Personais
         </h1>
-        <Link href="/admin/criar-personal">
-          <Button>
+        <Button asChild>
+          <Link href="/admin/criar-personal">
             <UserPlus className="mr-2 h-4 w-4" />
             Criar Novo Personal
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
       {personais && personais.length > 0 ? (

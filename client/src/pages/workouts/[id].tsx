@@ -225,12 +225,12 @@ export default function WorkoutDetail({ id }: WorkoutDetailProps) {
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold mb-2">Workout plan not found</h2>
           <p className="text-gray-500 mb-6">The workout plan you're looking for doesn't exist or has been removed.</p>
-          <Link href="/workouts">
-            <Button>
+          <Button asChild>
+            <Link href="/workouts">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Workouts
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     );
