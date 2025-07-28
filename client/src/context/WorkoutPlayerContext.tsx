@@ -10,7 +10,7 @@ interface WorkoutExercise {
 
 interface WorkoutPlayerContextType {
   isWorkoutActive: boolean;
-  startWorkout: (exercises: WorkoutExercise[]) => void;
+  startWorkout: (exercises: WorkoutExercise[], fichaId?: string) => void;
   stopWorkout: () => void;
   resetWorkout: () => void;
   resumeWorkout: () => void; // <-- 1. MUDANÇA: Expõe a nova função de resumir
@@ -24,6 +24,7 @@ interface WorkoutPlayerContextType {
   restTimeRemaining: number | null;
   isResting: boolean;
   workoutStartTime: Date | null; 
+  currentFichaId: string | null;
 }
 
 const WorkoutPlayerContext = createContext<WorkoutPlayerContextType | undefined>(undefined);
@@ -40,6 +41,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
   const [isResting, setIsResting] = useState<boolean>(false);
 
   const [workoutStartTime, setWorkoutStartTime] = useState<Date | null>(null);
+  const [currentFichaId, setCurrentFichaId] = useState<string | null>(null);
 
   const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
   const restTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -78,7 +80,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     }, 1000);
   };
 
-  const startWorkout = useCallback((initialExercises: WorkoutExercise[]) => {
+  const startWorkout = useCallback((initialExercises: WorkoutExercise[], fichaId?: string) => {
     resetWorkout(); // Garante que qualquer estado anterior seja limpo antes de começar
     setExercises(initialExercises);
     setIsWorkoutActive(true);
@@ -86,6 +88,9 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     setCompletedExercises(new Set());
     setExerciseLoads({});
     setActiveExerciseId(findNextActiveExercise(initialExercises, new Set()));
+    if (fichaId) {
+      setCurrentFichaId(fichaId);
+    }
   }, [findNextActiveExercise]);
 
   const stopWorkout = useCallback(() => {
@@ -110,6 +115,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     setElapsedTime(0);
     setIsResting(false);
     setRestTimeRemaining(null);
+    setCurrentFichaId(null);
     clearTimers();
   }, []);
   
@@ -160,6 +166,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     restTimeRemaining,
     isResting,
     workoutStartTime,
+    currentFichaId,
   };
 
   return (

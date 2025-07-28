@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
 import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
+import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
@@ -197,7 +198,23 @@ function AdminApp() {
   );
 }
 function PersonalApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <ProtectedRoute path="/" component={Dashboard} /> <ProtectedRoute path="/alunos" component={StudentsIndex} /> <ProtectedRoute path="/alunos/novo" component={NewStudent} /> <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> <ProtectedRoute path="/treinos" component={TreinosPage} /> <ProtectedRoute path="/exercises" component={ExercisesIndex} /> <ProtectedRoute path="/sessoes" component={SessionsPage} /> <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
-function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
+function AlunoApp() { 
+  return ( 
+    <WorkoutPlayerProvider>
+      <MainLayout> 
+        <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+          <Switch> 
+            <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> 
+            <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> 
+            <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> 
+            <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> 
+            <Route><Redirect to="/aluno/dashboard" /></Route> 
+          </Switch> 
+        </Suspense> 
+      </MainLayout> 
+    </WorkoutPlayerProvider>
+  );
+}
 
 function PublicRoutes() {
   return (

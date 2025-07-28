@@ -7,6 +7,7 @@ import MobileNav from "./mobile-nav";
 import { UserContext } from "@/context/UserContext";
 import { useAluno } from "@/context/AlunoContext";
 import { cn } from "@/lib/utils";
+import MinimizedWorkoutTimer from "@/components/workout/MinimizedWorkoutTimer";
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   const { user } = useContext(UserContext);
@@ -58,6 +59,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       </div>
 
       {(user || aluno) && <MobileNav />}
+      
+      {/* Show minimized workout timer only for students (aluno) */}
+      {aluno && <MinimizedWorkoutTimer />}
     </div>
   );
 }
