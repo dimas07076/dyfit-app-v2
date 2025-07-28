@@ -4,6 +4,7 @@ import Sidebar from "./sidebar";
 import AlunoSidebar from "./AlunoSidebar";
 import Header from "./header";
 import MobileNav from "./mobile-nav";
+import WorkoutMiniPlayer from "./WorkoutMiniPlayer";
 import { UserContext } from "@/context/UserContext";
 import { useAluno } from "@/context/AlunoContext";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       </div>
 
       {(user || aluno) && <MobileNav />}
+      
+      {/* WorkoutMiniPlayer - only for students */}
+      {aluno && !user && <WorkoutMiniPlayer />}
     </div>
   );
 }
