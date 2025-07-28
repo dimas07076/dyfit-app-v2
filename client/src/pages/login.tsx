@@ -56,11 +56,12 @@ export default function LoginPage() {
                 <div className="w-full max-w-md space-y-8">
                     {/* Logo and Title Section */}
                     <div className="text-center space-y-6 animate-fade-in">
-                        <div className="flex items-center justify-center gap-3">
-                            <div className="p-3 bg-gradient-primary rounded-xl shadow-glass">
-                                <Shield className="h-8 w-8 text-white" />
-                            </div>
-                            <span className="text-3xl font-bold text-white">DyFit</span>
+                        <div className="flex items-center justify-center">
+                            <img 
+                                src="/images/logo-branco.png" 
+                                alt="DyFit Logo" 
+                                className="h-16 w-auto object-contain"
+                            />
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold text-white">Entrar como Personal</h1>
