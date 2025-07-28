@@ -1,7 +1,7 @@
 // client/src/components/ui/dashboard/AlunosAtivosList.tsx
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,24 @@ import AlunoViewModal from "@/components/dialogs/AlunoViewModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-// Componente de Card para um único aluno (similar ao que já existia)
-const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno) => void }) => {
+// Componente individual para um aluno ativo
+const AlunoAtivoCard = ({ student, onView, onEdit }: { 
+    student: Aluno; 
+    onView: (student: Aluno) => void;
+    onEdit: (studentId: string) => void;
+}) => {
     const getInitials = (nome: string) => {
         const partes = nome.split(' ').filter(Boolean);
         if (partes.length > 1) return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
         return partes[0] ? partes[0].substring(0, 2).toUpperCase() : '?';
+    };
+
+    const handleViewClick = () => {
+        onView(student);
+    };
+
+    const handleEditClick = () => {
+        onEdit(student._id);
     };
 
     return (
@@ -32,7 +44,6 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                 </Avatar>
                 <div>
                     <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">{student.nome}</span>
-                    {/* <<< CORREÇÃO: Trocado 'student.objetivo' por 'student.email' >>> */}
                     <p className="text-xs text-gray-500 dark:text-gray-400">{student.email || "Email não disponível"}</p>
                 </div>
             </div>
@@ -43,13 +54,11 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50">
-                    <DropdownMenuItem onClick={() => onView(student)} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <DropdownMenuItem onClick={handleViewClick} className="hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer">
                         <Eye className="mr-2 h-4 w-4" /> Visualizar
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                        <Link href={`/alunos/editar/${student._id}`} className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                            <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
-                        </Link>
+                    <DropdownMenuItem onClick={handleEditClick} className="hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer">
+                        <Pencil className="mr-2 h-4 w-4" /> Editar Aluno
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -57,8 +66,9 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
     );
 };
 
-// Componente principal da lista
+// Componente principal da lista de alunos ativos
 export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
+    const [, navigate] = useLocation();
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -74,9 +84,17 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
         student.nome.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleViewClick = (student: Aluno) => {
+    const handleViewStudent = (student: Aluno) => {
         setSelectedStudent(student);
         setIsViewModalOpen(true);
+    };
+
+    const handleEditStudent = (studentId: string) => {
+        navigate(`/alunos/editar/${studentId}`);
+    };
+
+    const handleAddStudent = () => {
+        navigate('/alunos/novo');
     };
     
     return (
@@ -88,11 +106,13 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                             <CardTitle className="text-lg font-semibold text-gray-800 dark:text-gray-100">Alunos Ativos</CardTitle>
                             <CardDescription className="text-gray-600 dark:text-gray-400">Seus alunos com planos de treino em andamento.</CardDescription>
                         </div>
-                        <Link href="/alunos/novo">
-                            <Button size="sm" className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200">
-                                <UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno
-                            </Button>
-                        </Link>
+                        <Button 
+                            size="sm" 
+                            onClick={handleAddStudent}
+                            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                        >
+                            <UserPlus className="h-4 w-4 mr-2" /> Adicionar Aluno
+                        </Button>
                     </div>
                     <div className="relative mt-4">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -119,12 +139,21 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                             ))}
                         </div>
                     )}
-                    {isError && <div className="p-4"><ErrorMessage title="Erro ao carregar alunos" message={error.message} /></div>}
+                    {isError && (
+                        <div className="p-4">
+                            <ErrorMessage title="Erro ao carregar alunos" message={error?.message || "Erro desconhecido"} />
+                        </div>
+                    )}
                     
                     {!isLoading && !isError && filteredStudents.length > 0 && (
                         <div className="divide-y">
                             {filteredStudents.map(student => (
-                                <AlunoAtivoCard key={student._id} student={student} onView={handleViewClick} />
+                                <AlunoAtivoCard 
+                                    key={student._id} 
+                                    student={student} 
+                                    onView={handleViewStudent}
+                                    onEdit={handleEditStudent}
+                                />
                             ))}
                         </div>
                     )}
@@ -137,7 +166,11 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                 </CardContent>
             </Card>
 
-            <AlunoViewModal aluno={selectedStudent} open={isViewModalOpen} onOpenChange={setIsViewModalOpen} />
+            <AlunoViewModal 
+                aluno={selectedStudent} 
+                open={isViewModalOpen} 
+                onOpenChange={setIsViewModalOpen} 
+            />
         </>
     );
 }
