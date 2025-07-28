@@ -10,7 +10,7 @@ interface MinimizedWorkoutTimerProps {
 }
 
 export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ className }) => {
-  const { isWorkoutActive, elapsedTime, currentFichaId } = useWorkoutPlayer();
+  const { isWorkoutActive, elapsedTime, currentFichaId, isResting } = useWorkoutPlayer();
   const [location, navigate] = useLocation();
 
   // Don't show timer on the workout execution page itself
@@ -39,6 +39,30 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
     }
   };
 
+  // Determine button style based on state
+  const getButtonStyle = () => {
+    if (isResting) {
+      return "bg-yellow-600 text-white hover:bg-yellow-700 border-yellow-500/30";
+    }
+    return "bg-green-600 text-white hover:bg-green-700 border-green-500/30";
+  };
+
+  // Get appropriate icon and title based on state
+  const getIconAndTitle = () => {
+    if (isResting) {
+      return {
+        title: "Descansando - Clique para voltar ao treino",
+        icon: Timer
+      };
+    }
+    return {
+      title: "Treino ativo - Clique para voltar ao treino",
+      icon: Timer
+    };
+  };
+
+  const { title, icon: IconComponent } = getIconAndTitle();
+
   return (
     <Button
       onClick={handleTimerClick}
@@ -46,15 +70,18 @@ export const MinimizedWorkoutTimer: React.FC<MinimizedWorkoutTimerProps> = ({ cl
       size="sm"
       className={cn(
         "fixed bottom-20 right-4 z-50 h-12 px-4 shadow-lg",
-        "bg-primary text-primary-foreground hover:bg-primary/90",
-        "border border-border/20 backdrop-blur-sm",
+        getButtonStyle(),
+        "backdrop-blur-sm",
         "transition-all duration-200 ease-in-out",
         "animate-in fade-in-0 slide-in-from-bottom-4",
+        "rounded-full shadow-xl",
+        "hover:scale-105 active:scale-95",
         className
       )}
+      title={title}
     >
-      <Timer className="w-4 h-4 mr-2" />
-      <span className="font-mono text-sm font-medium">
+      <IconComponent className="w-4 h-4 mr-2" />
+      <span className="font-mono text-sm font-bold">
         {formatTime(elapsedTime)}
       </span>
     </Button>

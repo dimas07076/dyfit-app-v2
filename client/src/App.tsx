@@ -16,6 +16,7 @@ import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
 // CORREÇÃO: Removendo importação de Button, pois não é usado diretamente em App.tsx
 import { useToast } from '@/hooks/use-toast';
+import MinimizedWorkoutTimer from "@/components/workout/MinimizedWorkoutTimer";
 
 // <<< ADIÇÃO 1 de 2: Importar o componente de prompt de atualização >>>
 import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomeada
@@ -211,7 +212,9 @@ function AlunoApp() {
             <Route><Redirect to="/aluno/dashboard" /></Route> 
           </Switch> 
         </Suspense> 
-      </MainLayout> 
+      </MainLayout>
+      {/* Minimized workout timer appears globally when workout is active */}
+      <MinimizedWorkoutTimer />
     </WorkoutPlayerProvider>
   );
 }
