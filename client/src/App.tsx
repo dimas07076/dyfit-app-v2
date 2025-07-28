@@ -23,6 +23,11 @@ import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomead
 // <<< ADIÇÃO 2 de 3: Importar o DebugPanel >>>
 import DebugPanel from '@/components/DebugPanel';
 
+// <<< ADIÇÃO 3 de 3: Importar test logger em desenvolvimento >>>
+if (import.meta.env.DEV) {
+  import('@/test-logger');
+}
+
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const StudentsIndex = lazy(() => import("@/pages/alunos/index"));
