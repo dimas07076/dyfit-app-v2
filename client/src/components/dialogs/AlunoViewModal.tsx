@@ -367,7 +367,13 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                                 <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} /></TabsContent>
                                 <TabsContent value="historico"><HistoricoTab alunoId={aluno._id} isActive={activeTab === "historico"} /></TabsContent>
                             </Tabs>
-                            <DialogFooter className="mt-auto pt-6"><Button variant="outline" asChild><Link href={`/alunos/editar/${aluno._id}`}> <Edit className="mr-2 h-4 w-4" /> Editar Aluno </Link></Button></DialogFooter>
+                            <DialogFooter className="mt-auto pt-6">
+                                <Button variant="outline" asChild>
+                                    <Link href={`/alunos/editar/${aluno._id}`}>
+                                        <Edit className="mr-2 h-4 w-4" /> Editar Aluno
+                                    </Link>
+                                </Button>
+                            </DialogFooter>
                         </div>
                     </div>
                 </DialogContent>

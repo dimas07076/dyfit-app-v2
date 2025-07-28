@@ -112,7 +112,11 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
     return (
         <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0 h-full flex flex-col">
             <CardHeader className="flex-shrink-0">
-                <WouterLink href={`/aluno/ficha/${rotinaId}`}><Button variant="outline" size="sm" className="mb-2"><XCircle className="w-4 h-4 mr-2" /> Cancelar Treino</Button></WouterLink>
+                <Button variant="outline" size="sm" className="mb-2" asChild>
+                    <WouterLink href={`/aluno/ficha/${rotinaId}`}>
+                        <XCircle className="w-4 h-4 mr-2" /> Cancelar Treino
+                    </WouterLink>
+                </Button>
                 <div className="flex justify-between items-center pt-2"><h3 className="font-bold text-lg">{diaAtivo.identificadorDia}</h3><div className="flex items-center gap-2 font-mono text-lg bg-gray-800 text-white px-3 py-1 rounded-lg"><Timer size={20} /><span>{formatTime(elapsedTime)}</span></div></div>
                 <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
             </CardHeader>
@@ -131,7 +135,13 @@ const SummaryView: React.FC<{ rotina: RotinaDeTreinoAluno; onSelectDiaParaInicia
 
     return (
         <div>
-            <div className="mb-6"><WouterLink href="/aluno/dashboard"><Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg"><ArrowLeft className="w-4 h-4 mr-2" />Voltar ao Painel</Button></WouterLink></div>
+            <div className="mb-6">
+                <Button variant="outline" size="sm" className="bg-white/20 hover:bg-white/30 border-white/50 text-white rounded-lg" asChild>
+                    <WouterLink href="/aluno/dashboard">
+                        <ArrowLeft className="w-4 h-4 mr-2" />Voltar ao Painel
+                    </WouterLink>
+                </Button>
+            </div>
             <Card className="bg-white/95 backdrop-blur-sm text-gray-800 rounded-2xl shadow-lg border-0">
                 <CardHeader><CardTitle className="text-2xl sm:text-3xl font-bold text-indigo-700 flex items-center gap-3"><ListChecks className="w-8 h-8" />{rotina.titulo}</CardTitle>{rotina.descricao && <CardDescription className="pt-1">{rotina.descricao}</CardDescription>}{rotina.dataValidade && (<p className="text-sm text-muted-foreground pt-2 flex items-center gap-2"><Calendar className="w-4 h-4" /> Válida até: {format(parseISO(rotina.dataValidade), 'dd/MM/yyyy')}</p>)}</CardHeader>
                 <CardContent>
