@@ -15,9 +15,18 @@ import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
 // CORREÇÃO: Removendo importação de Button, pois não é usado diretamente em App.tsx
 import { useToast } from '@/hooks/use-toast';
+import { useLogger } from '@/lib/logger';
 
-// <<< ADIÇÃO 1 de 2: Importar o componente de prompt de atualização >>>
+// <<< ADIÇÃO 1 de 3: Importar o componente de prompt de atualização >>>
 import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomeada
+
+// <<< ADIÇÃO 2 de 3: Importar o DebugPanel >>>
+import DebugPanel from '@/components/DebugPanel';
+
+// <<< ADIÇÃO 3 de 3: Importar test logger em desenvolvimento >>>
+if (import.meta.env.DEV) {
+  import('@/test-logger');
+}
 
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -77,15 +86,46 @@ interface AuthFailedEventDetail {
 }
 
 function AppContent() {
+  const logger = useLogger('App');
   const { user, isLoading: isUserLoading } = useContext(UserContext);
   const { aluno, isLoadingAluno } = useAluno();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
+  // Log application lifecycle
+  useEffect(() => {
+    logger.mounted({
+      hasUser: !!user,
+      hasAluno: !!aluno,
+      userRole: user?.role,
+      currentLocation: location,
+    });
+
+    return () => logger.unmounted();
+  }, []);
+
+  // Log route changes
+  useEffect(() => {
+    logger.info('Route changed', { 
+      location,
+      hasUser: !!user,
+      hasAluno: !!aluno,
+      userRole: user?.role,
+    });
+  }, [location, user, aluno]);
+
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent<AuthFailedEventDetail>;
       const { status, forAluno, forPersonalAdmin, code } = customEvent.detail;
+
+      logger.warn('Auth failed event received', {
+        status,
+        forAluno,
+        forPersonalAdmin,
+        code,
+        currentLocation: location,
+      });
 
       console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
 
@@ -134,6 +174,7 @@ function AppContent() {
       }
 
       if (code !== 'INVALID_CREDENTIALS') {
+        logger.info('Showing auth failed toast', { message, redirectPath });
         toast({
           title: "Atenção!",
           description: message,
@@ -142,6 +183,7 @@ function AppContent() {
       }
       
       if (window.location.pathname !== redirectPath && !location.startsWith(redirectPath)) {
+        logger.info('Redirecting due to auth failure', { from: location, to: redirectPath });
         navigate(redirectPath);
       }
     };
@@ -155,24 +197,35 @@ function AppContent() {
 
 
   if (isUserLoading || isLoadingAluno) {
+    logger.debug('App showing loading state', { isUserLoading, isLoadingAluno });
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
   
   if (user) {
     if (location.startsWith("/login")) {
         const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
+        logger.info('User already logged in, redirecting from login', { redirectTo, userRole: user.role });
         return <Redirect to={redirectTo} />;
     }
     
-    if (user.role.toLowerCase() === 'admin') return <AdminApp />;
+    if (user.role.toLowerCase() === 'admin') {
+      logger.debug('Rendering AdminApp');
+      return <AdminApp />;
+    }
+    logger.debug('Rendering PersonalApp');
     return <PersonalApp />;
   } 
   
   if (aluno) {
-    if (location.startsWith("/aluno/")) return <AlunoApp />;
+    if (location.startsWith("/aluno/")) {
+      logger.debug('Rendering AlunoApp');
+      return <AlunoApp />;
+    }
+    logger.info('Aluno logged in but not on aluno route, redirecting');
     return <Redirect to="/aluno/dashboard" />;
   } 
   
+  logger.debug('No user or aluno, rendering PublicRoutes');
   return <PublicRoutes />;
 }
 
@@ -217,6 +270,16 @@ function PublicRoutes() {
 }
 
 function App() {
+  const logger = useLogger('AppRoot');
+
+  useEffect(() => {
+    logger.info('Application starting', {
+      environment: import.meta.env.MODE,
+      isDevelopment: import.meta.env.DEV,
+      timestamp: new Date().toISOString(),
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -227,6 +290,8 @@ function App() {
                 <Toaster />
                 {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
                 <ReloadPrompt />
+                {/* <<< ADIÇÃO 3 de 3: Inserir o DebugPanel em modo desenvolvimento >>> */}
+                <DebugPanel />
                 <AppContent />
               </AlunoProvider>
             </UserProvider>
