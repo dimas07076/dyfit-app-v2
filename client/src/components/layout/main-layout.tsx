@@ -55,9 +55,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             {children}
           </div>
         </main>
-
-        {(user || aluno) && <MobileNav />}
       </div>
+
+      {(user || aluno) && <MobileNav />}
     </div>
   );
 }
