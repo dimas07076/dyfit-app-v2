@@ -54,7 +54,10 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                             <Link href={`/alunos/editar/${student._id}`}>
-                                <Pencil className="mr-2 h-4 w-4" /> Editar
+                                <>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Editar
+                                </>
                             </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => onDelete(student)}>
