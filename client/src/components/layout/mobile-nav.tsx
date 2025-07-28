@@ -1,5 +1,4 @@
 // Caminho: ./client/src/components/layout/mobile-nav.tsx
-// <<< ALTERAÇÃO: 'React' foi removido da importação, mantendo apenas 'useState' >>>
 import { useState } from 'react';
 import { Link as WouterLink, useLocation } from "wouter"; 
 import { Home, Users, Dumbbell, Menu as MenuIcon, ListChecks, UserCog, List } from "lucide-react";
@@ -68,14 +67,16 @@ export default function MobileNav() {
           <Home size={22} strokeWidth={isActive("/admin") ? 2.5 : 2} />
           <span className="mt-1">Início</span>
         </WouterLink>
+        {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
         <WouterLink href="/admin/personais" className={getNavLinkClasses("/admin/personais")}>
           <UserCog size={22} strokeWidth={isActive("/admin/personais") ? 2.5 : 2} />
-          <span className="mt-1">Gerenciar Personais</span>
+          <span className="mt-1">Personais</span>
         </WouterLink>
         <WouterLink href="/exercises" className={getNavLinkClasses("/exercises")}>
           <List size={22} strokeWidth={isActive("/exercises") ? 2.5 : 2} />
-          <span className="mt-1">Gerenciar Exercícios</span>
+          <span className="mt-1">Exercícios</span>
         </WouterLink>
+        {/* <<< FIM DA ALTERAÇÃO >>> */}
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
             <button className={getButtonSheetClasses()}>

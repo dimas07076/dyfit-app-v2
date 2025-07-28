@@ -100,11 +100,9 @@ export default function ListarPersonaisPage() {
     }
   };
 
-  // Add a function to handle modal close and data refresh
   const handleModalClose = () => {
     setIsViewModalOpen(false);
     setPersonalParaVisualizar(null);
-    // Invalidate and refetch the list to get updated data
     queryClient.invalidateQueries({ queryKey: ['adminPersonalTrainersList'] });
   };
 
@@ -141,16 +139,18 @@ export default function ListarPersonaisPage() {
             <TableBody>
               {personais.map((personal) => (
                 <TableRow key={personal._id} className="dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
-                  <TableCell className="font-medium text-gray-900 dark:text-gray-100">{personal.nome}</TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-300">{personal.email}</TableCell>
+                  <TableCell className="font-medium text-gray-900 dark:text-gray-100">{personal.nome || 'Nome não informado'}</TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-300">{personal.email || 'Email não informado'}</TableCell>
                   <TableCell>
-                    <Badge variant={personal.role.toLowerCase() === 'admin' ? 'destructive' : 'outline'}
-                           className={`font-medium ${personal.role.toLowerCase() === 'admin' ? 
+                    {/* <<< INÍCIO DA CORREÇÃO >>> */}
+                    <Badge variant={(personal.role?.toLowerCase() ?? '') === 'admin' ? 'destructive' : 'outline'}
+                           className={`font-medium ${(personal.role?.toLowerCase() ?? '') === 'admin' ? 
                                       'border-red-500 text-red-600 bg-red-100 dark:bg-red-900/60 dark:text-red-300 dark:border-red-700' : 
                                       'border-blue-500 text-blue-600 bg-blue-100 dark:bg-sky-900/60 dark:text-sky-300 dark:border-sky-700'}`}>
-                        {personal.role.toLowerCase() === 'admin' && <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />}
-                        {personal.role}
+                        {(personal.role?.toLowerCase() ?? '') === 'admin' && <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />}
+                        {personal.role || 'Não definido'}
                     </Badge>
+                    {/* <<< FIM DA CORREÇÃO >>> */}
                   </TableCell>
                   <TableCell className="text-gray-600 dark:text-gray-300">
                     {new Date(personal.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -168,12 +168,9 @@ export default function ListarPersonaisPage() {
                             <Button variant="ghost" className="w-full justify-start text-sm" onClick={() => handleVisualizarClick(personal._id)}>
                                 <Eye className="mr-2 h-4 w-4" /> Visualizar
                             </Button>
-                            {/* ======================================================= */}
-                            {/* --- BOTÃO EDITAR AGORA NAVEGA PARA A NOVA ROTA --- */}
                             <Button variant="ghost" className="w-full justify-start text-sm" onClick={() => setLocation(`/admin/personais/editar/${personal._id}`)}>
                                 <Edit className="mr-2 h-4 w-4" /> Editar
                             </Button>
-                            {/* ======================================================= */}
                             <div className="border-t my-1"></div>
                             <Button variant="ghost" className="w-full justify-start text-sm text-red-600 hover:text-red-700" onClick={() => handleExcluirClick(personal)} disabled={deletePersonalMutation.isPending && personalParaExcluir?._id === personal._id}>
                                 {deletePersonalMutation.isPending && personalParaExcluir?._id === personal._id ? (
