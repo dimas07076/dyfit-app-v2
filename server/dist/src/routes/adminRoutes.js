@@ -31,28 +31,7 @@ router.post('/personal-trainers', async (req, res, next) => {
         next(error);
     }
 });
-// GET /api/admin/personal-trainers
-router.get('/personal-trainers', async (req, res, next) => {
-    await dbConnect();
-    try {
-        const limit = req.query.limit ? parseInt(req.query.limit) : 0;
-        const sortQuery = req.query.sort?.split(':');
-        let sortOptions = { createdAt: -1 };
-        if (sortQuery && sortQuery.length === 2) {
-            sortOptions = { [sortQuery[0]]: sortQuery[1] === 'desc' ? -1 : 1 };
-        }
-        const personaisQuery = PersonalTrainer.find().select('-passwordHash').sort(sortOptions);
-        if (limit > 0) {
-            personaisQuery.limit(limit);
-        }
-        const personais = await personaisQuery.exec();
-        res.status(200).json(personais);
-    }
-    catch (error) {
-        console.error('[ADMIN ROUTES] Erro em GET /personal-trainers:', error);
-        next(error);
-    }
-});
+// Note: /personal-trainers route moved to adminPlanosRoutes.ts for enhanced plan status calculation
 // GET /api/admin/dashboard/stats
 router.get('/dashboard/stats', async (req, res, next) => {
     await dbConnect();

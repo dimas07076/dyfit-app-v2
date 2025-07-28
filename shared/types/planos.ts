@@ -64,7 +64,7 @@ export interface PersonalTrainerWithStatus {
     planoId: string | null;
     planoDisplay: string;
     alunosAtivos: number;
-    limiteAlunos: number;
+    limiteAlunos: number; // Total limit including base plan + active tokens
     percentualUso: number;
     hasActivePlan: boolean;
     planDetails: {
