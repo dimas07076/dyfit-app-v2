@@ -186,7 +186,8 @@ const AlunoFichaDetalhePage: React.FC = () => {
     }, [rotinaDetalhes, diaIdUrl]);
     
     useEffect(() => {
-        if (diaDeTreinoAtivo && !isWorkoutActive) {
+        // Don't auto-start workout if user has just completed one (pendingWorkoutData exists)
+        if (diaDeTreinoAtivo && !isWorkoutActive && !pendingWorkoutData) {
             console.log('[PAGE_EFFECT] A URL indica um treino ativo, mas o contexto não. Iniciando o treino...');
             const exerciciosParaIniciar = diaDeTreinoAtivo.exerciciosDoDia
                 .map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null)
@@ -197,7 +198,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
                 startWorkout(exerciciosParaIniciar, diaDeTreinoAtivo._id, rotinaIdUrl);
             }
         }
-    }, [diaDeTreinoAtivo, isWorkoutActive, startWorkout, rotinaIdUrl]);
+    }, [diaDeTreinoAtivo, isWorkoutActive, startWorkout, rotinaIdUrl, pendingWorkoutData]);
     
     const handleConfirmStartWorkout = () => {
         if (!diaParaIniciar || !rotinaIdUrl) {
@@ -257,7 +258,8 @@ const AlunoFichaDetalhePage: React.FC = () => {
             queryClientHook.invalidateQueries({ queryKey: ['statsProgressoAluno', aluno?.id] });
             setPendingWorkoutData(null); 
             resetWorkout();
-            setTimeout(() => navigateWouter('/aluno/dashboard'), 1000);
+            // Navigate immediately to prevent useEffect from auto-restarting workout
+            navigateWouter('/aluno/dashboard');
         },
     });
     
@@ -309,7 +311,9 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const handleCloseFeedbackModal = () => {
         setPendingWorkoutData(null);
-        stopWorkout();
+        resetWorkout(); // Use resetWorkout instead of just stopWorkout to fully clean state
+        // Navigate away to prevent auto-restart
+        navigateWouter('/aluno/dashboard');
     };
 
     return (
