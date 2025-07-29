@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./sidebar";
 import AlunoSidebar from "./AlunoSidebar";
 
+
 export default function MobileNav() {
   const [location] = useLocation();
   const { user } = useUser();
