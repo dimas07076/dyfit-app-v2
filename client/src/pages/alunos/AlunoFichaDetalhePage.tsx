@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { useWorkoutPlayer } from '@/context/WorkoutPlayerContext';
 import { WorkoutExerciseCard } from '@/components/alunos/WorkoutExerciseCard';
+import { CombinedExerciseCard } from '@/components/alunos/CombinedExerciseCard';
 
 // --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; urlVideo?: string; }
@@ -178,18 +179,22 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
                 <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
             </CardHeader>
             <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">
-                {/* Render grouped exercises */}
-                {Array.from(exerciseGroupsInfo.groupsMap.entries()).map(([groupId, groupExercises]) => (
-                    <div key={`group-${groupId}`} className="space-y-2">
-                        {groupExercises.map((ex, index) => 
-                            renderExerciseCard(ex, {
-                                totalInGroup: groupExercises.length,
-                                positionInGroup: index + 1,
-                                groupId
-                            })
-                        )}
-                    </div>
-                ))}
+                {/* Render grouped exercises with CombinedExerciseCard */}
+                {Array.from(exerciseGroupsInfo.groupsMap.entries()).map(([groupId, groupExercises]) => {
+                    const isGroupActive = groupExercises.some(ex => ex._id === activeExerciseId);
+                    const allGroupCompleted = groupExercises.every(ex => completedExercises.has(ex._id));
+                    
+                    return (
+                        <CombinedExerciseCard
+                            key={`combined-group-${groupId}`}
+                            exercises={groupExercises}
+                            isActive={isGroupActive}
+                            allCompleted={allGroupCompleted}
+                            onOpenVideo={(url) => abrirVideo(url)}
+                            groupId={groupId}
+                        />
+                    );
+                })}
                 
                 {/* Render ungrouped exercises */}
                 {exerciseGroupsInfo.ungroupedExercises.map(ex => renderExerciseCard(ex))}
