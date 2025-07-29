@@ -20,6 +20,7 @@ interface ExercicioRenderizavel {
   repeticoes?: string;
   carga?: string;
   observacoes?: string; // NOME CORRETO DO CAMPO
+  grupoCombinado?: string | null;
 }
 
 interface WorkoutExerciseCardProps {
