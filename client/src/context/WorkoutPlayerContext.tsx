@@ -14,11 +14,12 @@ interface WorkoutSession {
   completedExercises: string[];
   exerciseLoads: Record<string, string>;
   diaDeTreinoId?: string;
+  rotinaId?: string;
 }
 
 interface WorkoutPlayerContextType {
   isWorkoutActive: boolean;
-  startWorkout: (exercises: WorkoutExercise[], diaDeTreinoId: string) => void;
+  startWorkout: (exercises: WorkoutExercise[], diaDeTreinoId: string, rotinaId: string) => void;
   stopWorkout: () => void;
   resetWorkout: () => void;
   completeExercise: (exerciseId: string) => void;
@@ -30,7 +31,8 @@ interface WorkoutPlayerContextType {
   getExerciseLoad: (exerciseId: string) => string;
   restTimeRemaining: number | null;
   isResting: boolean;
-  workoutStartTime: Date | null; 
+  workoutStartTime: Date | null;
+  currentWorkoutSession: WorkoutSession | null;
 }
 
 const WorkoutPlayerContext = createContext<WorkoutPlayerContextType | undefined>(undefined);
@@ -133,8 +135,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     });
   };
 
-  const startWorkout = useCallback((initialExercises: WorkoutExercise[], diaDeTreinoId: string) => {
-    console.log(`[WorkoutPlayerContext] START_WORKOUT: Função chamada para o diaDeTreinoId: ${diaDeTreinoId}`);
+  const startWorkout = useCallback((initialExercises: WorkoutExercise[], diaDeTreinoId: string, rotinaId: string) => {
+    console.log(`[WorkoutPlayerContext] START_WORKOUT: Função chamada para o diaDeTreinoId: ${diaDeTreinoId}, rotinaId: ${rotinaId}`);
     
     const createNewWorkoutSession = () => {
       console.log('[WorkoutPlayerContext] START_WORKOUT: Executando createNewWorkoutSession...');
@@ -145,6 +147,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
         completedExercises: [],
         exerciseLoads: {},
         diaDeTreinoId,
+        rotinaId,
       };
       setSession(newSession);
       setIsWorkoutActive(true);
@@ -270,6 +273,7 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     restTimeRemaining,
     isResting,
     workoutStartTime: session ? new Date(session.startTime) : null,
+    currentWorkoutSession: session,
   };
 
   return (

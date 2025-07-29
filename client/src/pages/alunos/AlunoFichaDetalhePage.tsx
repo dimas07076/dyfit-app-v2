@@ -193,9 +193,11 @@ const AlunoFichaDetalhePage: React.FC = () => {
                 .filter((ex): ex is ExercicioRenderizavel => ex !== null)
                 .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
             
-            startWorkout(exerciciosParaIniciar, diaDeTreinoAtivo._id);
+            if (rotinaIdUrl) {
+                startWorkout(exerciciosParaIniciar, diaDeTreinoAtivo._id, rotinaIdUrl);
+            }
         }
-    }, [diaDeTreinoAtivo, isWorkoutActive, startWorkout]);
+    }, [diaDeTreinoAtivo, isWorkoutActive, startWorkout, rotinaIdUrl]);
     
     const handleConfirmStartWorkout = () => {
         if (!diaParaIniciar || !rotinaIdUrl) {
@@ -207,7 +209,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
             .filter((ex): ex is ExercicioRenderizavel => ex !== null)
             .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
         
-        startWorkout(exerciciosParaIniciar, diaParaIniciar._id);
+        startWorkout(exerciciosParaIniciar, diaParaIniciar._id, rotinaIdUrl);
         
         navigateWouter(`/aluno/ficha/${rotinaIdUrl}?diaId=${diaParaIniciar._id}`);
         setDiaParaIniciar(null);
