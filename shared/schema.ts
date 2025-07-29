@@ -67,6 +67,8 @@ export const insertWorkoutExerciseSchema = z.object({
   notes: z.string().optional(),
   // Adicionando um campo de ordem que seu storage.ts usa
   order: z.number().optional().default(0),
+  // Propriedade para exercícios combinados/conjugados
+  grupoCombinado: z.string().optional().nullable(),
 });
 export type InsertWorkoutExercise = z.infer<typeof insertWorkoutExerciseSchema>;
 export type WorkoutExercise = InsertWorkoutExercise & { id: number };
