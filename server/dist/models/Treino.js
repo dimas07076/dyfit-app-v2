@@ -11,6 +11,7 @@ const ExercicioEmDiaDeTreinoSchema = new Schema({
     observacoes: { type: String, trim: true },
     ordemNoDia: { type: Number, required: true },
     concluido: { type: Boolean, default: false },
+    grupoCombinado: { type: String, trim: true },
 }, { _id: true });
 const DiaDeTreinoSchema = new Schema({
     identificadorDia: { type: String, required: true, trim: true },

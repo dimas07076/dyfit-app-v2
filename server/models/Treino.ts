@@ -16,6 +16,7 @@ export interface IExercicioEmDiaDeTreino extends Types.Subdocument {
   observacoes?: string;
   ordemNoDia: number;
   concluido?: boolean;
+  grupoCombinado?: string;
 }
 
 // <<< ADICIONADO EXPORT >>>
@@ -29,6 +30,7 @@ export interface IExercicioEmDiaDeTreinoPopuladoLean {
   observacoes?: string;
   ordemNoDia: number;
   concluido?: boolean;
+  grupoCombinado?: string;
 }
 
 export interface IExercicioEmDiaDeTreinoPlain {
@@ -41,6 +43,7 @@ export interface IExercicioEmDiaDeTreinoPlain {
   observacoes?: string;
   ordemNoDia: number;
   concluido?: boolean;
+  grupoCombinado?: string;
 }
 
 // --- Subdocumento: Dia de Treino ---
@@ -129,6 +132,7 @@ const ExercicioEmDiaDeTreinoSchema = new Schema<IExercicioEmDiaDeTreino>({
   observacoes: { type: String, trim: true },
   ordemNoDia: { type: Number, required: true },
   concluido: { type: Boolean, default: false },
+  grupoCombinado: { type: String, trim: true },
 }, { _id: true });
 
 const DiaDeTreinoSchema = new Schema<IDiaDeTreino>({
