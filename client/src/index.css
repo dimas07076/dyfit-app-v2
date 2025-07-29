@@ -273,6 +273,63 @@
     -webkit-transform: none !important;
     will-change: auto !important;
   }
+
+  /* Enhanced Card Hover Effects */
+  .card-hover-lift {
+    transition: transform 0.2s ease-out, box-shadow 0.3s ease-out;
+  }
+  
+  .card-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Responsive Grid Improvements */
+  @media (max-width: 640px) {
+    .grid-responsive {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+  }
+
+  @media (min-width: 641px) and (max-width: 768px) {
+    .grid-responsive {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .grid-responsive {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1025px) {
+    .grid-responsive {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+    }
+  }
+
+  /* Enhanced Button Styles */
+  .btn-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+    border: none;
+    color: hsl(var(--primary-foreground));
+    transition: all 0.2s ease-out;
+  }
+
+  .btn-gradient:hover {
+    background: linear-gradient(135deg, hsl(var(--primary)) 10%, hsl(var(--secondary)) 90%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .btn-gradient:active {
+    transform: translateY(0);
+  }
 }
 
 /* Keyframe Animations */

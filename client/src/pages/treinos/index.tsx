@@ -239,7 +239,7 @@ export default function TreinosPage() {
                                         </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="px-6 pb-6 border-t border-border/30">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 min-h-[120px]">
+                                        <div className="grid grid-responsive pt-4 min-h-[120px]">
                                             {pasta.rotinas.map(rotina => 
                                                 <RotinaCard 
                                                     key={rotina._id} 
@@ -265,7 +265,7 @@ export default function TreinosPage() {
                                         {rotinasSemPasta.length}
                                     </Badge>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                <div className="grid grid-responsive">
                                     {rotinasSemPasta.map(rotina => 
                                         <RotinaCard 
                                             key={rotina._id} 
@@ -298,8 +298,8 @@ export default function TreinosPage() {
                         </div>
                     </div>
                     
-                    {/* Results grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {/* Results grid with responsive classes */}
+                    <div className="grid grid-responsive">
                         {rotinasIndividuaisFiltradas.map(rotina => {
                             const aluno = alunos.find(a => a._id === (typeof rotina.alunoId === 'string' ? rotina.alunoId : rotina.alunoId?._id)); 
                             return (

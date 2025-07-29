@@ -61,7 +61,7 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   );
 
   return (
-    <Card className="group flex flex-col h-full shadow-md hover:shadow-xl border border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30">
+    <Card className="group card-hover-lift flex flex-col h-full shadow-md border border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-bold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors duration-200" title={rotina.titulo}>
           {/* Icon based on type */}
