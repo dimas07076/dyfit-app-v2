@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, PlayCircle, Clock, Weight, ChevronDown, RotateCcw, Info } from 'lucide-react';
+import { Check, PlayCircle, Clock, Weight, ChevronDown, RotateCcw, Info, Link } from 'lucide-react';
 import { useWorkoutPlayer } from '@/context/WorkoutPlayerContext';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ interface ExercicioRenderizavel {
   repeticoes?: string;
   carga?: string;
   observacoes?: string; // NOME CORRETO DO CAMPO
+  grupoCombinado?: string; // ID do grupo para exercícios combinados
 }
 
 interface WorkoutExerciseCardProps {
@@ -27,6 +28,12 @@ interface WorkoutExerciseCardProps {
   isActive: boolean;
   isCompleted: boolean;
   onOpenVideo: (url: string) => void;
+  isInGroup?: boolean; // Indica se o exercício faz parte de um grupo
+  groupInfo?: {
+    totalInGroup: number;
+    positionInGroup: number;
+    groupId: string;
+  };
 }
 
 export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
@@ -34,6 +41,8 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
   isActive,
   isCompleted,
   onOpenVideo,
+  isInGroup = false,
+  groupInfo,
 }) => {
   const { completeExercise, uncompleteExercise, updateExerciseLoad, getExerciseLoad } = useWorkoutPlayer();
   
@@ -81,9 +90,25 @@ export const WorkoutExerciseCard: React.FC<WorkoutExerciseCardProps> = ({
       className={cn(
         "transition-all duration-300 ease-in-out overflow-hidden shadow-md border",
         isCompleted ? 'bg-green-50 border-green-300 shadow-green-100' : 'bg-white border-slate-200',
-        isActive ? 'border-indigo-500 shadow-indigo-200 shadow-lg' : ''
+        isActive ? 'border-indigo-500 shadow-indigo-200 shadow-lg' : '',
+        isInGroup ? 'border-l-4 border-l-blue-500 bg-blue-50/50' : ''
       )}
     >
+      {/* Group indicator banner */}
+      {isInGroup && groupInfo && (
+        <div className="bg-blue-100 border-b border-blue-200 px-4 py-2">
+          <div className="flex items-center gap-2 text-sm text-blue-700">
+            <Link size={16} />
+            <span className="font-medium">
+              Exercício Conjugado ({groupInfo.positionInGroup}/{groupInfo.totalInGroup})
+            </span>
+            <span className="text-xs bg-blue-200 px-2 py-1 rounded-full">
+              Executar em sequência
+            </span>
+          </div>
+        </div>
+      )}
+      
       <CardHeader 
         className="flex flex-row items-center justify-between p-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}

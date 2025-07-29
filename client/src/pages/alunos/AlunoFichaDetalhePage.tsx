@@ -19,7 +19,7 @@ import { WorkoutExerciseCard } from '@/components/alunos/WorkoutExerciseCard';
 
 // --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; urlVideo?: string; }
-interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; }
+interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; grupoCombinado?: string; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; }
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; diasDeTreino: DiaDeTreinoPopulado[]; dataValidade?: string | null; sessoesRotinaConcluidas: number; }
 type ExercicioRenderizavel = Omit<ExercicioEmDiaDeTreinoPopulado, 'exercicioId'> & { _id: string; exercicioDetalhes: ExercicioDetalhePopulado | null; };
@@ -60,6 +60,19 @@ const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTr
         .filter(ex => ex.exercicioId && typeof ex.exercicioId === 'object')
         .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
 
+    // Group exercises for display
+    const groupedExercises = exercicios.reduce((acc, ex) => {
+        if (ex.grupoCombinado) {
+            if (!acc.grouped[ex.grupoCombinado]) {
+                acc.grouped[ex.grupoCombinado] = [];
+            }
+            acc.grouped[ex.grupoCombinado].push(ex);
+        } else {
+            acc.ungrouped.push(ex);
+        }
+        return acc;
+    }, { grouped: {} as Record<string, typeof exercicios>, ungrouped: [] as typeof exercicios });
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md">
@@ -68,11 +81,36 @@ const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTr
                     <DialogDescription>Lista de exercícios para este dia.</DialogDescription>
                 </DialogHeader>
                 <div className="max-h-[60vh] overflow-y-auto pr-4 my-4">
-                    <ul className="space-y-3">
-                        {exercicios.map(ex => (
-                            <li key={ex._id} className="text-sm p-2 bg-slate-50 rounded-md">{(ex.exercicioId as ExercicioDetalhePopulado).nome}</li>
+                    <div className="space-y-4">
+                        {/* Render grouped exercises */}
+                        {Object.entries(groupedExercises.grouped).map(([groupId, groupExercises]) => (
+                            <div key={`modal-group-${groupId}`} className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                                <div className="flex items-center gap-2 mb-2 text-sm text-blue-700 font-medium">
+                                    <span>🔗</span>
+                                    <span>Exercícios Conjugados ({groupExercises.length})</span>
+                                    <span className="text-xs bg-blue-200 px-2 py-1 rounded-full">Executar em sequência</span>
+                                </div>
+                                <ul className="space-y-1">
+                                    {groupExercises.map((ex, index) => (
+                                        <li key={ex._id} className="text-sm p-2 bg-white rounded-md">
+                                            {index + 1}. {(ex.exercicioId as ExercicioDetalhePopulado).nome}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         ))}
-                    </ul>
+                        
+                        {/* Render ungrouped exercises */}
+                        {groupedExercises.ungrouped.length > 0 && (
+                            <ul className="space-y-2">
+                                {groupedExercises.ungrouped.map(ex => (
+                                    <li key={ex._id} className="text-sm p-2 bg-slate-50 rounded-md">
+                                        {(ex.exercicioId as ExercicioDetalhePopulado).nome}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button type="button" onClick={onClose}>Fechar</Button>
@@ -87,6 +125,37 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
     const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
 
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
+
+    // Group exercises by grupoCombinado for rendering
+    const exerciseGroupsInfo = useMemo(() => {
+        const groupsMap = new Map<string, ExercicioRenderizavel[]>();
+        const ungroupedExercises: ExercicioRenderizavel[] = [];
+        
+        exerciciosParaRenderizar.forEach(ex => {
+            if (ex.grupoCombinado) {
+                if (!groupsMap.has(ex.grupoCombinado)) {
+                    groupsMap.set(ex.grupoCombinado, []);
+                }
+                groupsMap.get(ex.grupoCombinado)!.push(ex);
+            } else {
+                ungroupedExercises.push(ex);
+            }
+        });
+        
+        return { groupsMap, ungroupedExercises };
+    }, [exerciciosParaRenderizar]);
+
+    const renderExerciseCard = (ex: ExercicioRenderizavel, groupInfo?: { totalInGroup: number; positionInGroup: number; groupId: string }) => (
+        <WorkoutExerciseCard 
+            key={ex._id} 
+            exercise={ex} 
+            isActive={ex._id === activeExerciseId} 
+            isCompleted={completedExercises.has(ex._id)} 
+            onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)}
+            isInGroup={!!groupInfo}
+            groupInfo={groupInfo}
+        />
+    );
 
     const handleStopAndFinish = () => {
         if (!workoutStartTime) {
@@ -108,7 +177,23 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
                 <div className="flex justify-between items-center pt-2"><h3 className="font-bold text-lg">{diaAtivo.identificadorDia}</h3><div className="flex items-center gap-2 font-mono text-lg bg-gray-800 text-white px-3 py-1 rounded-lg"><Timer size={20} /><span>{formatTime(elapsedTime)}</span></div></div>
                 <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
             </CardHeader>
-            <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">{exerciciosParaRenderizar.map(ex => <WorkoutExerciseCard key={ex._id} exercise={ex} isActive={ex._id === activeExerciseId} isCompleted={completedExercises.has(ex._id)} onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} />)}</CardContent>
+            <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">
+                {/* Render grouped exercises */}
+                {Array.from(exerciseGroupsInfo.groupsMap.entries()).map(([groupId, groupExercises]) => (
+                    <div key={`group-${groupId}`} className="space-y-2">
+                        {groupExercises.map((ex, index) => 
+                            renderExerciseCard(ex, {
+                                totalInGroup: groupExercises.length,
+                                positionInGroup: index + 1,
+                                groupId
+                            })
+                        )}
+                    </div>
+                ))}
+                
+                {/* Render ungrouped exercises */}
+                {exerciseGroupsInfo.ungroupedExercises.map(ex => renderExerciseCard(ex))}
+            </CardContent>
             <CardFooter className="flex-shrink-0 p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg"><Zap className="w-5 h-5 mr-2" /> Finalizar e Salvar Treino</Button></CardFooter>
             <VideoPlayerModal videoUrl={videoModalUrl} onClose={() => setVideoModalUrl(null)} />
         </Card>
