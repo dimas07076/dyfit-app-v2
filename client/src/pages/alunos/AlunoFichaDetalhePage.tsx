@@ -19,7 +19,7 @@ import { WorkoutExerciseCard } from '@/components/alunos/WorkoutExerciseCard';
 
 // --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; urlVideo?: string; }
-interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; }
+interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; grupoCombinado?: string | null; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; }
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; diasDeTreino: DiaDeTreinoPopulado[]; dataValidade?: string | null; sessoesRotinaConcluidas: number; }
 type ExercicioRenderizavel = Omit<ExercicioEmDiaDeTreinoPopulado, 'exercicioId'> & { _id: string; exercicioDetalhes: ExercicioDetalhePopulado | null; };
@@ -88,6 +88,30 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
 
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
 
+    // Agrupar exercícios por grupoCombinado para renderização
+    const exerciciosAgrupados = useMemo(() => {
+        const grupos: { [key: string]: ExercicioRenderizavel[] } = {};
+        const exerciciosIndividuais: ExercicioRenderizavel[] = [];
+
+        exerciciosParaRenderizar.forEach(exercicio => {
+            if (exercicio.grupoCombinado) {
+                if (!grupos[exercicio.grupoCombinado]) {
+                    grupos[exercicio.grupoCombinado] = [];
+                }
+                grupos[exercicio.grupoCombinado].push(exercicio);
+            } else {
+                exerciciosIndividuais.push(exercicio);
+            }
+        });
+
+        // Adicionar exercícios individuais com chave especial
+        if (exerciciosIndividuais.length > 0) {
+            grupos['__individuais__'] = exerciciosIndividuais;
+        }
+
+        return grupos;
+    }, [exerciciosParaRenderizar]);
+
     const handleStopAndFinish = () => {
         if (!workoutStartTime) {
             console.error("Tentativa de finalizar o treino sem uma data de início registrada.");
@@ -108,7 +132,77 @@ const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: 
                 <div className="flex justify-between items-center pt-2"><h3 className="font-bold text-lg">{diaAtivo.identificadorDia}</h3><div className="flex items-center gap-2 font-mono text-lg bg-gray-800 text-white px-3 py-1 rounded-lg"><Timer size={20} /><span>{formatTime(elapsedTime)}</span></div></div>
                 <p className="text-sm text-gray-600 mt-1">Exercícios Concluídos: {completedExercises.size} / {exerciciosParaRenderizar.length}</p>
             </CardHeader>
-            <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">{exerciciosParaRenderizar.map(ex => <WorkoutExerciseCard key={ex._id} exercise={ex} isActive={ex._id === activeExerciseId} isCompleted={completedExercises.has(ex._id)} onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} />)}</CardContent>
+            <CardContent className="flex-grow overflow-y-auto px-4 pb-4 space-y-3">
+                {Object.entries(exerciciosAgrupados).map(([grupoId, exerciciosDoGrupo]) => {
+                    if (grupoId === '__individuais__') {
+                        // Renderizar exercícios individuais normalmente
+                        return exerciciosDoGrupo.map(ex => (
+                            <WorkoutExerciseCard 
+                                key={ex._id} 
+                                exercise={ex} 
+                                isActive={ex._id === activeExerciseId} 
+                                isCompleted={completedExercises.has(ex._id)} 
+                                onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} 
+                            />
+                        ));
+                    } else {
+                        // Renderizar grupo combinado usando o ExercicioCombinadoCard
+                        return (
+                            <div key={grupoId} className="space-y-2">
+                                <div className="p-4 border-2 border-dashed border-blue-400 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="flex items-center gap-1 text-blue-600">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                            </svg>
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm font-medium text-blue-600">Exercícios Combinados</span>
+                                            <div className="text-xs text-gray-500">Executar em sequência direta</div>
+                                        </div>
+                                        <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">{exerciciosDoGrupo.length} exercícios</span>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        {exerciciosDoGrupo.map((ex, index) => (
+                                            <div key={ex._id}>
+                                                <WorkoutExerciseCard 
+                                                    exercise={ex} 
+                                                    isActive={ex._id === activeExerciseId} 
+                                                    isCompleted={completedExercises.has(ex._id)} 
+                                                    onOpenVideo={() => abrirVideo(ex.exercicioDetalhes?.urlVideo)} 
+                                                />
+                                                {index < exerciciosDoGrupo.length - 1 && (
+                                                    <div className="flex justify-center my-2">
+                                                        <div className="flex items-center gap-1 text-blue-600/60">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                                                            </svg>
+                                                            <span className="text-xs font-medium">PRÓXIMO</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-center p-2 bg-blue-600/10 rounded border border-blue-600/20 mt-3">
+                                        <div className="flex items-center gap-2 text-blue-600 text-xs font-medium">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                            </svg>
+                                            <span>Após completar todos os exercícios, descanse</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                })}
+            </CardContent>
             <CardFooter className="flex-shrink-0 p-4 mt-4 border-t sticky bottom-0 bg-white"><Button onClick={handleStopAndFinish} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md" size="lg"><Zap className="w-5 h-5 mr-2" /> Finalizar e Salvar Treino</Button></CardFooter>
             <VideoPlayerModal videoUrl={videoModalUrl} onClose={() => setVideoModalUrl(null)} />
         </Card>

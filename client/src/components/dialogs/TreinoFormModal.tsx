@@ -15,12 +15,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient, QueryKey } from "@tanstack/react-query";
-import { Loader2, CalendarIcon, Folder as FolderIcon, Activity, PlusCircle, Trash2, GripVertical, Edit, ListPlus, XCircle } from "lucide-react";
+import { Loader2, CalendarIcon, Folder as FolderIcon, Activity, PlusCircle, Trash2, GripVertical, Edit, ListPlus, XCircle, Link2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Aluno } from '@/types/aluno';
 
 import type { RotinaListagemItem, DiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 import SelectExerciseModal, { BibliotecaExercicio } from './SelectExerciseModal';
+import CombinarExerciciosModal from './CombinarExerciciosModal';
+import ExercicioCombinadoCard from '@/components/ui/ExercicioCombinadoCard';
+import { useCombinarExercicios, ExercicioParaCombinar } from '@/hooks/useCombinarExercicios';
 
 import { format, parseISO, isValid as isDateValid, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -64,6 +67,7 @@ interface ExercicioNoDiaState {
   observacoes?: string;
   ordemNoDia: number;
   _idSubDocExercicio?: string;
+  grupoCombinado?: string | null;
 }
 
 interface DiaDeTreinoStateItem extends DiaDeTreinoFormValues {
@@ -108,12 +112,14 @@ export interface RotinaParaEditar {
       _id?: string;
       exercicioId: string | { _id: string; nome: string; grupoMuscular?: string; categoria?: string; tipo?: string; urlVideo?: string; descricao?: string; };
       series?: string; repeticoes?: string; carga?: string; descanso?: string; observacoes?: string; ordemNoDia: number;
+      grupoCombinado?: string | null;
     }>;
   }>;
   exercicios?: Array<{
     _id?: string;
     exercicioId: string | { _id: string; nome: string; grupoMuscular?: string; };
     series?: string; repeticoes?: string; carga?: string; descanso?: string; observacoes?: string; ordem?: number;
+    grupoCombinado?: string | null;
   }>;
 }
 
@@ -146,6 +152,7 @@ type RotinaApiPayload = RotinaMetadataFormValues & {
       descanso?: string;
       observacoes?: string;
       ordemNoDia: number;
+      grupoCombinado?: string | null;
     }>;
   }>;
   criadorId?: string;
@@ -169,6 +176,12 @@ export default function TreinoFormModal({
 
   const [isSelectExerciseModalOpen, setIsSelectExerciseModalOpen] = useState(false);
   const [diaAtivoParaAdicionarExercicio, setDiaAtivoParaAdicionarExercicio] = useState<string | null>(null);
+
+  // Estados para combinação de exercícios
+  const [isCombinarExerciciosModalOpen, setIsCombinarExerciciosModalOpen] = useState(false);
+  const [diaAtivoParaCombinar, setDiaAtivoParaCombinar] = useState<string | null>(null);
+  
+  const { agruparExerciciosPorCombinacao } = useCombinarExercicios();
 
   const form = useForm<RotinaMetadataFormValues>({
     resolver: zodResolver(rotinaMetadataSchema),
@@ -258,6 +271,7 @@ export default function TreinoFormModal({
                         series: exApi.series, repeticoes: exApi.repeticoes, carga: exApi.carga,
                         descanso: exApi.descanso, observacoes: exApi.observacoes,
                         ordemNoDia: exApi.ordemNoDia ?? exIndex, _idSubDocExercicio: exApi._id,
+                        grupoCombinado: exApi.grupoCombinado || null,
                     };
                 });
                 return {
@@ -287,6 +301,7 @@ export default function TreinoFormModal({
                     series: exApi.series, repeticoes: exApi.repeticoes, carga: exApi.carga,
                     descanso: exApi.descanso, observacoes: exApi.observacoes,
                     ordemNoDia: exApi.ordem ?? index, _idSubDocExercicio: exApi._id,
+                    grupoCombinado: exApi.grupoCombinado || null,
                 };
             });
             diasParaEstado = [{
@@ -319,6 +334,7 @@ export default function TreinoFormModal({
       }
       setShowDiaForm(false); setDiaFormValues({ identificadorDia: '', nomeSubFicha: '' }); setEditingDiaTempId(null);
       setIsSelectExerciseModalOpen(false); setDiaAtivoParaAdicionarExercicio(null);
+      setIsCombinarExerciciosModalOpen(false); setDiaAtivoParaCombinar(null);
     } else {
         // console.log("[TreinoFormModal useEffect] Modal FECHADO, não faz nada no form.reset.");
     }
@@ -405,6 +421,7 @@ export default function TreinoFormModal({
                     exercicioId: exLib._id, nomeExercicio: exLib.nome, grupoMuscular: exLib.grupoMuscular,
                     categoria: exLib.categoria, ordemNoDia: dia.exerciciosDoDia.length + index,
                     series: '', repeticoes: '', carga: '', descanso: '', observacoes: '',
+                    grupoCombinado: null,
                 }));
                 return { ...dia, exerciciosDoDia: [...dia.exerciciosDoDia, ...novosExercicios] };
             }
@@ -421,6 +438,76 @@ export default function TreinoFormModal({
     setDiasDeTreinoState(prevDias => prevDias.map(dia => dia.tempId === diaTempId ? { ...dia, exerciciosDoDia: dia.exerciciosDoDia.filter(ex => ex.tempIdExercicio !== exercicioTempId).map((ex, index) => ({ ...ex, ordemNoDia: index }))} : dia ));
   };
 
+  // Funções para combinação de exercícios
+  const handleOpenCombinarExerciciosModal = (diaTempId: string) => {
+    setDiaAtivoParaCombinar(diaTempId);
+    setIsCombinarExerciciosModalOpen(true);
+  };
+
+  const handleExerciciosCombinados = useCallback((exerciciosSelecionados: ExercicioParaCombinar[], grupoId: string) => {
+    if (!diaAtivoParaCombinar) return;
+
+    setDiasDeTreinoState(prevDias =>
+      prevDias.map(dia => {
+        if (dia.tempId === diaAtivoParaCombinar) {
+          return {
+            ...dia,
+            exerciciosDoDia: dia.exerciciosDoDia.map(ex => {
+              // Se o exercício foi selecionado para combinação, atualizar o grupoCombinado
+              const exercicioSelecionado = exerciciosSelecionados.find(sel => sel.tempIdExercicio === ex.tempIdExercicio);
+              if (exercicioSelecionado) {
+                return { ...ex, grupoCombinado: grupoId };
+              }
+              return ex;
+            })
+          };
+        }
+        return dia;
+      })
+    );
+
+    setIsCombinarExerciciosModalOpen(false);
+    setDiaAtivoParaCombinar(null);
+  }, [diaAtivoParaCombinar]);
+
+  const handleRemoverGrupoCombinado = useCallback((diaTempId: string, grupoId: string) => {
+    setDiasDeTreinoState(prevDias =>
+      prevDias.map(dia => {
+        if (dia.tempId === diaTempId) {
+          return {
+            ...dia,
+            exerciciosDoDia: dia.exerciciosDoDia.map(ex => {
+              if (ex.grupoCombinado === grupoId) {
+                return { ...ex, grupoCombinado: null };
+              }
+              return ex;
+            })
+          };
+        }
+        return dia;
+      })
+    );
+  }, []);
+
+  const handleRemoverExercicioDeGrupo = useCallback((diaTempId: string, exercicioTempId: string) => {
+    setDiasDeTreinoState(prevDias =>
+      prevDias.map(dia => {
+        if (dia.tempId === diaTempId) {
+          return {
+            ...dia,
+            exerciciosDoDia: dia.exerciciosDoDia.map(ex => {
+              if (ex.tempIdExercicio === exercicioTempId) {
+                return { ...ex, grupoCombinado: null };
+              }
+              return ex;
+            })
+          };
+        }
+        return dia;
+      })
+    );
+  }, []);
+
   const mutation = useMutation<RotinaListagemItem, Error, RotinaMetadataFormValues>({
     mutationFn: async (formDataFromHook) => {
       const payload: Partial<RotinaApiPayload> = { ...formDataFromHook };
@@ -434,6 +521,7 @@ export default function TreinoFormModal({
               _id: exState._idSubDocExercicio, exercicioId: exState.exercicioId,
               series: exState.series, repeticoes: exState.repeticoes, carga: exState.carga,
               descanso: exState.descanso, observacoes: exState.observacoes, ordemNoDia: exState.ordemNoDia,
+              grupoCombinado: exState.grupoCombinado,
           })),
       }));
       delete (payload as any).exercicios;
@@ -588,26 +676,57 @@ export default function TreinoFormModal({
                                     <AccordionContent className="px-4 pb-3 pt-0 border-t border-gray-200 dark:border-slate-700/50">
                                         <div className="pt-3 space-y-3">
                                             {dia.exerciciosDoDia && dia.exerciciosDoDia.length > 0 ? (
-                                                dia.exerciciosDoDia.map(ex => (
-                                                    <Card key={ex.tempIdExercicio} className="p-3 bg-slate-50 dark:bg-slate-700/50">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <div>
-                                                                <p className="text-sm font-medium">{ex.nomeExercicio}</p>
-                                                                <p className="text-xs text-muted-foreground"> {ex.grupoMuscular}{ex.categoria && ` - ${ex.categoria}`} </p>
-                                                            </div>
-                                                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive shrink-0" onClick={() => handleRemoveExercicioFromDia(dia.tempId, ex.tempIdExercicio)} title="Remover exercício do dia" > <XCircle className="w-4 h-4" /> </Button>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-2 gap-y-3 items-end">
-                                                            <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-series`} className="text-xs mb-1 block">Séries</FormLabel> <Input id={`${ex.tempIdExercicio}-series`} value={ex.series || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'series', e.target.value)} placeholder="Ex: 3" className="text-xs h-8" /> </FormItem>
-                                                            <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-repeticoes`} className="text-xs mb-1 block">Repetições</FormLabel> <Input id={`${ex.tempIdExercicio}-repeticoes`} value={ex.repeticoes || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'repeticoes', e.target.value)} placeholder="Ex: 10-12" className="text-xs h-8" /> </FormItem>
-                                                            <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-carga`} className="text-xs mb-1 block">Carga</FormLabel> <Input id={`${ex.tempIdExercicio}-carga`} value={ex.carga || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'carga', e.target.value)} placeholder="Ex: 20kg" className="text-xs h-8" /> </FormItem>
-                                                            <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-descanso`} className="text-xs mb-1 block">Descanso</FormLabel> <Input id={`${ex.tempIdExercicio}-descanso`} value={ex.descanso || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'descanso', e.target.value)} placeholder="Ex: 60s" className="text-xs h-8" /> </FormItem>
-                                                            <FormItem className="col-span-2 sm:col-span-3 md:col-span-5"> <FormLabel htmlFor={`${ex.tempIdExercicio}-observacoes`} className="text-xs mb-1 block">Obs.</FormLabel> <Textarea id={`${ex.tempIdExercicio}-observacoes`} value={ex.observacoes || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'observacoes', e.target.value)} placeholder="Ex: Cadência 2020, até a falha..." className="text-xs min-h-[32px] py-1" rows={1} /> </FormItem>
-                                                        </div>
-                                                    </Card>
-                                                ))
+                                                (() => {
+                                                    const gruposExercicios = agruparExerciciosPorCombinacao(dia.exerciciosDoDia);
+                                                    const exerciciosIndividuais = gruposExercicios['__individuais__'] || [];
+                                                    const gruposCombinados = Object.entries(gruposExercicios).filter(([key]) => key !== '__individuais__');
+
+                                                    return (
+                                                        <>
+                                                            {/* Renderizar grupos combinados */}
+                                                            {gruposCombinados.map(([grupoId, exerciciosDoGrupo]) => (
+                                                                <ExercicioCombinadoCard
+                                                                    key={grupoId}
+                                                                    ejercicios={exerciciosDoGrupo}
+                                                                    grupoId={grupoId}
+                                                                    modo="prescrição"
+                                                                    onRemoveGrupo={() => handleRemoverGrupoCombinado(dia.tempId, grupoId)}
+                                                                    onRemoveExercicio={(tempIdExercicio) => handleRemoverExercicioDeGrupo(dia.tempId, tempIdExercicio)}
+                                                                />
+                                                            ))}
+
+                                                            {/* Renderizar exercícios individuais */}
+                                                            {exerciciosIndividuais.map(ex => (
+                                                                <Card key={ex.tempIdExercicio} className="p-3 bg-slate-50 dark:bg-slate-700/50">
+                                                                    <div className="flex justify-between items-start mb-2">
+                                                                        <div>
+                                                                            <p className="text-sm font-medium">{ex.nomeExercicio}</p>
+                                                                            <p className="text-xs text-muted-foreground"> {ex.grupoMuscular}{ex.categoria && ` - ${ex.categoria}`} </p>
+                                                                        </div>
+                                                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive shrink-0" onClick={() => handleRemoveExercicioFromDia(dia.tempId, ex.tempIdExercicio)} title="Remover exercício do dia" > <XCircle className="w-4 h-4" /> </Button>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-2 gap-y-3 items-end">
+                                                                        <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-series`} className="text-xs mb-1 block">Séries</FormLabel> <Input id={`${ex.tempIdExercicio}-series`} value={ex.series || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'series', e.target.value)} placeholder="Ex: 3" className="text-xs h-8" /> </FormItem>
+                                                                        <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-repeticoes`} className="text-xs mb-1 block">Repetições</FormLabel> <Input id={`${ex.tempIdExercicio}-repeticoes`} value={ex.repeticoes || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'repeticoes', e.target.value)} placeholder="Ex: 10-12" className="text-xs h-8" /> </FormItem>
+                                                                        <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-carga`} className="text-xs mb-1 block">Carga</FormLabel> <Input id={`${ex.tempIdExercicio}-carga`} value={ex.carga || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'carga', e.target.value)} placeholder="Ex: 20kg" className="text-xs h-8" /> </FormItem>
+                                                                        <FormItem className="flex-grow"> <FormLabel htmlFor={`${ex.tempIdExercicio}-descanso`} className="text-xs mb-1 block">Descanso</FormLabel> <Input id={`${ex.tempIdExercicio}-descanso`} value={ex.descanso || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'descanso', e.target.value)} placeholder="Ex: 60s" className="text-xs h-8" /> </FormItem>
+                                                                        <FormItem className="col-span-2 sm:col-span-3 md:col-span-5"> <FormLabel htmlFor={`${ex.tempIdExercicio}-observacoes`} className="text-xs mb-1 block">Obs.</FormLabel> <Textarea id={`${ex.tempIdExercicio}-observacoes`} value={ex.observacoes || ''} onChange={(e) => handleExercicioDetailChange(dia.tempId, ex.tempIdExercicio, 'observacoes', e.target.value)} placeholder="Ex: Cadência 2020, até a falha..." className="text-xs min-h-[32px] py-1" rows={1} /> </FormItem>
+                                                                    </div>
+                                                                </Card>
+                                                            ))}
+                                                        </>
+                                                    );
+                                                })()
                                             ) : ( <p className="text-xs text-muted-foreground italic text-center py-2"> Nenhum exercício adicionado a este dia. </p> )}
-                                            <Button type="button" variant="outline" size="sm" className="w-full mt-2 border-dashed hover:border-solid" onClick={() => handleOpenSelectExerciseModal(dia.tempId)} > <ListPlus className="w-4 h-4 mr-2" /> Adicionar Exercício ao Dia: {dia.identificadorDia} </Button>
+                                            
+                                            {/* Botões de ação */}
+                                            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                                                <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed hover:border-solid" onClick={() => handleOpenSelectExerciseModal(dia.tempId)} > <ListPlus className="w-4 h-4 mr-2" /> Adicionar Exercício </Button>
+                                                
+                                                {dia.exerciciosDoDia && dia.exerciciosDoDia.length >= 2 && (
+                                                    <Button type="button" variant="outline" size="sm" className="flex-1 border-dashed hover:border-solid text-primary hover:text-primary" onClick={() => handleOpenCombinarExerciciosModal(dia.tempId)} > <Link2 className="w-4 h-4 mr-2" /> Combinar Exercícios </Button>
+                                                )}
+                                            </div>
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -627,6 +746,27 @@ export default function TreinoFormModal({
         </DialogFooter>
       </DialogContent>
       {isSelectExerciseModalOpen && diaAtivoParaAdicionarExercicio && ( <SelectExerciseModal isOpen={isSelectExerciseModalOpen} onClose={() => { setIsSelectExerciseModalOpen(false); setDiaAtivoParaAdicionarExercicio(null); }} onExercisesSelect={handleExercisesSelected} /> )}
+      {isCombinarExerciciosModalOpen && diaAtivoParaCombinar && (
+        <CombinarExerciciosModal
+          open={isCombinarExerciciosModalOpen}
+          onClose={() => {
+            setIsCombinarExerciciosModalOpen(false);
+            setDiaAtivoParaCombinar(null);
+          }}
+          exerciciosDisponiveis={
+            diasDeTreinoState.find(d => d.tempId === diaAtivoParaCombinar)?.exerciciosDoDia
+              ?.filter(ex => !ex.grupoCombinado) // Apenas exercícios não combinados
+              ?.map(ex => ({
+                tempIdExercicio: ex.tempIdExercicio,
+                exercicioId: ex.exercicioId,
+                nomeExercicio: ex.nomeExercicio,
+                grupoMuscular: ex.grupoMuscular,
+                categoria: ex.categoria,
+              })) || []
+          }
+          onExerciciosCombinados={handleExerciciosCombinados}
+        />
+      )}
     </Dialog>
   );
 }
