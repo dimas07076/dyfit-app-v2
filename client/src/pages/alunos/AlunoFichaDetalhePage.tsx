@@ -38,7 +38,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, onSubmit
     const handleSubmit = () => { onSubmit({ pse: pse || null, comentario: comentario.trim() || null }); };
     return (<Dialog open={isOpen} onOpenChange={onClose}><DialogContent className="sm:max-w-md"><DialogHeader className="text-center items-center"><div className="bg-green-100 rounded-full p-3 w-fit mb-4"><Award className="w-8 h-8 text-green-600" /></div><DialogTitle className="text-2xl font-bold">Parabéns!</DialogTitle><DialogDescription>Você concluiu seu treino!</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-4 py-4 text-center border-y my-4"><div><p className="text-sm text-gray-500">Início</p><p className="font-semibold">{format(stats.inicio, 'HH:mm')}</p></div><div><p className="text-sm text-gray-500">Fim</p><p className="font-semibold">{format(stats.fim, 'HH:mm')}</p></div><div className="col-span-2"><p className="text-sm text-gray-500">Tempo de Treino</p><p className="font-semibold">{formatTime(stats.tempoTotal)}</p></div></div><div className="grid gap-4"><Label htmlFor="pse">O que você achou dessa atividade?</Label><Select value={pse} onValueChange={(v) => setPse(v as OpcaoPSEFrontend)}><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent>{OPCOES_PSE_FRONTEND.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}</SelectContent></Select><Label htmlFor="comentario">Se quiser, deixe seu comentário aqui:</Label><Textarea id="comentario" placeholder="..." value={comentario} onChange={(e) => setComentario(e.target.value)} /></div><DialogFooter className="mt-4"><Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full">{isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}Concluir</Button></DialogFooter></DialogContent></Dialog>);
 };
-const AlunoFichaDetalhePageWrapper: React.FC = () => ( <WorkoutPlayerProvider> <AlunoFichaDetalhePage /> </WorkoutPlayerProvider> );
 
 const PreWorkoutDialog: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void; diaDeTreino: DiaDeTreinoPopulado; }> = ({ isOpen, onClose, onConfirm, diaDeTreino }) => (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -335,4 +334,4 @@ const AlunoFichaDetalhePage: React.FC = () => {
     );
 };
 
-export default AlunoFichaDetalhePageWrapper;
+export default AlunoFichaDetalhePage;
