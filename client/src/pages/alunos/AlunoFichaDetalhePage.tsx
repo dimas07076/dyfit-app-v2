@@ -83,18 +83,10 @@ const DiaDetalhesModal: React.FC<{ isOpen: boolean; onClose: () => void; diaDeTr
 };
 
 const WorkoutExecutionView: React.FC<{ diaAtivo: DiaDeTreinoPopulado; rotinaId: string; onFinishWorkout: (payload: { duracao: number; cargas: Record<string, string>; dataInicio: Date }) => void; }> = ({ diaAtivo, rotinaId, onFinishWorkout }) => {
-    const { startWorkout, stopWorkout, resetWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad, workoutStartTime } = useWorkoutPlayer();
+    const { stopWorkout, elapsedTime, activeExerciseId, completedExercises, getExerciseLoad, workoutStartTime } = useWorkoutPlayer();
     const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
 
     const exerciciosParaRenderizar = useMemo(() => diaAtivo.exerciciosDoDia.map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null).filter((ex): ex is ExercicioRenderizavel => ex !== null).sort((a, b) => a.ordemNoDia - b.ordemNoDia), [diaAtivo.exerciciosDoDia]);
-
-    useEffect(() => {
-        startWorkout(exerciciosParaRenderizar);
-        return () => {
-            resetWorkout();
-        };
-    }, [startWorkout, resetWorkout, diaAtivo, exerciciosParaRenderizar]);
-
 
     const handleStopAndFinish = () => {
         if (!workoutStartTime) {
@@ -173,41 +165,62 @@ const AlunoFichaDetalhePage: React.FC = () => {
     const [, navigateWouter] = useLocation();
     const search = useSearch();
     const diaIdUrl = new URLSearchParams(search).get('diaId');
-    const { aluno } = useAluno();
+    const { aluno, isLoadingAluno } = useAluno();
     const { toast } = useToast();
     const queryClientHook = useQueryClient();
-    const { resumeWorkout, resetWorkout } = useWorkoutPlayer();
+    const { resetWorkout, stopWorkout, startWorkout, isWorkoutActive } = useWorkoutPlayer();
 
     const [pendingWorkoutData, setPendingWorkoutData] = useState<{ duracao: number; cargas: Record<string, string>; dataInicio: Date } | null>(null);
     const [diaParaIniciar, setDiaParaIniciar] = useState<DiaDeTreinoPopulado | null>(null);
     const [diaParaVer, setDiaParaVer] = useState<DiaDeTreinoPopulado | null>(null);
 
-    const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery<RotinaDeTreinoAluno, Error>({
+    const { data: rotinaDetalhes, isLoading: isLoadingRotina, error: errorRotina } = useQuery({
         queryKey: ['alunoRotinaDetalhe', rotinaIdUrl],
-        queryFn: () => apiRequest('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`, undefined, 'aluno'),
-        enabled: !!rotinaIdUrl && !!aluno,
+        queryFn: () => apiRequest<RotinaDeTreinoAluno>('GET', `/api/aluno/meus-treinos/${rotinaIdUrl}`, undefined, 'aluno'),
+        enabled: !!rotinaIdUrl && !!aluno && !isLoadingAluno,
     });
     
     const diaDeTreinoAtivo = useMemo(() => {
         if (!rotinaDetalhes || !diaIdUrl) return null;
         return rotinaDetalhes.diasDeTreino.find(d => d._id === diaIdUrl) || null;
     }, [rotinaDetalhes, diaIdUrl]);
-
+    
+    useEffect(() => {
+        if (diaDeTreinoAtivo && !isWorkoutActive) {
+            console.log('[PAGE_EFFECT] A URL indica um treino ativo, mas o contexto não. Iniciando o treino...');
+            const exerciciosParaIniciar = diaDeTreinoAtivo.exerciciosDoDia
+                .map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null)
+                .filter((ex): ex is ExercicioRenderizavel => ex !== null)
+                .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
+            
+            startWorkout(exerciciosParaIniciar, diaDeTreinoAtivo._id);
+        }
+    }, [diaDeTreinoAtivo, isWorkoutActive, startWorkout]);
+    
     const handleConfirmStartWorkout = () => {
-        if (!diaParaIniciar || !rotinaIdUrl) return;
+        if (!diaParaIniciar || !rotinaIdUrl) {
+            return;
+        }
+        
+        const exerciciosParaIniciar = diaParaIniciar.exerciciosDoDia
+            .map((ex): ExercicioRenderizavel | null => (ex.exercicioId && typeof ex.exercicioId === 'object') ? { ...ex, _id: ex._id, exercicioDetalhes: ex.exercicioId } : null)
+            .filter((ex): ex is ExercicioRenderizavel => ex !== null)
+            .sort((a, b) => a.ordemNoDia - b.ordemNoDia);
+        
+        startWorkout(exerciciosParaIniciar, diaParaIniciar._id);
+        
         navigateWouter(`/aluno/ficha/${rotinaIdUrl}?diaId=${diaParaIniciar._id}`);
         setDiaParaIniciar(null);
     };
 
     const atualizarCargasFichaMutation = useMutation<any, Error, { cargas: Record<string, string> }>({
         mutationFn: ({ cargas }) => apiRequest('PATCH', `/api/aluno/meus-treinos/${rotinaIdUrl}/cargas`, { diaDeTreinoId: diaIdUrl, cargas }, 'aluno'),
-        onSuccess: () => { console.log("Cargas na ficha atualizadas com sucesso!"); queryClientHook.invalidateQueries({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl] }); },
+        onSuccess: () => { queryClientHook.invalidateQueries({ queryKey: ['alunoRotinaDetalhe', rotinaIdUrl] }); },
         onError: (error) => { console.error("Erro ao atualizar cargas na ficha:", error.message); }
     });
 
     const finalizarDiaDeTreinoMutation = useMutation<ConcluirSessaoResponse, Error, { payload: ConcluirSessaoPayload }, { previousRotinas: RotinaDeTreinoAluno[] | undefined }>({
         onMutate: async () => {
-            console.log("Iniciando mutação otimista...");
             await queryClientHook.cancelQueries({ queryKey: ['minhasRotinasAluno', aluno?.id] });
             const previousRotinas = queryClientHook.getQueryData<RotinaDeTreinoAluno[]>(['minhasRotinasAluno', aluno?.id]);
             if (previousRotinas) {
@@ -221,7 +234,6 @@ const AlunoFichaDetalhePage: React.FC = () => {
                             return dia;
                         });
                         const sessoesConcluidasAtualizado = (rotina.sessoesRotinaConcluidas || 0) + 1;
-                        console.log(`Atualização otimista: Rotina ${rotina.titulo} agora tem ${sessoesConcluidasAtualizado} sessões concluídas. Dia ${diaIdUrl} movido para ordem ${maxOrdem + 1}.`);
                         return { ...rotina, sessoesRotinaConcluidas: sessoesConcluidasAtualizado, diasDeTreino: diasDeTreinoAtualizados };
                     }
                     return rotina;
@@ -231,20 +243,18 @@ const AlunoFichaDetalhePage: React.FC = () => {
             return { previousRotinas };
         },
         onError: (err, _newTodo, context) => {
-            console.error("Mutação otimista falhou. Revertendo cache.");
             if (context?.previousRotinas) { queryClientHook.setQueryData(['minhasRotinasAluno', aluno?.id], context.previousRotinas); }
             toast({ title: "Erro ao Salvar Treino", description: err.message, variant: "destructive" });
         },
-        onSettled: () => { console.log("onSettled executado: Nenhuma invalidação forçada para 'minhasRotinasAluno'."); },
+        onSettled: () => { },
         mutationFn: (vars) => apiRequest('POST', `/api/sessions/aluno/concluir-dia`, vars.payload, 'aluno'),
         onSuccess: (_data, variables) => {
-            console.log("Mutação no backend bem-sucedida.");
             toast({ title: "Treino Salvo!", description: "Redirecionando para o painel..." });
             atualizarCargasFichaMutation.mutate({ cargas: variables.payload.cargas });
             queryClientHook.invalidateQueries({ queryKey: ['frequenciaSemanalAluno', aluno?.id] });
             queryClientHook.invalidateQueries({ queryKey: ['statsProgressoAluno', aluno?.id] });
             setPendingWorkoutData(null); 
-            resetWorkout(); // Limpa completamente o estado do player após o sucesso
+            resetWorkout();
             setTimeout(() => navigateWouter('/aluno/dashboard'), 1000);
         },
     });
@@ -270,15 +280,21 @@ const AlunoFichaDetalhePage: React.FC = () => {
         finalizarDiaDeTreinoMutation.mutate({ payload: finalPayload });
     };
 
-    if (isLoadingRotina) return <div className="min-h-screen w-full flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-white" /></div>;
-    if (errorRotina) return <div>Erro: {errorRotina.message}</div>;
-    if (!rotinaDetalhes) return <div>Rotina não encontrada.</div>;
+    if (isLoadingAluno || isLoadingRotina) {
+        return <div className="min-h-screen w-full flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-white" /></div>;
+    }
+    if (errorRotina) {
+        return <div>Erro: {errorRotina.message}</div>;
+    }
+    if (!rotinaDetalhes) {
+        return <div>Rotina não encontrada.</div>;
+    }
 
     const renderContent = () => {
-        if (diaIdUrl && diaDeTreinoAtivo) {
+        if (diaIdUrl && isWorkoutActive && diaDeTreinoAtivo) {
             return <WorkoutExecutionView diaAtivo={diaDeTreinoAtivo} rotinaId={rotinaIdUrl!} onFinishWorkout={handleFinishWorkout} />;
         }
-        return <SummaryView rotina={rotinaDetalhes} onSelectDiaParaIniciar={setDiaParaIniciar} onSelectDiaParaVer={setDiaParaVer} />;
+        return <SummaryView rotina={rotinaDetalhes} onSelectDiaParaIniciar={setDiaParaIniciar} onSelectDiaParaVer={setDiaParaVer} />; 
     };
 
     const workoutSummaryForModal = pendingWorkoutData ? {
@@ -291,7 +307,7 @@ const AlunoFichaDetalhePage: React.FC = () => {
 
     const handleCloseFeedbackModal = () => {
         setPendingWorkoutData(null);
-        resumeWorkout();
+        stopWorkout();
     };
 
     return (
