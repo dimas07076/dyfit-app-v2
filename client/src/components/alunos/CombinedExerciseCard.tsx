@@ -105,7 +105,7 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
         "transition-all duration-300 ease-in-out overflow-hidden shadow-md border",
         allCompleted ? 'bg-green-50 border-green-300 shadow-green-100' : 'bg-white border-slate-200',
         isActive ? 'border-indigo-500 shadow-indigo-200 shadow-lg' : '',
-        'border-l-4 border-l-blue-500 bg-blue-50/30'
+        !allCompleted ? 'border-l-4 border-l-blue-500 bg-blue-50/30' : ''
       )}
     >
       {/* Combined exercise header banner */}
