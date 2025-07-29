@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, ArrowLeft, ArrowRight, PlusCircle, Edit, Trash2, ListPlus, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, PlusCircle, Edit, Trash2, ListPlus, XCircle, AlertTriangle, Link2, CheckSquare, Square } from "lucide-react";
 import { Aluno } from '@/types/aluno';
 import type { RotinaListagemItem, DiaDeTreinoDetalhado, ExercicioEmDiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 import SelectExerciseModal, { BibliotecaExercicio } from './SelectExerciseModal';
@@ -26,6 +26,97 @@ interface RotinaFormModalProps { open: boolean; onClose: () => void; onSuccess: 
 
 const Stepper = ({ currentStep }: { currentStep: number }) => ( <div className="flex items-center w-full mb-8 px-2"> {[ {num: 1, label: "Detalhes"}, {num: 2, label: "Dias"}, {num: 3, label: "Exercícios"} ].map(({num, label}, index, arr) => ( <React.Fragment key={num}> <div className="flex flex-col items-center shrink-0 text-center"> <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${currentStep >= num ? 'bg-primary text-primary-foreground scale-110 shadow-lg' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}> {num} </div> <p className={`text-xs mt-2 font-semibold transition-colors w-20 ${currentStep >= num ? 'text-primary' : 'text-slate-500'}`}>{label}</p> </div> {index < arr.length - 1 && <div className={`flex-auto border-t-2 mx-2 transition-colors ${currentStep > num ? 'border-primary' : 'border-slate-200 dark:border-slate-700'}`}></div>} </React.Fragment> ))} </div> );
 
+// Componente para renderizar cada exercício individualmente
+const ExerciseCard = ({ 
+  ex, 
+  index, 
+  diaAtivo, 
+  isCombinacoesMode, 
+  exerciciosSelecionados,
+  handleToggleExercicioSelecionado,
+  handleExercicioDetailChange,
+  handleRemoveExercicio,
+  isInGroup
+}: {
+  ex: ExercicioEmDiaDeTreinoDetalhado;
+  index: number;
+  diaAtivo: string;
+  isCombinacoesMode: boolean;
+  exerciciosSelecionados: number[];
+  handleToggleExercicioSelecionado: (index: number) => void;
+  handleExercicioDetailChange: (diaTempId: string, exIndex: number, field: keyof ExercicioEmDiaDeTreinoDetalhado, value: string) => void;
+  handleRemoveExercicio: (diaTempId: string, exIndex: number) => void;
+  isInGroup: boolean;
+}) => {
+  const isSelected = exerciciosSelecionados.includes(index);
+  
+  return (
+    <Card className={`p-3 shadow-sm border-l-4 transition-all ${
+      isSelected 
+        ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+        : isInGroup 
+          ? 'border-l-blue-300 bg-white dark:bg-slate-800/60'
+          : 'border-l-primary/50 bg-white dark:bg-slate-800/60'
+    }`}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center gap-2 flex-1">
+          {isCombinacoesMode && !isInGroup && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => handleToggleExercicioSelecionado(index)}
+            >
+              {isSelected ? 
+                <CheckSquare className="h-4 w-4 text-blue-600" /> : 
+                <Square className="h-4 w-4 text-gray-400" />
+              }
+            </Button>
+          )}
+          <p className="font-medium text-sm">{(typeof ex.exercicioId === 'object' && ex.exercicioId.nome) || 'Exercício'}</p>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6 text-destructive/70 hover:text-destructive shrink-0" 
+          onClick={() => handleRemoveExercicio(diaAtivo, index)}
+        >
+          <XCircle className="w-4 h-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <Input 
+          placeholder="Séries" 
+          value={ex.series || ''} 
+          onChange={e => handleExercicioDetailChange(diaAtivo, index, 'series', e.target.value)} 
+        />
+        <Input 
+          placeholder="Reps" 
+          value={ex.repeticoes || ''} 
+          onChange={e => handleExercicioDetailChange(diaAtivo, index, 'repeticoes', e.target.value)} 
+        />
+        <Input 
+          placeholder="Carga" 
+          value={ex.carga || ''} 
+          onChange={e => handleExercicioDetailChange(diaAtivo, index, 'carga', e.target.value)} 
+        />
+        <Input 
+          placeholder="Descanso" 
+          value={ex.descanso || ''} 
+          onChange={e => handleExercicioDetailChange(diaAtivo, index, 'descanso', e.target.value)} 
+        />
+      </div>
+      <Textarea 
+        placeholder="Observações..." 
+        value={ex.observacoes || ''} 
+        onChange={e => handleExercicioDetailChange(diaAtivo, index, 'observacoes', e.target.value)} 
+        className="mt-2 text-xs" 
+        rows={1} 
+      />
+    </Card>
+  );
+};
+
 export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alunosProp, rotinaParaEditar }: RotinaFormModalProps) {
   const [step, setStep] = useState(1);
   const { toast } = useToast();
@@ -40,6 +131,10 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const [diaFormValues, setDiaFormValues] = useState<DiaDeTreinoFormData>({ identificadorDia: '', nomeSubFicha: null });
   const [isSelectExerciseModalOpen, setIsSelectExerciseModalOpen] = useState(false);
   const [diaAtivo, setDiaAtivo] = useState<string | null>(null);
+  
+  // Estados para funcionalidade de conjugação de exercícios
+  const [isCombinacoesMode, setIsCombinacoesMode] = useState(false);
+  const [exerciciosSelecionados, setExerciciosSelecionados] = useState<number[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -63,6 +158,9 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
         setStep1Data({ titulo: '', descricao: null, tipo: 'modelo', alunoId: null }); setStep2Data({ tipoOrganizacaoRotina: 'numerico' }); setDiasDeTreino([]); setDiaAtivo(null);
       }
       setStep(1); setShowDiaForm(false); setEditingDiaTempId(null);
+      // Reset combination state
+      setIsCombinacoesMode(false);
+      setExerciciosSelecionados([]);
     }
   }, [open, isEditing, rotinaParaEditar]);
 
@@ -102,7 +200,8 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
             exerciciosDoDia: dia.exerciciosDoDia.map(ex => ({
                 _id: (ex as any)._idSubDocExercicio,
                 exercicioId: typeof ex.exercicioId === 'object' ? ex.exercicioId._id : ex.exercicioId,
-                series: ex.series, repeticoes: ex.repeticoes, carga: ex.carga, descanso: ex.descanso, observacoes: ex.observacoes, ordemNoDia: ex.ordemNoDia
+                series: ex.series, repeticoes: ex.repeticoes, carga: ex.carga, descanso: ex.descanso, observacoes: ex.observacoes, ordemNoDia: ex.ordemNoDia,
+                grupoCombinado: ex.grupoCombinado
             }))
         }))
     };
@@ -118,6 +217,78 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const handleExercisesSelected = (selecionados: BibliotecaExercicio[]) => { if (!diaAtivo) return; setDiasDeTreino(prev => prev.map(dia => { if (dia.tempId === diaAtivo) { const novosExercicios = selecionados.map((ex, i) => ({ _id: `new-ex-${Date.now()}-${i}`, exercicioId: { _id: ex._id, nome: ex.nome, grupoMuscular: ex.grupoMuscular, categoria: ex.categoria }, ordemNoDia: (dia.exerciciosDoDia?.length || 0) + i, } as unknown as ExercicioEmDiaDeTreinoDetalhado)); return { ...dia, exerciciosDoDia: [...(dia.exerciciosDoDia || []), ...novosExercicios] }; } return dia; })); setIsSelectExerciseModalOpen(false); };
   const handleExercicioDetailChange = (diaTempId: string, exIndex: number, field: keyof ExercicioEmDiaDeTreinoDetalhado, value: string) => { setDiasDeTreino(prev => prev.map(dia => { if (dia.tempId === diaTempId) { const exerciciosAtualizados = [...dia.exerciciosDoDia]; (exerciciosAtualizados[exIndex] as any)[field] = value; return { ...dia, exerciciosDoDia: exerciciosAtualizados }; } return dia; })); };
   const handleRemoveExercicio = (diaTempId: string, exIndex: number) => { setDiasDeTreino(prev => prev.map(dia => { if (dia.tempId === diaTempId) { const exerciciosAtualizados = dia.exerciciosDoDia.filter((_, index) => index !== exIndex); return { ...dia, exerciciosDoDia: exerciciosAtualizados.map((ex, i) => ({ ...ex, ordemNoDia: i })) }; } return dia; })); };
+  
+  // Funções para conjugação de exercícios
+  const handleToggleCombinacaoMode = () => {
+    setIsCombinacoesMode(!isCombinacoesMode);
+    setExerciciosSelecionados([]);
+  };
+
+  const handleToggleExercicioSelecionado = (exIndex: number) => {
+    setExerciciosSelecionados(prev => 
+      prev.includes(exIndex) 
+        ? prev.filter(idx => idx !== exIndex)
+        : [...prev, exIndex]
+    );
+  };
+
+  const handleConjugarExercicios = () => {
+    if (!diaAtivo || exerciciosSelecionados.length < 2) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Selecione pelo menos 2 exercícios para conjugar."
+      });
+      return;
+    }
+
+    const grupoCombinado = `grupo-${Date.now()}`;
+    
+    setDiasDeTreino(prev => prev.map(dia => {
+      if (dia.tempId === diaAtivo) {
+        const exerciciosAtualizados = dia.exerciciosDoDia.map((ex, index) => {
+          if (exerciciosSelecionados.includes(index)) {
+            return { ...ex, grupoCombinado };
+          }
+          return ex;
+        });
+        return { ...dia, exerciciosDoDia: exerciciosAtualizados };
+      }
+      return dia;
+    }));
+
+    setExerciciosSelecionados([]);
+    setIsCombinacoesMode(false);
+    
+    toast({
+      title: "Sucesso!",
+      description: `${exerciciosSelecionados.length} exercícios conjugados com sucesso.`
+    });
+  };
+
+  const handleDesconjugarExercicios = (grupoCombinado: string) => {
+    if (!diaAtivo) return;
+
+    setDiasDeTreino(prev => prev.map(dia => {
+      if (dia.tempId === diaAtivo) {
+        const exerciciosAtualizados = dia.exerciciosDoDia.map(ex => {
+          if (ex.grupoCombinado === grupoCombinado) {
+            const { grupoCombinado: _, ...exercicioSemGrupo } = ex;
+            return exercicioSemGrupo;
+          }
+          return ex;
+        });
+        return { ...dia, exerciciosDoDia: exerciciosAtualizados };
+      }
+      return dia;
+    }));
+
+    toast({
+      title: "Sucesso!",
+      description: "Exercícios desconjugados com sucesso."
+    });
+  };
+  
   const diasDaSemanaUtilizados = useMemo(() => diasDeTreino.map(d => d.identificadorDia), [diasDeTreino]);
 
   return (
@@ -165,38 +336,124 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
               <div className="md:col-span-2 p-4 overflow-y-auto flex-grow"> {/* flex-grow para ocupar o espaço restante */}
                 {diaAtivo && diasDeTreino.find(d => d.tempId === diaAtivo) ? (
                   <div className="space-y-4">
-                    <h3 className="font-semibold">Exercícios do Dia: {diasDeTreino.find(d => d.tempId === diaAtivo)?.identificadorDia}</h3>
-                    {(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).map((ex, index) => {
-                      // <<< CORREÇÃO DE ROBUSTEZ: Verifica se o exercício não é nulo antes de renderizar >>>
-                      if (!ex.exercicioId) {
-                          return (
-                              <Card key={index} className="p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500">
-                                  <p className="text-red-600 dark:text-red-400 text-sm flex items-center">
-                                      <AlertTriangle className="h-4 w-4 mr-2" />
-                                      Este exercício foi removido e não pode ser editado.
-                                  </p>
-                              </Card>
-                          );
-                      }
-                      return (
-                        <Card key={(ex as any)._id || (ex as any).tempIdExercicio || index} className="p-3 bg-white dark:bg-slate-800/60 shadow-sm border-l-4 border-primary/50">
-                          <div className="flex justify-between items-start mb-2">
-                            <p className="font-medium text-sm">{(typeof ex.exercicioId === 'object' && ex.exercicioId.nome) || 'Exercício'}</p>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/70 hover:text-destructive shrink-0" onClick={() => handleRemoveExercicio(diaAtivo, index)}>
-                              <XCircle className="w-4 h-4" />
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Exercícios do Dia: {diasDeTreino.find(d => d.tempId === diaAtivo)?.identificadorDia}</h3>
+                      {(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).length > 1 && (
+                        <div className="flex gap-2">
+                          {isCombinacoesMode && exerciciosSelecionados.length > 1 && (
+                            <Button 
+                              size="sm" 
+                              onClick={handleConjugarExercicios}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <Link2 className="mr-2 h-4 w-4" />
+                              Conjugar ({exerciciosSelecionados.length})
                             </Button>
-                          </div>
-                          {/* Grid de inputs responsivo: 2 colunas em mobile, 4 em sm */}
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <Input placeholder="Séries" value={ex.series || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'series', e.target.value)} />
-                            <Input placeholder="Reps" value={ex.repeticoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'repeticoes', e.target.value)} />
-                            <Input placeholder="Carga" value={ex.carga || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'carga', e.target.value)} />
-                            <Input placeholder="Descanso" value={ex.descanso || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'descanso', e.target.value)} />
-                          </div>
-                          <Textarea placeholder="Observações..." value={ex.observacoes || ''} onChange={e => handleExercicioDetailChange(diaAtivo, index, 'observacoes', e.target.value)} className="mt-2 text-xs" rows={1} />
-                        </Card>
-                      )
-                    })}
+                          )}
+                          <Button 
+                            variant={isCombinacoesMode ? "default" : "outline"}
+                            size="sm" 
+                            onClick={handleToggleCombinacaoMode}
+                          >
+                            <Link2 className="mr-2 h-4 w-4" />
+                            {isCombinacoesMode ? "Cancelar" : "Conjugar Exercícios"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Renderização dos exercícios com agrupamento visual */}
+                    {(() => {
+                      const exerciciosDoDia = diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || [];
+                      const grupos: { [key: string]: { exercicios: typeof exerciciosDoDia, indices: number[] } } = {};
+                      const exerciciosSemGrupo: { exercicio: typeof exerciciosDoDia[0], index: number }[] = [];
+                      
+                      exerciciosDoDia.forEach((ex, index) => {
+                        if (ex.grupoCombinado) {
+                          if (!grupos[ex.grupoCombinado]) {
+                            grupos[ex.grupoCombinado] = { exercicios: [], indices: [] };
+                          }
+                          grupos[ex.grupoCombinado].exercicios.push(ex);
+                          grupos[ex.grupoCombinado].indices.push(index);
+                        } else {
+                          exerciciosSemGrupo.push({ exercicio: ex, index });
+                        }
+                      });
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Exercícios agrupados */}
+                          {Object.entries(grupos).map(([grupoId, grupo]) => (
+                            <div key={grupoId} className="border-2 border-blue-200 dark:border-blue-800 rounded-lg p-3 bg-blue-50/50 dark:bg-blue-900/10">
+                              <div className="flex justify-between items-center mb-3">
+                                <div className="flex items-center gap-2">
+                                  <Link2 className="h-4 w-4 text-blue-600" />
+                                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                    Exercícios Conjugados ({grupo.exercicios.length})
+                                  </span>
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleDesconjugarExercicios(grupoId)}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="space-y-3">
+                                {grupo.exercicios.map((ex, grupoIndex) => {
+                                  const originalIndex = grupo.indices[grupoIndex];
+                                  return (
+                                    <ExerciseCard 
+                                      key={(ex as any)._id || (ex as any).tempIdExercicio || originalIndex}
+                                      ex={ex}
+                                      index={originalIndex}
+                                      diaAtivo={diaAtivo}
+                                      isCombinacoesMode={isCombinacoesMode}
+                                      exerciciosSelecionados={exerciciosSelecionados}
+                                      handleToggleExercicioSelecionado={handleToggleExercicioSelecionado}
+                                      handleExercicioDetailChange={handleExercicioDetailChange}
+                                      handleRemoveExercicio={handleRemoveExercicio}
+                                      isInGroup={true}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Exercícios individuais */}
+                          {exerciciosSemGrupo.map(({ exercicio: ex, index }) => {
+                            if (!ex.exercicioId) {
+                              return (
+                                <Card key={index} className="p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500">
+                                  <p className="text-red-600 dark:text-red-400 text-sm flex items-center">
+                                    <AlertTriangle className="h-4 w-4 mr-2" />
+                                    Este exercício foi removido e não pode ser editado.
+                                  </p>
+                                </Card>
+                              );
+                            }
+                            return (
+                              <ExerciseCard 
+                                key={(ex as any)._id || (ex as any).tempIdExercicio || index}
+                                ex={ex}
+                                index={index}
+                                diaAtivo={diaAtivo}
+                                isCombinacoesMode={isCombinacoesMode}
+                                exerciciosSelecionados={exerciciosSelecionados}
+                                handleToggleExercicioSelecionado={handleToggleExercicioSelecionado}
+                                handleExercicioDetailChange={handleExercicioDetailChange}
+                                handleRemoveExercicio={handleRemoveExercicio}
+                                isInGroup={false}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    
                     <Button variant="outline" className="w-full border-dashed" onClick={() => handleOpenSelectExerciseModal(diaAtivo)}>
                       <ListPlus className="mr-2 h-4 w-4" />Adicionar Exercício
                     </Button>

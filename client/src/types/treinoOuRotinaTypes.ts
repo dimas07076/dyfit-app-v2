@@ -20,6 +20,7 @@ export interface ExercicioEmDiaDeTreinoDetalhado {
     observacoes?: string;
     ordemNoDia: number;
     concluido?: boolean; // Usado pelo aluno ao realizar o treino
+    grupoCombinado?: string; // ID do grupo para exercícios combinados
 }
 
 // Representa um dia de treino, como vem da API populado e lean
