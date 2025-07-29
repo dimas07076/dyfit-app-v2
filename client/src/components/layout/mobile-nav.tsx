@@ -7,7 +7,7 @@ import { useAluno } from "@/context/AlunoContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./sidebar";
 import AlunoSidebar from "./AlunoSidebar";
-import WorkoutMiniPlayer from "@/components/WorkoutMiniPlayer";
+
 
 export default function MobileNav() {
   const [location] = useLocation();
@@ -47,9 +47,6 @@ export default function MobileNav() {
           <ListChecks size={22} strokeWidth={isActive("/aluno/meus-treinos") ? 2.5 : 2} />
           <span className="mt-1">Fichas</span>
         </WouterLink>
-        
-        {/* Mini-player integration */}
-        <WorkoutMiniPlayer />
         
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./sidebar";
 import AlunoSidebar from "./AlunoSidebar";
+import WorkoutMiniPlayerHeader from "@/components/WorkoutMiniPlayerHeader";
 import { UserContext } from "@/context/UserContext";
 import { useAluno } from "@/context/AlunoContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -113,7 +114,11 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
           className="ml-4 h-8 w-auto"
         />
       </div>
+      
       <div className="flex items-center space-x-2 sm:space-x-4">
+        {/* Workout Mini Player in Header */}
+        <WorkoutMiniPlayerHeader isScrolled={isScrolled} isAluno={isAluno} />
+        
         {(aluno || user) && (
           <Button
             variant="ghost"
@@ -156,6 +161,9 @@ export default function Header({ isScrolled, isAluno }: HeaderProps) {
       <div className="hidden md:block">
         <header className={cn("flex items-center justify-end h-16 px-6", headerClasses)}>
           <div className="flex items-center space-x-4">
+            {/* Workout Mini Player in Desktop Header */}
+            <WorkoutMiniPlayerHeader isScrolled={isScrolled} isAluno={!!aluno} />
+            
             {displayUserForDesktopHeader && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
