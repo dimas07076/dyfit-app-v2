@@ -120,8 +120,11 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <p className="font-semibold text-gray-800">
-            Grupo de Exercícios - {groupId}
+            Exercícios Conjugados
           </p>
+          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+            {exercises.length} exercícios
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <ChevronDown className={cn("transition-transform", isExpanded && "rotate-180")} />
