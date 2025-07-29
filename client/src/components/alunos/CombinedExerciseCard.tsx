@@ -56,6 +56,13 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
   useEffect(() => {
     setIsExpanded(isActive);
   }, [isActive]);
+
+  // Auto-collapse when all exercises are completed
+  useEffect(() => {
+    if (allCompleted) {
+      setIsExpanded(false);
+    }
+  }, [allCompleted]);
   
   const handleUpdateLoad = (exerciseId: string, newLoadValue: string) => {
     setLoads(prev => ({ ...prev, [exerciseId]: newLoadValue }));
@@ -72,6 +79,8 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
     exercises.forEach(exercise => {
       uncompleteExercise(exercise._id);
     });
+    // Expand the card when reopening
+    setIsExpanded(true);
   };
 
   const openEditModal = (exerciseId: string) => {
