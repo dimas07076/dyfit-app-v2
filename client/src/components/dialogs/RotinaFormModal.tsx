@@ -338,7 +338,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h3 className="font-semibold">Exercícios do Dia: {diasDeTreino.find(d => d.tempId === diaAtivo)?.identificadorDia}</h3>
-                      {(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).length > 1 && (
+                      {(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).length > 0 && (
                         <div className="flex gap-2">
                           {isCombinacoesMode && exerciciosSelecionados.length > 1 && (
                             <Button 
@@ -354,6 +354,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
                             variant={isCombinacoesMode ? "default" : "outline"}
                             size="sm" 
                             onClick={handleToggleCombinacaoMode}
+                            disabled={(diasDeTreino.find(d => d.tempId === diaAtivo)?.exerciciosDoDia || []).length < 2 && !isCombinacoesMode}
                           >
                             <Link2 className="mr-2 h-4 w-4" />
                             {isCombinacoesMode ? "Cancelar" : "Conjugar Exercícios"}
