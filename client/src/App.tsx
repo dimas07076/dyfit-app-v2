@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
 import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
+import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
@@ -224,10 +225,12 @@ function App() {
           <PWAInstallProvider>
             <UserProvider>
               <AlunoProvider>
-                <Toaster />
-                {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
-                <ReloadPrompt />
-                <AppContent />
+                <WorkoutPlayerProvider>
+                  <Toaster />
+                  {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
+                  <ReloadPrompt />
+                  <AppContent />
+                </WorkoutPlayerProvider>
               </AlunoProvider>
             </UserProvider>
           </PWAInstallProvider>
