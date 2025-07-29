@@ -24,6 +24,8 @@ interface WorkoutPlayerContextType {
   resetWorkout: () => void;
   completeExercise: (exerciseId: string) => void;
   uncompleteExercise: (exerciseId: string) => void;
+  completeMultipleExercises: (exerciseIds: string[]) => void;
+  uncompleteMultipleExercises: (exerciseIds: string[]) => void;
   activeExerciseId: string | null;
   completedExercises: Set<string>;
   elapsedTime: number;
@@ -242,6 +244,49 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     updateSession({ completedExercises: newCompletedArray });
   }, [session, updateSession]);
 
+  const completeMultipleExercises = useCallback((exerciseIds: string[]) => {
+    console.log(`[WorkoutPlayerContext] COMPLETE_MULTIPLE_EXERCISES: Marcando ${exerciseIds.length} exercícios como concluídos:`, exerciseIds);
+    if (!session) {
+      console.warn('[WorkoutPlayerContext] COMPLETE_MULTIPLE_EXERCISES: Nenhuma sessão ativa para completar exercícios.');
+      return;
+    }
+
+    // Create a new array with all existing completed exercises plus the new ones (avoiding duplicates)
+    const existingCompleted = new Set(session.completedExercises);
+    exerciseIds.forEach(id => existingCompleted.add(id));
+    const newCompletedArray = Array.from(existingCompleted);
+    const newCompletedSet = new Set(newCompletedArray);
+
+    updateSession({ completedExercises: newCompletedArray });
+
+    // Handle rest time for the first exercise in the group (if applicable)
+    const firstExercise = session.exercises.find(e => exerciseIds.includes(e._id));
+    const restSeconds = firstExercise?.descanso ? parseInt(firstExercise.descanso, 10) : 0;
+    console.log(`[WorkoutPlayerContext] COMPLETE_MULTIPLE_EXERCISES: Descanso para o grupo: ${restSeconds}s`);
+    
+    const nextActiveId = findNextActiveExercise(session.exercises, newCompletedSet);
+    if (!nextActiveId || restSeconds <= 0) {
+      console.log('[WorkoutPlayerContext] COMPLETE_MULTIPLE_EXERCISES: Sem próximo exercício ou sem descanso. Não iniciando descanso.');
+      setIsResting(false);
+    } else {
+      console.log('[WorkoutPlayerContext] COMPLETE_MULTIPLE_EXERCISES: Iniciando descanso.');
+      setIsResting(true);
+      setRestTimeRemaining(restSeconds);
+    }
+  }, [session, findNextActiveExercise, updateSession]);
+
+  const uncompleteMultipleExercises = useCallback((exerciseIds: string[]) => {
+    console.log(`[WorkoutPlayerContext] UNCOMPLETE_MULTIPLE_EXERCISES: Desmarcando ${exerciseIds.length} exercícios:`, exerciseIds);
+    if (!session) {
+      console.warn('[WorkoutPlayerContext] UNCOMPLETE_MULTIPLE_EXERCISES: Nenhuma sessão ativa para desmarcar exercícios.');
+      return;
+    }
+    
+    // Remove all the specified exercise IDs from completed exercises
+    const newCompletedArray = session.completedExercises.filter(id => !exerciseIds.includes(id));
+    updateSession({ completedExercises: newCompletedArray });
+  }, [session, updateSession]);
+
   const updateExerciseLoad = (exerciseId: string, load: string) => {
     console.log(`[WorkoutPlayerContext] UPDATE_EXERCISE_LOAD: Atualizando carga para ${exerciseId} para ${load}.`);
     if (!session) {
@@ -265,6 +310,8 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     resetWorkout,
     completeExercise,
     uncompleteExercise,
+    completeMultipleExercises,
+    uncompleteMultipleExercises,
     activeExerciseId: session ? findNextActiveExercise(session.exercises, new Set(session.completedExercises)) : null,
     completedExercises: new Set(session?.completedExercises || []),
     elapsedTime,

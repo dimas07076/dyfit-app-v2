@@ -38,7 +38,7 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
   onOpenVideo,
   groupId,
 }) => {
-  const { completeExercise, uncompleteExercise, updateExerciseLoad, getExerciseLoad, completedExercises } = useWorkoutPlayer();
+  const { completeMultipleExercises, uncompleteMultipleExercises, updateExerciseLoad, getExerciseLoad, completedExercises } = useWorkoutPlayer();
   
   const [loads, setLoads] = useState<Record<string, string>>(() => {
     const initialLoads: Record<string, string> = {};
@@ -70,15 +70,13 @@ export const CombinedExerciseCard: React.FC<CombinedExerciseCardProps> = ({
   };
   
   const handleCompleteAllExercises = () => {
-    exercises.forEach(exercise => {
-      completeExercise(exercise._id);
-    });
+    const exerciseIds = exercises.map(exercise => exercise._id);
+    completeMultipleExercises(exerciseIds);
   };
 
   const handleUncompleteAllExercises = () => {
-    exercises.forEach(exercise => {
-      uncompleteExercise(exercise._id);
-    });
+    const exerciseIds = exercises.map(exercise => exercise._id);
+    uncompleteMultipleExercises(exerciseIds);
     // Expand the card when reopening
     setIsExpanded(true);
   };
