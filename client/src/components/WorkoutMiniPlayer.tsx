@@ -55,23 +55,23 @@ const WorkoutMiniPlayer: React.FC = () => {
 
   return (
     <button
-      className="flex flex-col items-center justify-center flex-1 py-1 text-xs text-indigo-600 hover:text-indigo-700 transition-colors"
+      className="flex flex-col items-center justify-center flex-1 py-1 px-1 text-xs text-indigo-600 hover:text-indigo-700 transition-colors border-l border-r border-gray-200"
       onClick={handleContinueWorkout}
     >
-      <div className="flex items-center space-x-1">
-        <Timer className="w-3 h-3" />
-        <span className="font-mono font-bold text-xs">
+      <div className="flex items-center space-x-0.5">
+        <Timer className="w-2.5 h-2.5" />
+        <span className="font-mono font-bold text-[10px] leading-none">
           {formatTime(elapsedTime)}
         </span>
       </div>
-      <div className="flex items-center space-x-1 mt-0.5">
-        <div className="bg-indigo-200 rounded-full h-1 w-8 overflow-hidden">
+      <div className="flex items-center space-x-0.5 mt-0.5">
+        <div className="bg-indigo-200 rounded-full h-0.5 w-6 overflow-hidden">
           <div 
             className="bg-indigo-600 h-full transition-all duration-300 ease-out"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <span className="text-xs">
+        <span className="text-[9px] font-medium">
           {completedCount}/{totalExercises}
         </span>
       </div>
