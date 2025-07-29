@@ -29,6 +29,7 @@ const ExercisesIndex = lazy(() => import("@/pages/exercises/index"));
 const SessionsPage = lazy(() => import("@/pages/sessoes/index"));
 const TreinosPage = lazy(() => import("@/pages/treinos/index"));
 const ProfileEditPage = lazy(() => import('@/pages/perfil/editar'));
+const CombinedExerciseDemo = lazy(() => import("@/pages/combined-exercise-demo"));
 const PersonalLoginPage = lazy(() => import("@/pages/login")); 
 const LandingLoginPage = lazy(() => import("@/pages/public/LandingLoginPage")); 
 const CadastroPersonalPorConvitePage = lazy(() => import("@/pages/public/CadastroPersonalPorConvitePage"));
@@ -154,6 +155,14 @@ function AppContent() {
     };
   }, [location, navigate, toast]);
 
+  // Allow access to demo page without authentication
+  if (location === '/demo/combined-exercises') {
+    return (
+      <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
+        <CombinedExerciseDemo />
+      </Suspense>
+    );
+  }
 
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -204,6 +213,7 @@ function PublicRoutes() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
       <Switch>
+        <Route path="/demo/combined-exercises" component={CombinedExerciseDemo} />
         <Route path="/login" component={LandingLoginPage} />
         <Route path="/login/personal" component={PersonalLoginPage} />
         <Route path="/login/aluno" component={AlunoLoginPage} />
@@ -211,7 +221,7 @@ function PublicRoutes() {
         <Route path="/cadastrar-personal/convite/:tokenDeConvite" component={CadastroPersonalPorConvitePage} />
         <Route path="/convite/aluno/:token" component={CadastroAlunoPorConvitePage} />
         
-        <Route><Redirect to="/login" /></Route>
+        <Route path="/"><Redirect to="/login" /></Route>
       </Switch>
     </Suspense>
   );
