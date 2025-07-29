@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, ChevronDown, ChevronUp, Dumbbell, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Dumbbell, Plus, Trash2, Link as LinkIcon, Unlink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -37,6 +39,11 @@ export default function WorkoutDetail({ id }: WorkoutDetailProps) {
   const [reps, setReps] = useState("");
   const [restTime, setRestTime] = useState("");
   const [notes, setNotes] = useState("");
+  
+  // Combined exercises management
+  const [selectedExercises, setSelectedExercises] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [combineDialogOpen, setCombineDialogOpen] = useState(false);
   
   const trainerId = 1; // Using default trainer ID
 
@@ -189,6 +196,92 @@ export default function WorkoutDetail({ id }: WorkoutDetailProps) {
     }
   };
 
+  // Handle exercise selection for combination
+  const handleExerciseSelection = (exerciseId: number, checked: boolean) => {
+    const newSelection = new Set(selectedExercises);
+    if (checked) {
+      newSelection.add(exerciseId);
+    } else {
+      newSelection.delete(exerciseId);
+    }
+    setSelectedExercises(newSelection);
+  };
+
+  // Handle combining selected exercises
+  const handleCombineExercises = async () => {
+    if (selectedExercises.size < 2) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select at least 2 exercises to combine"
+      });
+      return;
+    }
+
+    try {
+      const comboId = `combo-${Date.now()}`;
+      await apiRequest("PUT", "/api/workout-exercises/combine", {
+        exerciseIds: Array.from(selectedExercises),
+        grupoCombinado: comboId
+      });
+
+      await refetchExercises();
+      setSelectedExercises(new Set());
+      setIsSelectionMode(false);
+      setCombineDialogOpen(false);
+
+      toast({
+        title: "Success",
+        description: `${selectedExercises.size} exercises combined successfully`
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error", 
+        description: "Failed to combine exercises"
+      });
+    }
+  };
+
+  // Handle removing exercise from combination
+  const handleRemoveFromCombination = async (exerciseId: number) => {
+    try {
+      await apiRequest("PUT", `/api/workout-exercises/${exerciseId}`, {
+        grupoCombinado: null
+      });
+
+      await refetchExercises();
+
+      toast({
+        title: "Success",
+        description: "Exercise removed from combination"
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to remove from combination"
+      });
+    }
+  };
+
+  // Helper function to get combined exercise groups
+  const getCombinedGroups = () => {
+    if (!workoutExercises) return new Map();
+    
+    const groups = new Map<string, any[]>();
+    workoutExercises.forEach((ex: any) => {
+      if (ex.grupoCombinado) {
+        if (!groups.has(ex.grupoCombinado)) {
+          groups.set(ex.grupoCombinado, []);
+        }
+        groups.get(ex.grupoCombinado)!.push(ex);
+      }
+    });
+    
+    return groups;
+  };
+
   // Loading state
   if (isWorkoutLoading) {
     return (
@@ -325,95 +418,143 @@ export default function WorkoutDetail({ id }: WorkoutDetailProps) {
             <TabsContent value="exercises" className="mt-0">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium">Exercise List</h3>
-                <Dialog open={addExerciseDialogOpen} onOpenChange={setAddExerciseDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Exercise
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Exercise to Workout</DialogTitle>
-                      <DialogDescription>
-                        Select an exercise and specify sets, reps, and rest time.
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4 py-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="exercise">Exercise*</Label>
-                        <Select value={selectedExercise?.toString() || ""} onValueChange={(value) => setSelectedExercise(parseInt(value))}>
-                          <SelectTrigger id="exercise">
-                            <SelectValue placeholder="Select an exercise" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {exerciseLibrary?.map((exercise: any) => (
-                              <SelectItem key={exercise.id} value={exercise.id.toString()}>
-                                {exercise.name} ({exercise.muscleGroup})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="sets">Sets</Label>
-                          <Input 
-                            id="sets" 
-                            type="number" 
-                            min="1" 
-                            value={sets} 
-                            onChange={(e) => setSets(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="reps">Reps</Label>
-                          <Input 
-                            id="reps" 
-                            type="number" 
-                            min="1" 
-                            value={reps} 
-                            onChange={(e) => setReps(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="rest">Rest Time (seconds)</Label>
-                        <Input 
-                          id="rest" 
-                          type="number" 
-                          min="0" 
-                          value={restTime} 
-                          onChange={(e) => setRestTime(e.target.value)}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="notes">Notes</Label>
-                        <Textarea 
-                          id="notes" 
-                          value={notes} 
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Additional instructions or tips" 
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setAddExerciseDialogOpen(false)}>
+                <div className="flex gap-2">
+                  {!isSelectionMode ? (
+                    <>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => setIsSelectionMode(true)}
+                        disabled={!workoutExercises || workoutExercises.length < 2}
+                      >
+                        <LinkIcon className="h-4 w-4 mr-2" />
+                        Conjugar Exercícios
+                      </Button>
+                      <Dialog open={addExerciseDialogOpen} onOpenChange={setAddExerciseDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Exercise
+                          </Button>
+                        </DialogTrigger>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Exercise to Workout</DialogTitle>
+                            <DialogDescription>
+                              Select an exercise and specify sets, reps, and rest time.
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          <div className="space-y-4 py-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="exercise">Exercise*</Label>
+                              <Select value={selectedExercise?.toString() || ""} onValueChange={(value) => setSelectedExercise(parseInt(value))}>
+                                <SelectTrigger id="exercise">
+                                  <SelectValue placeholder="Select an exercise" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {exerciseLibrary?.map((exercise: any) => (
+                                    <SelectItem key={exercise.id} value={exercise.id.toString()}>
+                                      {exercise.name} ({exercise.muscleGroup})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="sets">Sets</Label>
+                                <Input 
+                                  id="sets" 
+                                  type="number" 
+                                  min="1" 
+                                  value={sets} 
+                                  onChange={(e) => setSets(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="reps">Reps</Label>
+                                <Input 
+                                  id="reps" 
+                                  type="number" 
+                                  min="1" 
+                                  value={reps} 
+                                  onChange={(e) => setReps(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="rest">Rest Time (seconds)</Label>
+                              <Input 
+                                id="rest" 
+                                type="number" 
+                                min="0" 
+                                value={restTime} 
+                                onChange={(e) => setRestTime(e.target.value)}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="notes">Notes</Label>
+                              <Textarea 
+                                id="notes" 
+                                value={notes} 
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Additional instructions or tips" 
+                                rows={2}
+                              />
+                            </div>
+                          </div>
+                          
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setAddExerciseDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleAddExercise}>
+                              Add to Workout
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  ) : (
+                    <>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setIsSelectionMode(false);
+                          setSelectedExercises(new Set());
+                        }}
+                      >
                         Cancel
                       </Button>
-                      <Button onClick={handleAddExercise}>
-                        Add to Workout
+                      <Button 
+                        size="sm"
+                        onClick={handleCombineExercises}
+                        disabled={selectedExercises.size < 2}
+                      >
+                        <LinkIcon className="h-4 w-4 mr-2" />
+                        Combine Selected ({selectedExercises.size})
                       </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                    </>
+                  )}
+                </div>
               </div>
+              
+              {isSelectionMode && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 font-medium">
+                    Selection Mode: Choose exercises to combine for sequential execution
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Combined exercises will be executed one after another without rest between them.
+                  </p>
+                </div>
+              )}
               
               {isExercisesLoading ? (
                 <div className="animate-pulse space-y-4">
@@ -438,52 +579,111 @@ export default function WorkoutDetail({ id }: WorkoutDetailProps) {
                       <Table>
                         <TableHeader className="bg-gray-50">
                           <TableRow>
+                            {isSelectionMode && <TableHead className="w-12">Select</TableHead>}
                             <TableHead className="w-12">#</TableHead>
                             <TableHead>Exercise</TableHead>
                             <TableHead>Muscle Group</TableHead>
                             <TableHead>Sets</TableHead>
                             <TableHead>Reps</TableHead>
                             <TableHead>Rest</TableHead>
+                            <TableHead>Combined</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {workoutExercises.map((ex: any, index: number) => {
                             const exerciseDetails = getExerciseDetails(ex.exerciseId);
+                            const isCombined = !!ex.grupoCombinado;
+                            const combinedGroups = getCombinedGroups();
+                            const isFirstInGroup = isCombined && combinedGroups.get(ex.grupoCombinado)?.[0]?.id === ex.id;
+                            const groupSize = isCombined ? combinedGroups.get(ex.grupoCombinado)?.length || 0 : 0;
+                            
                             return (
-                              <TableRow key={ex.id}>
+                              <TableRow 
+                                key={ex.id} 
+                                className={isCombined ? "bg-blue-50 border-l-4 border-l-blue-400" : ""}
+                              >
+                                {isSelectionMode && (
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedExercises.has(ex.id)}
+                                      onCheckedChange={(checked) => handleExerciseSelection(ex.id, !!checked)}
+                                    />
+                                  </TableCell>
+                                )}
                                 <TableCell className="font-medium">{index + 1}</TableCell>
-                                <TableCell>{exerciseDetails?.name || "Unknown Exercise"}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {exerciseDetails?.name || "Unknown Exercise"}
+                                    {isCombined && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        <LinkIcon className="h-3 w-3 mr-1" />
+                                        {isFirstInGroup ? `Combo (${groupSize})` : 'Combined'}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
                                 <TableCell>{exerciseDetails?.muscleGroup || "-"}</TableCell>
                                 <TableCell>{ex.sets || "-"}</TableCell>
                                 <TableCell>{ex.reps || "-"}</TableCell>
-                                <TableCell>{ex.rest ? `${ex.rest}s` : "-"}</TableCell>
+                                <TableCell>
+                                  {ex.rest ? `${ex.rest}s` : "-"}
+                                  {isCombined && (
+                                    <div className="text-xs text-blue-600 mt-1">
+                                      Execute in sequence
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {isCombined ? (
+                                    <Badge variant="outline" className="text-blue-600 border-blue-300">
+                                      Group {ex.grupoCombinado?.split('-')[1] || ''}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">Individual</span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end space-x-2">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8 text-gray-500 hover:text-gray-700"
-                                      onClick={() => {}}
-                                    >
-                                      <ChevronUp className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8 text-gray-500 hover:text-gray-700"
-                                      onClick={() => {}}
-                                    >
-                                      <ChevronDown className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                      onClick={() => handleRemoveExercise(ex.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {!isSelectionMode && (
+                                      <>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon"
+                                          className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                                          onClick={() => {}}
+                                        >
+                                          <ChevronUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon"
+                                          className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                                          onClick={() => {}}
+                                        >
+                                          <ChevronDown className="h-4 w-4" />
+                                        </Button>
+                                        {isCombined && (
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            className="h-8 w-8 text-orange-500 hover:text-orange-700 hover:bg-orange-50"
+                                            onClick={() => handleRemoveFromCombination(ex.id)}
+                                            title="Remove from combination"
+                                          >
+                                            <Unlink className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon"
+                                          className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() => handleRemoveExercise(ex.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>

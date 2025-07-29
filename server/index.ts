@@ -19,6 +19,8 @@ import adminRoutes from './src/routes/adminRoutes.js';
 import activityLogsRoutes from './src/routes/activityLogsRoutes.js'; // <-- 1. IMPORTAÇÃO ADICIONADA
 import adminPlanosRoutes from './src/routes/adminPlanosRoutes.js';
 import personalPlanosRoutes from './src/routes/personalPlanosRoutes.js';
+import workoutPlanRoutes from './src/routes/workoutPlans.js';
+import workoutExerciseRoutes from './src/routes/workoutExercises.js';
 import { authenticateToken } from './middlewares/authenticateToken.js';
 import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -73,6 +75,8 @@ apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
 apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
 apiRouter.use('/activity-logs', authenticateToken, activityLogsRoutes); // <-- 2. REGISTRO DA ROTA ADICIONADO
+apiRouter.use('/workout-plans', authenticateToken, workoutPlanRoutes);
+apiRouter.use('/workout-exercises', authenticateToken, workoutExerciseRoutes);
 
 apiRouter.use('/aluno', alunoApiRoutes);
 apiRouter.use('/sessions', sessionsRoutes);
