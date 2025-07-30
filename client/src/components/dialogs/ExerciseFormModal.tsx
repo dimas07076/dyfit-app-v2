@@ -69,6 +69,14 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
     enabled: open
   });
 
+  // Enhanced close handler with proper cleanup
+  const handleClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      exerciseForm.resetForm(); // Clear form when modal is closed
+    }
+    setOpen(isOpen);
+  };
+
   const formatVideoUrl = (url: string): string | undefined => {
     if (!url) return undefined;
     if (url.includes("youtube.com/watch?v=")) {
@@ -85,8 +93,7 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   const createExerciseMutation = useMutation<ExercicioCriadoResponse, Error, ExercicioPayload>({
     mutationFn: (newExerciseData) => apiRequest<ExercicioCriadoResponse>("POST", "/api/exercicios", newExerciseData),
     onSuccess: () => {
-      setOpen(false);
-      exerciseForm.resetForm(); // Clear persisted data on success
+      handleClose(false); // Use centralized close handler
       onCreated();
       toast({ title: "Exercício criado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ['exercicios'] });
@@ -127,7 +134,7 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   const isLoading = createExerciseMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
@@ -202,10 +209,7 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
         <DialogFooter className="mt-4">
            <Button 
              variant="outline" 
-             onClick={() => {
-               setOpen(false);
-               exerciseForm.resetForm(); // Clear form when cancelled
-             }} 
+             onClick={() => handleClose(false)} 
              disabled={isLoading}
            >
              Cancelar

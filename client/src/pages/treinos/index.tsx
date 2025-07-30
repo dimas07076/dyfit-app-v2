@@ -26,9 +26,10 @@ import { useModalPersistence } from "@/hooks/useModalPersistence";
 export interface Pasta { _id: string; nome: string; ordem?: number; }
 
 export default function TreinosPage() {
-    // Modal persistence hooks
+    // Modal persistence hooks with route validation
     const rotinaModal = useModalPersistence({ 
         modalKey: 'nova_rotina',
+        expectedRoute: '/treinos', // Only restore modal when on treinos page
         onRestore: () => {
             // When modal is restored, ensure we have the right editing state
             const savedRotinaId = localStorage.getItem('rotina_editando_id');
@@ -43,6 +44,7 @@ export default function TreinosPage() {
     
     const viewModal = useModalPersistence({ 
         modalKey: 'view_rotina',
+        expectedRoute: '/treinos',
         onRestore: () => {
             const savedRotinaId = localStorage.getItem('rotina_visualizando_id');
             if (savedRotinaId && rotinas) {
@@ -56,6 +58,7 @@ export default function TreinosPage() {
     
     const associarModal = useModalPersistence({ 
         modalKey: 'associar_modelo',
+        expectedRoute: '/treinos',
         onRestore: () => {
             const savedModeloData = localStorage.getItem('modelo_associando');
             if (savedModeloData) {
@@ -71,6 +74,7 @@ export default function TreinosPage() {
     
     const pastaModal = useModalPersistence({ 
         modalKey: 'pasta_form',
+        expectedRoute: '/treinos',
         onRestore: () => {
             const savedPastaData = localStorage.getItem('pasta_editando');
             if (savedPastaData) {
@@ -178,6 +182,31 @@ export default function TreinosPage() {
             localStorage.removeItem('pasta_editando');
         }
         pastaModal.openModal(); 
+    };
+
+    // Improved modal close handlers with proper cleanup
+    const handleCloseRotinaModal = () => {
+        rotinaModal.closeModal();
+        setRotinaParaEditar(null);
+        localStorage.removeItem('rotina_editando_id');
+    };
+
+    const handleCloseViewModal = () => {
+        viewModal.closeModal();
+        setRotinaParaVisualizar(null);
+        localStorage.removeItem('rotina_visualizando_id');
+    };
+
+    const handleCloseAssociarModal = () => {
+        associarModal.closeModal();
+        setRotinaModeloParaAssociar(null);
+        localStorage.removeItem('modelo_associando');
+    };
+
+    const handleClosePastaModal = () => {
+        pastaModal.closeModal(); 
+        setPastaParaEditar(null);
+        localStorage.removeItem('pasta_editando');
     };
     const handleDeleteRotinaClick = (rotina: RotinaListagemItem) => { setItemParaExcluir({ id: rotina._id, nome: rotina.titulo, tipo: 'rotina' }); setIsDeleteAlertOpen(true); };
     const handleDeletePastaClick = (pasta: Pasta) => { setItemParaExcluir({ id: pasta._id, nome: pasta.nome, tipo: 'pasta' }); setIsDeleteAlertOpen(true); };
@@ -425,15 +454,9 @@ export default function TreinosPage() {
             
             <RotinaFormModal 
                 open={rotinaModal.isOpen} 
-                onClose={() => {
-                    rotinaModal.closeModal();
-                    setRotinaParaEditar(null);
-                    localStorage.removeItem('rotina_editando_id');
-                }} 
+                onClose={handleCloseRotinaModal}
                 onSuccess={(rotinaSalva) => {
-                    rotinaModal.closeModal();
-                    setRotinaParaEditar(null);
-                    localStorage.removeItem('rotina_editando_id');
+                    handleCloseRotinaModal(); // Use centralized handler
                     queryClient.invalidateQueries({ queryKey: ["/api/treinos"] });
                     if (trainerId) {
                         queryClient.invalidateQueries({ queryKey: ["dashboardGeral", trainerId] });
@@ -444,11 +467,7 @@ export default function TreinosPage() {
             />
             <RotinaViewModal 
                 isOpen={viewModal.isOpen} 
-                onClose={() => {
-                    viewModal.closeModal();
-                    setRotinaParaVisualizar(null);
-                    localStorage.removeItem('rotina_visualizando_id');
-                }} 
+                onClose={handleCloseViewModal}
                 rotina={rotinaParaVisualizar} 
                 onEdit={handleOpenEditModal} 
                 onAssign={handleAssignClick} 
@@ -458,22 +477,14 @@ export default function TreinosPage() {
             {associarModal.isOpen && rotinaModeloParaAssociar && 
                 <AssociarModeloAlunoModal 
                     isOpen={associarModal.isOpen} 
-                    onClose={() => {
-                        associarModal.closeModal();
-                        setRotinaModeloParaAssociar(null);
-                        localStorage.removeItem('modelo_associando');
-                    }} 
+                    onClose={handleCloseAssociarModal}
                     fichaModeloId={rotinaModeloParaAssociar.id} 
                     fichaModeloTitulo={rotinaModeloParaAssociar.titulo}
                 />
             }
             <PastaFormModal 
                 isOpen={pastaModal.isOpen} 
-                onClose={() => {
-                    pastaModal.closeModal(); 
-                    setPastaParaEditar(null);
-                    localStorage.removeItem('pasta_editando');
-                }} 
+                onClose={handleClosePastaModal}
                 onSuccessCallback={handlePastaSuccess} 
                 initialData={pastaParaEditar} 
             />

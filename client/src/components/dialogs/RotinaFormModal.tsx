@@ -154,6 +154,19 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const [isCombinacoesMode, setIsCombinacoesMode] = useState(false);
   const [exerciciosSelecionados, setExerciciosSelecionados] = useState<number[]>([]);
 
+  // Enhanced close handler that clears form persistence
+  const handleClose = () => {
+    // Clear form persistence when modal is closed (cancelled)
+    if (!isEditing) {
+      step1Form.clearPersistence();
+      step2Form.clearPersistence();
+      diaForm.clearPersistence();
+      localStorage.removeItem('rotina_current_step');
+      localStorage.removeItem('rotina_dias_treino');
+    }
+    onClose();
+  };
+
   // Get current form values
   const step1Data = isEditing ? { 
     titulo: rotinaParaEditar?.titulo || '', 
@@ -411,7 +424,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const diasDaSemanaUtilizados = useMemo(() => diasDeTreino.map(d => d.identificadorDia), [diasDeTreino]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(open) => { if (!open) handleClose(); }}>
       {/* Ajustes para responsividade: sm:max-w-4xl agora é w-[95vw] h-[90vh] para mobile, e flex-col para empilhar conteúdo */}
       <DialogContent className="sm:max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
@@ -429,7 +442,7 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
           {step === 2 && <div className="space-y-6 animate-in fade-in-50">
              <div><Label className="font-semibold">Organização dos Dias*</Label><Select value={step2Data.tipoOrganizacaoRotina} onValueChange={(v:any) => isEditing ? {} : step2Form.updateField('tipoOrganizacaoRotina', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{OPCOES_TIPO_DOS_TREINOS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
              <div className="space-y-2">{diasDeTreino.map(dia => (<Card key={dia.tempId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border-l-4 border-l-primary"><div><p className="font-medium">{dia.identificadorDia}</p>{dia.nomeSubFicha && <p className="text-xs text-muted-foreground">{dia.nomeSubFicha}</p>}</div><div className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditDia(dia)}><Edit className="h-4 w-4 text-slate-500"/></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleRemoveDia(dia.tempId)}><Trash2 className="h-4 w-4"/></Button></div></Card>))}</div>
-             {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => diaForm.updateField('identificadorDia', v)}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => diaForm.updateField('identificadorDia', e.target.value)} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => diaForm.updateField('nomeSubFicha', e.target.value)} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => {setShowDiaForm(false); diaForm.resetForm();}}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
+             {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => diaForm.updateField('identificadorDia', v)}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => diaForm.updateField('identificadorDia', e.target.value)} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => diaForm.updateField('nomeSubFicha', e.target.value)} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => {setShowDiaForm(false); setEditingDiaTempId(null); diaForm.resetForm();}}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
              {!showDiaForm && (<Button variant="outline" className="w-full border-dashed border-primary text-primary hover:text-primary hover:bg-primary/5" onClick={handleShowDiaForm}><PlusCircle className="mr-2 h-4 w-4"/> Adicionar Dia de Treino</Button>)}
           </div>}
           {step === 3 && (
@@ -589,8 +602,11 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
           )}
         </div>
         <DialogFooter className="p-4 border-t flex justify-between shrink-0">
-          <div>
+          <div className="flex gap-2">
             {step > 1 && <Button variant="outline" onClick={prevStep}><ArrowLeft className="mr-2 h-4 w-4"/> Voltar</Button>}
+            <Button variant="ghost" onClick={handleClose}>
+              Cancelar
+            </Button>
           </div>
           <div>
             {step < 3 && <Button onClick={nextStep} disabled={step === 2 && diasDeTreino.length === 0}>Próximo <ArrowRight className="ml-2 h-4 w-4"/></Button>}

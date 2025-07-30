@@ -12,25 +12,24 @@ export function useFormPersistence<T extends Record<string, any>>({
   initialValues, 
   enabled = true 
 }: UseFormPersistenceOptions<T>) {
-  const [values, setValues] = useState<T>(initialValues);
-
-  // Restore form values on mount
-  useEffect(() => {
-    if (!enabled) return;
-
+  const [values, setValues] = useState<T>(() => {
+    // Initialize from localStorage on first render if enabled
+    if (!enabled) return initialValues;
+    
     const savedValues = localStorage.getItem(`form_${formKey}`);
     if (savedValues) {
       try {
         const parsedValues = JSON.parse(savedValues);
-        setValues({ ...initialValues, ...parsedValues });
+        return { ...initialValues, ...parsedValues };
       } catch (error) {
         console.warn(`Failed to restore form values for ${formKey}:`, error);
         localStorage.removeItem(`form_${formKey}`);
       }
     }
-  }, [formKey, enabled]);
+    return initialValues;
+  });
 
-  // Save form values to localStorage when they change
+  // Save form values to localStorage when they change (with debouncing)
   useEffect(() => {
     if (!enabled) return;
 
