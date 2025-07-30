@@ -37,18 +37,22 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [tokenAluno, setTokenAluno] = useState<string | null>(null);
   const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
   const [lastValidationTime, setLastValidationTime] = useState<number>(0);
+  const [refreshAttempts, setRefreshAttempts] = useState<number>(0); // Contador de tentativas de refresh
   const [, setLocationWouter] = useLocation();
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
   const ALUNO_DATA_KEY = 'alunoData';
   const ALUNO_REFRESH_TOKEN_KEY = 'alunoRefreshToken'; // Nova chave para o refresh token
   const VALIDATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  const MAX_REFRESH_ATTEMPTS = 3; // Máximo de tentativas de refresh consecutivas
+  const REFRESH_COOLDOWN = 60 * 1000; // 1 minuto de cooldown após falhas
 
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
     console.log("[AlunoContext] Iniciando logout do aluno...");
     setAluno(null);
     setTokenAluno(null);
+    setRefreshAttempts(0); // Reset contador de tentativas
     localStorage.removeItem(ALUNO_TOKEN_KEY);
     localStorage.removeItem(ALUNO_DATA_KEY);
     localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY); // Remover refresh token também
@@ -97,8 +101,25 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [logoutAluno]);
   
-  // Função para renovar o token do aluno
+  // Função para renovar o token do aluno com controle de tentativas
   const refreshAlunoToken = useCallback(async (): Promise<boolean> => {
+    // Verifica se já tentamos renovar muitas vezes recentemente
+    if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+      const lastAttemptKey = 'alunoLastRefreshAttempt';
+      const lastAttempt = localStorage.getItem(lastAttemptKey);
+      const lastAttemptTime = lastAttempt ? parseInt(lastAttempt) : 0;
+      const now = Date.now();
+      
+      if (now - lastAttemptTime < REFRESH_COOLDOWN) {
+        console.warn(`[AlunoContext] Muitas tentativas de refresh (${refreshAttempts}). Aguardando cooldown.`);
+        return false;
+      } else {
+        // Reset do contador após cooldown
+        setRefreshAttempts(0);
+        localStorage.removeItem(lastAttemptKey);
+      }
+    }
+
     const refreshToken = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
     console.log("[AlunoContext] refreshAlunoToken: Verificando refresh token. Existe:", !!refreshToken);
 
@@ -110,10 +131,15 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     try {
       console.log("[AlunoContext] Tentando renovar token do aluno via API...");
+      setRefreshAttempts(prev => prev + 1);
+      localStorage.setItem('alunoLastRefreshAttempt', Date.now().toString());
+      
       // Tipagem explícita da resposta da apiRequest
       const response = await apiRequest('POST', '/api/auth/aluno/refresh', { refreshToken }, 'aluno') as AlunoRefreshResponse;
       if (response.token && response.aluno) {
         setAlunoFromToken(response.token);
+        setRefreshAttempts(0); // Reset contador em caso de sucesso
+        localStorage.removeItem('alunoLastRefreshAttempt');
         console.log("[AlunoContext] Token de aluno renovado com sucesso! Novo token gerado.");
         return true;
       }
@@ -121,16 +147,24 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return false;
     } catch (error: any) { // Capturar erro como 'any' para acessar 'message'
       console.error("[AlunoContext] Falha ao renovar token do aluno. Erro:", error.message || error);
-      logoutAluno(); // Força o logout se a renovação falhar
+      
+      // Se atingiu o limite de tentativas, força logout
+      if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+        console.error("[AlunoContext] Limite de tentativas de refresh atingido. Forçando logout.");
+        logoutAluno();
+      }
+      
       return false;
     }
-  }, [logoutAluno, setAlunoFromToken]);
+  }, [logoutAluno, setAlunoFromToken, refreshAttempts]);
 
   const loginAluno = useCallback((token: string, refreshToken: string) => {
     console.log("[AlunoContext] Iniciando login do aluno...");
     setIsLoadingAluno(true);
+    setRefreshAttempts(0); // Reset contador ao fazer novo login
     setAlunoFromToken(token);
     localStorage.setItem(ALUNO_REFRESH_TOKEN_KEY, refreshToken); // Salvar o refresh token
+    localStorage.removeItem('alunoLastRefreshAttempt'); // Limpa tentativas anteriores
     console.log("[AlunoContext] Refresh token de aluno salvo.");
     setIsLoadingAluno(false);
   }, [setAlunoFromToken]);
