@@ -84,37 +84,44 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
-  // Route persistence implementation
+  // Route persistence implementation - Enhanced version
   useEffect(() => {
-    // Only persist routes for authenticated users (not login pages)
+    // Save current route whenever location changes (for authenticated users only)
     if ((user || aluno) && !location.startsWith("/login")) {
-      localStorage.setItem("lastPath", location);
+      localStorage.setItem("rotaAtual", location);
     }
+  }, [user, aluno, location]);
 
-    // Restore last path when user returns to app
-    const handleVisibilityChange = () => {
-      if (!document.hidden && (user || aluno)) {
-        const lastPath = localStorage.getItem("lastPath");
-        if (lastPath && lastPath !== location && !location.startsWith("/login")) {
-          // Only restore if it's a valid path for the current user type
-          const isValidPath = user ? 
-            (lastPath.startsWith("/") && !lastPath.startsWith("/aluno/") && !lastPath.startsWith("/login")) :
-            (lastPath.startsWith("/aluno/") && !lastPath.startsWith("/login"));
-          
-          if (isValidPath) {
-            navigate(lastPath);
-          }
+  useEffect(() => {
+    const restabelecerRota = () => {
+      const rotaSalva = localStorage.getItem("rotaAtual");
+      const rotaAtual = window.location.pathname;
+      
+      // Check if user is authenticated via localStorage tokens
+      const usuarioLogado = localStorage.getItem("authToken") !== null || localStorage.getItem("alunoAuthToken") !== null;
+      const rotaProtegida = rotaSalva && !rotaSalva.includes("/login");
+      
+      if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
+        // Validate that the saved route is appropriate for current user type
+        const isValidForUser = user && !rotaSalva.startsWith("/aluno/") && !rotaSalva.startsWith("/admin/");
+        const isValidForAluno = aluno && rotaSalva.startsWith("/aluno/");
+        const isValidForAdmin = user && user.role.toLowerCase() === 'admin' && (rotaSalva.startsWith("/admin/") || rotaSalva === "/exercises" || rotaSalva === "/perfil/editar");
+        
+        if (isValidForUser || isValidForAluno || isValidForAdmin) {
+          navigate(rotaSalva, { replace: true });
         }
       }
     };
 
-    // Listen for tab/window visibility changes
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // Listen for both visibility change and window focus events
+    document.addEventListener("visibilitychange", restabelecerRota);
+    window.addEventListener("focus", restabelecerRota);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", restabelecerRota);
+      window.removeEventListener("focus", restabelecerRota);
     };
-  }, [user, aluno, location, navigate]);
+  }, [user, aluno, navigate]);
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
