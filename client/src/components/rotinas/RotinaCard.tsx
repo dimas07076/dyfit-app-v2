@@ -2,7 +2,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit, Trash2, Eye, CopyPlus, User, Folder as FolderIcon, BookCopy } from 'lucide-react'; // Importado BookCopy
@@ -88,22 +87,16 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
       
       <CardContent className="flex-grow pt-2 pb-4 space-y-3">
         <div className="flex flex-wrap gap-2">
-          <Badge 
-            variant="secondary" 
-            className="bg-indigo-100 text-indigo-700 text-xs font-medium"
-          >
+          <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs">
             {`${diasDeTreinoCount} Dia${diasDeTreinoCount !== 1 ? 's' : ''}`}
-          </Badge>
-          <Badge 
-            variant={isModelo ? 'outline' : 'default'} 
-            className={
-              isModelo 
-                ? "bg-emerald-100 text-emerald-700" 
-                : "bg-orange-100 text-orange-700"
-            }
-          >
+          </span>
+          <span className={
+            isModelo 
+              ? "bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs" 
+              : "bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs"
+          }>
             {isModelo ? 'Modelo' : 'Individual'}
-          </Badge>
+          </span>
         </div>
         
         {!isModelo && alunoNome && (
