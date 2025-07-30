@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { usePersistedInput } from '@/hooks/usePersistedInput';
 import { usePersistedState } from '@/hooks/usePersistedState';
 
 interface Sessao {
@@ -22,12 +23,14 @@ interface SessionFormModalProps {
 }
 
 export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFormModalProps) {
-  // Persisted state for each form field
-  const [aluno, setAluno, clearAluno] = usePersistedState("formNovaSessao_aluno", "");
+  // Persisted state for each form field - using simpler hook for strings
+  const [aluno, setAluno, clearAluno] = usePersistedInput("novaSessao_aluno");
+  const [hora, setHora, clearHora] = usePersistedInput("novaSessao_hora");
+  const [observacoes, setObservacoes, clearObservacoes] = usePersistedInput("novaSessao_observacoes");
+  
+  // Complex types still use usePersistedState
   const [dataString, setDataString, clearDataString] = usePersistedState("formNovaSessao_data", new Date().toISOString());
-  const [hora, setHora, clearHora] = usePersistedState("formNovaSessao_hora", "");
   const [status, setStatus, clearStatus] = usePersistedState<"confirmada" | "pendente" | "concluida" | "cancelada">("formNovaSessao_status", "pendente");
-  const [observacoes, setObservacoes, clearObservacoes] = usePersistedState("formNovaSessao_observacoes", "");
 
   // Convert dataString to Date for calendar component
   const data = dataString ? new Date(dataString) : new Date();

@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { usePersistedState } from '@/hooks/usePersistedState';
+import { usePersistedInput } from '@/hooks/usePersistedInput';
 
 export interface PastaFormData { nome: string; }
 export interface PastaExistente extends PastaFormData { _id: string; }
@@ -24,15 +24,17 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
   const isEditing = !!initialData;
 
   // Persisted state for new folders only (not when editing)
-  const [nomePasta, setNomePasta, clearNomePasta] = usePersistedState(
-    "formNovaPasta_nome", 
-    isEditing ? (initialData?.nome || '') : ""
+  const [nomePasta, setNomePasta, clearNomePasta] = usePersistedInput(
+    "novaPasta_nome"
   );
 
   useEffect(() => {
     if (isEditing && initialData) {
       // For editing, set the current folder name directly without persistence
       setNomePasta(initialData.nome || '');
+    } else if (!isEditing && isOpen) {
+      // For new folders, the persisted value will be loaded automatically by the hook
+      // but we need to make sure it initializes properly when modal opens
     }
   }, [isOpen, isEditing, initialData, setNomePasta]);
 
@@ -48,6 +50,9 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
       // Clear form persistence on successful save (only for new folders)
       if (!isEditing) {
         clearNomePasta();
+      } else {
+        // For editing, just reset to empty since we don't want to persist edited values
+        setNomePasta("");
       }
       
       onSuccessCallback(); // Chama a função do componente pai
@@ -70,6 +75,9 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
   const handleClose = () => {
     if (!isEditing) {
       clearNomePasta();
+    } else {
+      // For editing, just reset to empty
+      setNomePasta("");
     }
     onClose();
   };
