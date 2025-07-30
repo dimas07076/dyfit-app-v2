@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dumbbell, Plus, Folder, FolderPlus, Edit, Trash2, Search, Loader2 } from "lucide-react";
 import RotinaFormModal, { RotinaParaEditar } from "@/components/dialogs/RotinaFormModal"; 
-import LoadingSpinner from "@/components/LoadingSpinner";
+import PageLoader from "@/components/PageLoader";
 import ErrorMessage from "@/components/ErrorMessage";
 import { Aluno } from "@/types/aluno";
 import { useToast } from "@/hooks/use-toast";
@@ -123,7 +123,7 @@ export default function TreinosPage() {
     }, [rotinas, alunos, buscaAluno]);
 
 
-    if (isLoadingRotinas || isLoadingPastas || isLoadingAlunos) return <LoadingSpinner text="Carregando dados..." />;
+    if (isLoadingRotinas || isLoadingPastas || isLoadingAlunos) return <PageLoader message="Carregando suas rotinas..." submessage="Organizando seus treinos e dados..." />;
     if (errorRotinas) return <ErrorMessage title="Erro ao Carregar Dados" message={errorRotinas.message} />;
 
     const rotinasModelo = rotinas.filter(r => r.tipo === 'modelo');
@@ -141,75 +141,192 @@ export default function TreinosPage() {
     };
 
     return (
-        <div className="container mx-auto py-8 px-4">
-            <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center">
-                    <Dumbbell className="mr-3 h-8 w-8 text-primary"/>
-                    Gerenciar Rotinas
-                </h1>
-                <div className="flex w-full md:w-auto gap-2">
-                    <Button variant="outline" onClick={() => handleOpenPastaModal()} className="flex-1 md:flex-none">
-                        <FolderPlus className="mr-2 h-4 w-4"/> Nova Pasta
+        <div className="container mx-auto py-6 px-4 md:py-8 max-w-7xl">
+            {/* Header Section with improved spacing and gradient */}
+            <div className="flex flex-col gap-6 sm:gap-4 md:flex-row md:justify-between md:items-center mb-8">
+                <div className="flex items-center space-x-4">
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20">
+                        <Dumbbell className="h-8 w-8 text-primary"/>
+                    </div>
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                            Gerenciar Rotinas
+                        </h1>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            Organize e gerencie suas rotinas de treino
+                        </p>
+                    </div>
+                </div>
+                
+                {/* Action buttons with improved mobile layout */}
+                <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-3">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => handleOpenPastaModal()} 
+                        className="flex-1 sm:flex-none h-11 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all duration-200"
+                    >
+                        <FolderPlus className="mr-2 h-4 w-4"/> 
+                        Nova Pasta
                     </Button>
-                    <Button onClick={handleOpenCreateModal} className="flex-1 md:flex-none">
-                        <Plus className="mr-2 h-4 w-4" /> Nova Rotina
+                    <Button 
+                        onClick={handleOpenCreateModal} 
+                        className="flex-1 sm:flex-none h-11 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                        <Plus className="mr-2 h-4 w-4" /> 
+                        Nova Rotina
                     </Button>
                 </div>
             </div>
             
-            <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="mb-6">
-                <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="modelos">Rotinas Modelo</TabsTrigger><TabsTrigger value="individuais">Rotinas Individuais</TabsTrigger></TabsList>
+            {/* Tabs with improved styling */}
+            <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="mb-8">
+                <TabsList className="grid w-full grid-cols-2 h-12 p-1 bg-gradient-to-r from-muted/50 to-muted/30 backdrop-blur-sm border border-border/50">
+                    <TabsTrigger 
+                        value="modelos" 
+                        className="h-10 font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-secondary data-[state=active]:text-primary-foreground transition-all duration-200"
+                    >
+                        Rotinas Modelo
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="individuais"
+                        className="h-10 font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-secondary data-[state=active]:text-primary-foreground transition-all duration-200"
+                    >
+                        Rotinas Individuais
+                    </TabsTrigger>
+                </TabsList>
                 
-                <TabsContent value="modelos" className="mt-6">
+                <TabsContent value="modelos" className="mt-8 space-y-6">
                     <div className="space-y-6">
-                        <Accordion type="multiple" className="w-full space-y-3">
+                        <Accordion type="multiple" className="w-full space-y-4">
                             {rotinasPorPasta.map(pasta => (
-                                <AccordionItem value={pasta._id} key={pasta._id} className="border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 shadow-sm">
-                                    <AccordionTrigger className="px-4 py-3 hover:no-underline font-semibold text-lg">
-                                        <div className="flex-grow flex items-center gap-3"><Folder className="h-5 w-5 text-primary"/> {pasta.nome} <Badge variant="secondary">{pasta.rotinas.length}</Badge></div>
-                                        <div className="flex-shrink-0 flex items-center gap-1">
-                                            <span 
-                                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-7 w-7 cursor-pointer" 
+                                <AccordionItem 
+                                    value={pasta._id} 
+                                    key={pasta._id} 
+                                    className="border border-border/60 rounded-xl bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300"
+                                >
+                                    <AccordionTrigger className="px-6 py-4 hover:no-underline font-semibold text-lg group">
+                                        <div className="flex-grow flex items-center gap-4">
+                                            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-200">
+                                                <Folder className="h-5 w-5 text-primary"/> 
+                                            </div>
+                                            <span className="font-semibold">{pasta.nome}</span>
+                                            <Badge 
+                                                variant="secondary" 
+                                                className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary font-medium"
+                                            >
+                                                {pasta.rotinas.length}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex-shrink-0 flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 hover:bg-primary/10 transition-colors"
                                                 onClick={(e) => { e.stopPropagation(); handleOpenPastaModal(pasta); }}
                                                 title="Editar Pasta"
                                             >
                                                 <Edit className="h-4 w-4"/>
-                                            </span>
-                                            <span 
-                                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-7 w-7 text-red-500 cursor-pointer" 
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 hover:bg-destructive/10 text-destructive hover:text-destructive transition-colors"
                                                 onClick={(e) => { e.stopPropagation(); handleDeletePastaClick(pasta); }}
                                                 title="Excluir Pasta"
                                             >
                                                 <Trash2 className="h-4 w-4"/>
-                                            </span>
+                                            </Button>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="p-4 border-t dark:border-slate-700">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[50px]">
-                                            {pasta.rotinas.map(rotina => <RotinaCard key={rotina._id} rotina={rotina} pastas={pastas} {...cardHandlers} />)}
+                                    <AccordionContent className="px-6 pb-6 border-t border-border/30">
+                                        <div className="grid grid-responsive pt-4 min-h-[120px]">
+                                            {pasta.rotinas.map(rotina => 
+                                                <RotinaCard 
+                                                    key={rotina._id} 
+                                                    rotina={rotina} 
+                                                    pastas={pastas} 
+                                                    {...cardHandlers} 
+                                                />
+                                            )}
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
                             ))}
                         </Accordion>
-                        {rotinasSemPasta.length > 0 && (<div><h3 className="text-lg font-semibold mb-4 pt-4 border-t dark:border-slate-700">Rotinas Sem Pasta</h3><div className="p-4 border-2 border-dashed dark:border-slate-700 rounded-lg min-h-[100px]"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{rotinasSemPasta.map(rotina => <RotinaCard key={rotina._id} rotina={rotina} pastas={pastas} {...cardHandlers} />)}</div></div></div>)}
+                        
+                        {rotinasSemPasta.length > 0 && (
+                            <div className="border border-dashed border-border/60 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 p-6">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-muted to-muted/50">
+                                        <Folder className="h-5 w-5 text-muted-foreground"/>
+                                    </div>
+                                    <h3 className="text-lg font-semibold">Rotinas Sem Pasta</h3>
+                                    <Badge variant="outline" className="border-border/60">
+                                        {rotinasSemPasta.length}
+                                    </Badge>
+                                </div>
+                                <div className="grid grid-responsive">
+                                    {rotinasSemPasta.map(rotina => 
+                                        <RotinaCard 
+                                            key={rotina._id} 
+                                            rotina={rotina} 
+                                            pastas={pastas} 
+                                            {...cardHandlers} 
+                                        />
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
 
-                <TabsContent value="individuais" className="mt-6">
-                    <div className="relative mb-6">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input type="search" placeholder="Buscar por nome do aluno ou título da rotina..." className="pl-9 w-full sm:w-96" value={buscaAluno} onChange={(e) => setBuscaAluno(e.target.value)} />
+                <TabsContent value="individuais" className="mt-8 space-y-6">
+                    {/* Enhanced search section */}
+                    <div className="relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-secondary/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        <div className="relative bg-card/50 backdrop-blur-sm border border-border/60 rounded-xl p-4">
+                            <div className="relative max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                                <Input 
+                                    type="search" 
+                                    placeholder="Buscar por nome do aluno ou título da rotina..." 
+                                    className="pl-10 h-11 bg-background/80 border-border/60 focus:border-primary/60 transition-colors" 
+                                    value={buscaAluno} 
+                                    onChange={(e) => setBuscaAluno(e.target.value)} 
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    
+                    {/* Results grid with responsive classes */}
+                    <div className="grid grid-responsive">
                         {rotinasIndividuaisFiltradas.map(rotina => {
                             const aluno = alunos.find(a => a._id === (typeof rotina.alunoId === 'string' ? rotina.alunoId : rotina.alunoId?._id)); 
-                            return (<RotinaCard key={rotina._id} rotina={rotina} pastas={[]} alunoNome={aluno?.nome} {...cardHandlers} />)
+                            return (
+                                <RotinaCard 
+                                    key={rotina._id} 
+                                    rotina={rotina} 
+                                    pastas={[]} 
+                                    alunoNome={aluno?.nome} 
+                                    {...cardHandlers} 
+                                />
+                            )
                         })}
                     </div>
+                    
+                    {/* Empty state with better styling */}
                     {rotinasIndividuaisFiltradas.length === 0 && (
-                        <div className="text-center text-muted-foreground col-span-full mt-10">
-                            <p>Nenhuma rotina individual encontrada.</p>
+                        <div className="text-center py-16 px-4">
+                            <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-muted/50 to-muted/20 flex items-center justify-center mb-6">
+                                <Search className="h-10 w-10 text-muted-foreground/60" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">Nenhuma rotina encontrada</h3>
+                            <p className="text-muted-foreground max-w-md mx-auto">
+                                {buscaAluno.trim() 
+                                    ? `Não encontramos rotinas que correspondam à sua busca "${buscaAluno}".`
+                                    : "Ainda não há rotinas individuais criadas."
+                                }
+                            </p>
                         </div>
                     )}
                 </TabsContent>
