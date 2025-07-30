@@ -90,7 +90,7 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         <div className="flex flex-wrap gap-2">
           <Badge 
             variant="secondary" 
-            className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-medium"
+            className="bg-indigo-100 text-indigo-700 text-xs font-medium"
           >
             {`${diasDeTreinoCount} Dia${diasDeTreinoCount !== 1 ? 's' : ''}`}
           </Badge>
@@ -98,8 +98,8 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
             variant={isModelo ? 'outline' : 'default'} 
             className={
               isModelo 
-                ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
-                : "bg-orange-100 text-orange-700 border-orange-200"
+                ? "bg-emerald-100 text-emerald-700" 
+                : "bg-orange-100 text-orange-700"
             }
           >
             {isModelo ? 'Modelo' : 'Individual'}
