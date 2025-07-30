@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
 
 interface Props {
   onCreated: () => void;
@@ -53,12 +54,28 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [nome, setNome] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [grupoMuscular, setGrupoMuscular] = useState("");
-  const [tipo, setTipo] = useState("");
-  const [categoria, setCategoria] = useState("");
-  const [urlVideo, setUrlVideo] = useState("");
+
+  // Form persistence hook
+  const exerciseForm = useFormPersistence({
+    formKey: 'exercise_form',
+    initialValues: {
+      nome: "",
+      descricao: "",
+      grupoMuscular: "",
+      tipo: "",
+      categoria: "",
+      urlVideo: ""
+    },
+    enabled: open
+  });
+
+  // Enhanced close handler with proper cleanup
+  const handleClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      exerciseForm.resetForm(); // Clear form when modal is closed
+    }
+    setOpen(isOpen);
+  };
 
   const formatVideoUrl = (url: string): string | undefined => {
     if (!url) return undefined;
@@ -76,8 +93,7 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   const createExerciseMutation = useMutation<ExercicioCriadoResponse, Error, ExercicioPayload>({
     mutationFn: (newExerciseData) => apiRequest<ExercicioCriadoResponse>("POST", "/api/exercicios", newExerciseData),
     onSuccess: () => {
-      setOpen(false);
-      setNome(""); setDescricao(""); setGrupoMuscular(""); setTipo(""); setCategoria(""); setUrlVideo("");
+      handleClose(false); // Use centralized close handler
       onCreated();
       toast({ title: "Exercício criado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ['exercicios'] });
@@ -92,20 +108,20 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   });
 
   const handleSubmit = () => {
-    if (!nome.trim()) {
+    if (!exerciseForm.values.nome.trim()) {
        toast({ title: "Erro de Validação", description: "O nome do exercício é obrigatório.", variant: "destructive" });
        return;
     }
 
-    const finalVideoUrl = formatVideoUrl(urlVideo);
+    const finalVideoUrl = formatVideoUrl(exerciseForm.values.urlVideo);
     
     const payload: ExercicioPayload = {
-      nome: nome.trim(),
+      nome: exerciseForm.values.nome.trim(),
       isCustom: creationType === 'personal',
-      ...(descricao.trim() && { descricao: descricao.trim() }),
-      ...(grupoMuscular && { grupoMuscular }),
-      ...(tipo && { tipo }),
-      ...(categoria && { categoria }),
+      ...(exerciseForm.values.descricao.trim() && { descricao: exerciseForm.values.descricao.trim() }),
+      ...(exerciseForm.values.grupoMuscular && { grupoMuscular: exerciseForm.values.grupoMuscular }),
+      ...(exerciseForm.values.tipo && { tipo: exerciseForm.values.tipo }),
+      ...(exerciseForm.values.categoria && { categoria: exerciseForm.values.categoria }),
       ...(finalVideoUrl && { urlVideo: finalVideoUrl }),
     };
 
@@ -118,7 +134,7 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
   const isLoading = createExerciseMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
@@ -137,11 +153,20 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
         <div className="flex flex-col gap-4 py-4">
           <div>
             <Label>Nome*</Label>
-            <Input placeholder="Nome do exercício" value={nome} onChange={(e) => setNome(e.target.value)} disabled={isLoading} />
+            <Input 
+              placeholder="Nome do exercício" 
+              value={exerciseForm.values.nome} 
+              onChange={(e) => exerciseForm.updateField('nome', e.target.value)} 
+              disabled={isLoading} 
+            />
           </div>
           <div>
             <Label>Grupo Muscular</Label>
-            <Select onValueChange={setGrupoMuscular} value={grupoMuscular} disabled={isLoading}>
+            <Select 
+              onValueChange={(value) => exerciseForm.updateField('grupoMuscular', value)} 
+              value={exerciseForm.values.grupoMuscular} 
+              disabled={isLoading}
+            >
               <SelectTrigger><SelectValue placeholder="Selecione o grupo muscular" /></SelectTrigger>
               <SelectContent>
                 {["Peitoral", "Pernas", "Costas", "Ombros", "Bíceps", "Tríceps", "Abdômen", "Lombar", "Glúteos", "Panturrilha", "Cardio", "Corpo Inteiro", "Outro"].sort().map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
@@ -150,7 +175,11 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
           </div>
           <div>
             <Label>Categoria</Label>
-            <Select onValueChange={setCategoria} value={categoria} disabled={isLoading}>
+            <Select 
+              onValueChange={(value) => exerciseForm.updateField('categoria', value)} 
+              value={exerciseForm.values.categoria} 
+              disabled={isLoading}
+            >
               <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
               <SelectContent>
                 {["Força", "Resistência", "Hipertrofia", "Potência", "Cardiovascular", "Flexibilidade", "Mobilidade", "Funcional", "Calistenia", "Outro"].sort().map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -159,17 +188,33 @@ export default function ExerciseFormModal({ onCreated, creationType, triggerButt
           </div>
           <div>
             <Label>Descrição (opcional)</Label>
-            <Textarea placeholder="Descrição detalhada do exercício" value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={isLoading}/>
+            <Textarea 
+              placeholder="Descrição detalhada do exercício" 
+              value={exerciseForm.values.descricao} 
+              onChange={(e) => exerciseForm.updateField('descricao', e.target.value)} 
+              disabled={isLoading}
+            />
           </div>
           <div>
             <Label>URL do Vídeo (opcional)</Label>
-            <Input placeholder="https://youtube.com/..." value={urlVideo} onChange={(e) => setUrlVideo(e.target.value)} disabled={isLoading}/>
+            <Input 
+              placeholder="https://youtube.com/..." 
+              value={exerciseForm.values.urlVideo} 
+              onChange={(e) => exerciseForm.updateField('urlVideo', e.target.value)} 
+              disabled={isLoading}
+            />
           </div>
         </div>
 
         <DialogFooter className="mt-4">
-           <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={isLoading || !nome.trim()}>
+           <Button 
+             variant="outline" 
+             onClick={() => handleClose(false)} 
+             disabled={isLoading}
+           >
+             Cancelar
+           </Button>
+          <Button onClick={handleSubmit} disabled={isLoading || !exerciseForm.values.nome.trim()}>
             {isLoading ? "Salvando..." : "Salvar Exercício"}
           </Button>
         </DialogFooter>

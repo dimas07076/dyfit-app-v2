@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { usePersistedInput } from '@/hooks/usePersistedInput';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 interface Sessao {
   id: string;
@@ -21,11 +23,21 @@ interface SessionFormModalProps {
 }
 
 export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFormModalProps) {
-  const [aluno, setAluno] = useState("");
-  const [data, setData] = useState<Date | undefined>(new Date());
-  const [hora, setHora] = useState("");
-  const [status, setStatus] = useState<"confirmada" | "pendente" | "concluida" | "cancelada">("pendente");
-  const [observacoes, setObservacoes] = useState("");
+  // Persisted state for each form field - using simpler hook for strings
+  const [aluno, setAluno, clearAluno] = usePersistedInput("novaSessao_aluno");
+  const [hora, setHora, clearHora] = usePersistedInput("novaSessao_hora");
+  const [observacoes, setObservacoes, clearObservacoes] = usePersistedInput("novaSessao_observacoes");
+  
+  // Complex types still use usePersistedState
+  const [dataString, setDataString, clearDataString] = usePersistedState("formNovaSessao_data", new Date().toISOString());
+  const [status, setStatus, clearStatus] = usePersistedState<"confirmada" | "pendente" | "concluida" | "cancelada">("formNovaSessao_status", "pendente");
+
+  // Convert dataString to Date for calendar component
+  const data = dataString ? new Date(dataString) : new Date();
+  
+  const handleSetData = (value: Date | undefined) => {
+    setDataString(value ? value.toISOString() : new Date().toISOString());
+  };
 
   const handleSalvar = () => {
     if (!aluno || !data || !hora) return alert("Preencha todos os campos obrigatórios.");
@@ -40,20 +52,37 @@ export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFor
     };
 
     onSave(novaSessao);
+    
+    // Clear form persistence on successful save
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
+    
     onClose();
-    limparCampos();
+  };
+
+  // Enhanced close handler that clears form persistence when cancelled
+  const handleClose = () => {
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
+    onClose();
   };
 
   const limparCampos = () => {
-    setAluno("");
-    setData(new Date());
-    setHora("");
-    setStatus("pendente");
-    setObservacoes("");
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nova Sessão</DialogTitle>
@@ -61,7 +90,7 @@ export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFor
         <div className="space-y-4">
           <Input placeholder="Nome do aluno" value={aluno} onChange={(e) => setAluno(e.target.value)} />
           <div className="flex gap-2 items-center">
-            <Calendar selected={data} onSelect={setData} mode="single" className="border rounded-md" />
+            <Calendar selected={data} onSelect={handleSetData} mode="single" className="border rounded-md" />
             <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="w-1/2" />
           </div>
           <Select value={status} onValueChange={(value) => setStatus(value as any)}>
@@ -80,7 +109,14 @@ export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFor
             value={observacoes}
             onChange={(e) => setObservacoes(e.target.value)}
           />
-          <Button onClick={handleSalvar} className="w-full">Salvar Sessão</Button>
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={handleClose}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSalvar}>
+              Salvar Sessão
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

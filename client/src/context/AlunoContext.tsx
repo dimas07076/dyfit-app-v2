@@ -58,8 +58,23 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY); // Remover refresh token também
     console.log("[AlunoContext] Dados de sessão do aluno removidos do localStorage.");
     if (shouldRedirect) {
-        console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
-        setLocationWouter("/login");
+        // Check if route restoration is in progress
+        const restaurandoRota = localStorage.getItem("restaurandoRota");
+        if (restaurandoRota) {
+          console.log("[AlunoContext] Route restoration in progress, delaying logout redirect");
+          // Wait longer for route restoration to complete before redirecting
+          setTimeout(() => {
+            if (!localStorage.getItem("restaurandoRota")) {
+              console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
+              setLocationWouter("/login");
+            } else {
+              console.log("[AlunoContext] Route restoration still active, skipping logout redirect");
+            }
+          }, 2000); // Increased delay to 2 seconds
+        } else {
+          console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
+          setLocationWouter("/login");
+        }
     }
   }, [setLocationWouter]);
 
@@ -293,6 +308,22 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const handleVisibilityChange = () => {
       // Verificamos o estado apenas quando a página se torna visível.
       if (document.visibilityState === 'visible') {
+        // Check if route restoration is in progress - if so, delay validation significantly
+        const restaurandoRota = localStorage.getItem("restaurandoRota");
+        if (restaurandoRota) {
+          console.log("[AlunoContext] Route restoration in progress, delaying session validation");
+          // Wait longer for route restoration to complete before validating
+          setTimeout(() => {
+            if (!localStorage.getItem("restaurandoRota")) {
+              console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
+              handleVisibilityChange(); // Retry after route restoration completes
+            } else {
+              console.log("[AlunoContext] Route restoration still in progress, skipping validation");
+            }
+          }, 2000); // Increased delay to 2 seconds
+          return;
+        }
+
         const now = Date.now();
         const timeSinceLastValidation = now - lastValidationTime;
         console.log("[AlunoContext] App tornou-se visível. Tempo desde última validação (ms):", timeSinceLastValidation);

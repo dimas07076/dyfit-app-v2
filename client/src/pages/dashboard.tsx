@@ -8,7 +8,6 @@ import { useThrottle } from "@/hooks/useDebounce";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/dashboard/stats-card";
-import { PlanoStatusCard } from "@/components/ui/dashboard/plano-status-card";
 
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutDashboard, Zap } from "lucide-react";
@@ -16,7 +15,6 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorMessage from "@/components/ErrorMessage"; 
 import ErrorBoundary from "@/components/ErrorBoundary"; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PersonalPlanStatus } from "../../../shared/types/planos";
 
 // Lazy load heavy components for better performance
 const AlunosAtivosList = lazy(() => import("@/components/ui/dashboard/AlunosAtivosList").then(module => ({
@@ -36,13 +34,6 @@ export default function Dashboard() {
   const trainerId = user?.id; 
   const saudacaoNome = user?.firstName || user?.username || "Personal";
 
-  // Throttled upgrade handler to prevent multiple rapid clicks
-  const handleUpgradeClick = useThrottle(() => {
-    console.log('Upgrade clicked');
-    // TODO: Navigate to upgrade page or show modal
-    // Example: setLocationWouter("/upgrade") or openUpgradeModal()
-  }, 1000); // 1 second throttle
-
   const { 
     data: dashboardStats, 
     isLoading: isLoadingStats, 
@@ -57,24 +48,10 @@ export default function Dashboard() {
     enabled: !!trainerId, 
   });
 
-  // Query for plan status
-  const { 
-    data: planStatus, 
-    isLoading: isLoadingPlan, 
-    error: errorPlan 
-  } = useQuery<PersonalPlanStatus, Error>({
-    queryKey: ["planStatus", trainerId], 
-    queryFn: async () => {
-      if (!trainerId) throw new Error("Trainer ID não encontrado para buscar status do plano.");
-      return apiRequest<PersonalPlanStatus>("GET", "/api/personal/meu-plano");
-    },
-    enabled: !!trainerId, 
-  });
-
-  // <<< ALTERAÇÃO: Texto de saudação simplificado >>>
+  // <<< ALTERAÇÃO: Texto de saudação melhorado >>>
   const saudacaoSubtexto = isLoadingStats
     ? "Carregando um resumo do seu dia..."
-    : "Aqui está um resumo da sua atividade hoje.";
+    : "Aqui está um resumo da sua atividade e administração de alunos.";
 
   if (!user) {
     return <div className="bg-blue-50 dark:bg-slate-900 h-full"><LoadingSpinner text="Carregando dados do usuário..." /></div>;
@@ -98,10 +75,6 @@ export default function Dashboard() {
         <ErrorMessage title="Erro ao Carregar Estatísticas" message={errorStats.message} />
       )}
 
-      {errorPlan && (
-        <ErrorMessage title="Erro ao Carregar Status do Plano" message={errorPlan.message} />
-      )}
-
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-white/20 dark:border-slate-700/50">
           <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow-md"><LayoutDashboard className="w-4 h-4 mr-2 sm:hidden"/> Visão Geral</TabsTrigger>
@@ -109,15 +82,6 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Plan Status Card */}
-          {planStatus && (
-            <PlanoStatusCard
-              planStatus={planStatus}
-              showUpgradeButton={true}
-              onUpgradeClick={handleUpgradeClick}
-            />
-          )}
-          
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard title="Total de Alunos" value={isLoadingStats ? "..." : (dashboardStats?.totalAlunos ?? 0).toString()} icon="students" isLoading={isLoadingStats} />

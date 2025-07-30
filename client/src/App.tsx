@@ -28,6 +28,7 @@ const EditStudentPage = lazy(() => import("@/pages/alunos/edit"));
 const ExercisesIndex = lazy(() => import("@/pages/exercises/index"));
 const SessionsPage = lazy(() => import("@/pages/sessoes/index"));
 const TreinosPage = lazy(() => import("@/pages/treinos/index"));
+const MeuPlanoPage = lazy(() => import("@/pages/meu-plano"));
 const ProfileEditPage = lazy(() => import('@/pages/perfil/editar'));
 const PersonalLoginPage = lazy(() => import("@/pages/login")); 
 const LandingLoginPage = lazy(() => import("@/pages/public/LandingLoginPage")); 
@@ -82,6 +83,82 @@ function AppContent() {
   const { aluno, isLoadingAluno } = useAluno();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
+
+  // Route persistence implementation - Enhanced version with immediate coordination
+  useEffect(() => {
+    // Save current route whenever location changes (for authenticated users only)
+    if ((user || aluno) && !location.startsWith("/login")) {
+      localStorage.setItem("rotaAtual", location);
+    }
+  }, [user, aluno, location]);
+
+  useEffect(() => {
+    const restabelecerRota = () => {
+      const rotaSalva = localStorage.getItem("rotaAtual");
+      const rotaAtual = window.location.pathname;
+      
+      // Check if user is authenticated via localStorage tokens
+      const temTokenPersonal = localStorage.getItem("authToken") !== null;
+      const temTokenAluno = localStorage.getItem("alunoAuthToken") !== null;
+      const usuarioLogado = temTokenPersonal || temTokenAluno;
+      const rotaProtegida = rotaSalva && !rotaSalva.includes("/login");
+      
+      if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
+        console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
+        
+        // Validate route based on token type (more reliable than context state)
+        let rotaValida = false;
+        
+        if (temTokenPersonal && !rotaSalva.startsWith("/aluno/")) {
+          // Personal/Admin routes are valid for authToken
+          rotaValida = true;
+        } else if (temTokenAluno && rotaSalva.startsWith("/aluno/")) {
+          // Aluno routes are valid for alunoAuthToken
+          rotaValida = true;
+        }
+        
+        if (rotaValida) {
+          console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
+          // Set flag to prevent default redirects during restoration
+          localStorage.setItem("restaurandoRota", "true");
+          navigate(rotaSalva, { replace: true });
+          
+          // Clear flag after navigation completes
+          setTimeout(() => {
+            localStorage.removeItem("restaurandoRota");
+          }, 200);
+          return true; // Indicate successful restoration
+        } else {
+          console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
+        }
+      }
+      return false; // No restoration needed/possible
+    };
+
+    // Immediate restoration on app load/focus - no delays
+    const handleAppFocus = () => {
+      console.log("[Route Restoration] App focado/visível, executando restauração imediata");
+      restabelecerRota();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleAppFocus();
+      }
+    };
+
+    // Listen for both visibility change and window focus events
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleAppFocus);
+
+    // Also attempt immediate restoration on mount
+    restabelecerRota();
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleAppFocus);
+    };
+  }, [navigate]); // Removed user/aluno dependencies to avoid conflicts
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
@@ -158,9 +235,21 @@ function AppContent() {
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
+
+  // Check if route restoration is in progress - block default redirects
+  const restaurandoRota = localStorage.getItem("restaurandoRota");
+  if (restaurandoRota) {
+    console.log("[AppContent] Route restoration in progress, blocking default redirects");
+    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+  }
   
   if (user) {
     if (location.startsWith("/login")) {
+        // Check if there's a saved route before defaulting to admin/home
+        const rotaSalva = localStorage.getItem("rotaAtual");
+        if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
+          return <Redirect to={rotaSalva} />;
+        }
         const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
         return <Redirect to={redirectTo} />;
     }
@@ -171,6 +260,11 @@ function AppContent() {
   
   if (aluno) {
     if (location.startsWith("/aluno/")) return <AlunoApp />;
+    // Check if there's a saved aluno route before defaulting to dashboard
+    const rotaSalva = localStorage.getItem("rotaAtual");
+    if (rotaSalva && rotaSalva.startsWith("/aluno/")) {
+      return <Redirect to={rotaSalva} />;
+    }
     return <Redirect to="/aluno/dashboard" />;
   } 
   
@@ -197,8 +291,44 @@ function AdminApp() {
     </MainLayout> 
   );
 }
-function PersonalApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <ProtectedRoute path="/" component={Dashboard} /> <ProtectedRoute path="/alunos" component={StudentsIndex} /> <ProtectedRoute path="/alunos/novo" component={NewStudent} /> <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> <ProtectedRoute path="/treinos" component={TreinosPage} /> <ProtectedRoute path="/exercises" component={ExercisesIndex} /> <ProtectedRoute path="/sessoes" component={SessionsPage} /> <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
-function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
+
+function PersonalApp() { 
+  return ( 
+    <MainLayout> 
+      <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+        <Switch> 
+          <ProtectedRoute path="/" component={Dashboard} /> 
+          <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
+          <ProtectedRoute path="/alunos" component={StudentsIndex} /> 
+          <ProtectedRoute path="/alunos/novo" component={NewStudent} /> 
+          <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> 
+          <ProtectedRoute path="/treinos" component={TreinosPage} /> 
+          <ProtectedRoute path="/exercises" component={ExercisesIndex} /> 
+          <ProtectedRoute path="/sessoes" component={SessionsPage} /> 
+          <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> 
+          <Route path="/admin/:rest*"><Redirect to="/" /></Route> 
+          <Route component={NotFound} /> 
+        </Switch> 
+      </Suspense> 
+    </MainLayout> 
+  );
+}
+
+function AlunoApp() { 
+  return ( 
+    <MainLayout> 
+      <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+        <Switch> 
+          <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> 
+          <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> 
+          <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> 
+          <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> 
+          <Route><Redirect to="/aluno/dashboard" /></Route> 
+        </Switch> 
+      </Suspense> 
+    </MainLayout> 
+  );
+}
 
 function PublicRoutes() {
   return (

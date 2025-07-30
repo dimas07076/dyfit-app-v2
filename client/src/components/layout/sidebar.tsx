@@ -1,6 +1,6 @@
 // client/src/components/layout/sidebar.tsx
 import { Link, useLocation } from "wouter";
-import { Home, Users, Dumbbell, List, LogOut, UserCog, Mail, CreditCard } from "lucide-react";
+import { Home, Users, Dumbbell, List, LogOut, UserCog, Mail, CreditCard, Briefcase } from "lucide-react";
 import { useUser, User } from "@/context/UserContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,7 +15,7 @@ const adminSidebarLinks = [
 ];
 
 const personalSidebarLinks = [
-  { href: "/", label: "Início", icon: Home },
+  { href: "/meu-plano", label: "Meu Plano", icon: Briefcase },
   { href: "/alunos", label: "Alunos", icon: Users },
   { href: "/treinos", label: "Treinos", icon: Dumbbell },
   { href: "/exercises", label: "Exercícios", icon: List },

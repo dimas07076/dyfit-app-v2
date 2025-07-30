@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { usePersistedInput } from '@/hooks/usePersistedInput';
 
 export interface PastaFormData { nome: string; }
 export interface PastaExistente extends PastaFormData { _id: string; }
@@ -19,13 +20,23 @@ interface PastaFormModalProps {
 }
 
 const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSuccessCallback, initialData }) => {
-  const [nomePasta, setNomePasta] = useState('');
   const { toast } = useToast();
   const isEditing = !!initialData;
 
+  // Persisted state for new folders only (not when editing)
+  const [nomePasta, setNomePasta, clearNomePasta] = usePersistedInput(
+    "novaPasta_nome"
+  );
+
   useEffect(() => {
-    if (isOpen) setNomePasta(isEditing ? initialData.nome : '');
-  }, [isOpen, isEditing, initialData]);
+    if (isEditing && initialData) {
+      // For editing, set the current folder name directly without persistence
+      setNomePasta(initialData.nome || '');
+    } else if (!isEditing && isOpen) {
+      // For new folders, the persisted value will be loaded automatically by the hook
+      // but we need to make sure it initializes properly when modal opens
+    }
+  }, [isOpen, isEditing, initialData, setNomePasta]);
 
   const mutation = useMutation<any, Error, PastaFormData>({
     mutationFn: (data) => {
@@ -35,6 +46,15 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
     // O modal não invalida mais a query, ele apenas avisa o pai que teve sucesso.
     onSuccess: () => {
       toast({ title: "Sucesso!", description: `Pasta ${isEditing ? 'atualizada' : 'criada'} com sucesso.` });
+      
+      // Clear form persistence on successful save (only for new folders)
+      if (!isEditing) {
+        clearNomePasta();
+      } else {
+        // For editing, just reset to empty since we don't want to persist edited values
+        setNomePasta("");
+      }
+      
       onSuccessCallback(); // Chama a função do componente pai
     },
     onError: (error) => {
@@ -51,10 +71,21 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
     mutation.mutate({ nome: nomePasta.trim() });
   };
 
+  // Enhanced close handler that clears form persistence when cancelled
+  const handleClose = () => {
+    if (!isEditing) {
+      clearNomePasta();
+    } else {
+      // For editing, just reset to empty
+      setNomePasta("");
+    }
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Pasta" : "Nova Pasta"}</DialogTitle>
@@ -68,7 +99,7 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>Cancelar</Button>
+          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={mutation.isPending || !nomePasta.trim()}>
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEditing ? "Salvar" : "Criar"}
