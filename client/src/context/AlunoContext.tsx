@@ -58,13 +58,15 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const restaurandoRota = localStorage.getItem("restaurandoRota");
         if (restaurandoRota) {
           console.log("[AlunoContext] Route restoration in progress, delaying logout redirect");
-          // Wait for route restoration to complete before redirecting
+          // Wait longer for route restoration to complete before redirecting
           setTimeout(() => {
             if (!localStorage.getItem("restaurandoRota")) {
               console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
               setLocationWouter("/login");
+            } else {
+              console.log("[AlunoContext] Route restoration still active, skipping logout redirect");
             }
-          }, 1000);
+          }, 2000); // Increased delay to 2 seconds
         } else {
           console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
           setLocationWouter("/login");
@@ -272,16 +274,19 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const handleVisibilityChange = () => {
       // Verificamos o estado apenas quando a página se torna visível.
       if (document.visibilityState === 'visible') {
-        // Check if route restoration is in progress - if so, delay validation
+        // Check if route restoration is in progress - if so, delay validation significantly
         const restaurandoRota = localStorage.getItem("restaurandoRota");
         if (restaurandoRota) {
           console.log("[AlunoContext] Route restoration in progress, delaying session validation");
-          // Wait for route restoration to complete before validating
+          // Wait longer for route restoration to complete before validating
           setTimeout(() => {
             if (!localStorage.getItem("restaurandoRota")) {
+              console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
               handleVisibilityChange(); // Retry after route restoration completes
+            } else {
+              console.log("[AlunoContext] Route restoration still in progress, skipping validation");
             }
-          }, 1000);
+          }, 2000); // Increased delay to 2 seconds
           return;
         }
 

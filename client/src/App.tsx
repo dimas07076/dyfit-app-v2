@@ -84,7 +84,7 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
-  // Route persistence implementation - Enhanced version with coordination
+  // Route persistence implementation - Enhanced version with immediate coordination
   useEffect(() => {
     // Save current route whenever location changes (for authenticated users only)
     if ((user || aluno) && !location.startsWith("/login")) {
@@ -94,9 +94,6 @@ function AppContent() {
 
   useEffect(() => {
     const restabelecerRota = () => {
-      // Set flag to indicate route restoration is in progress
-      localStorage.setItem("restaurandoRota", "true");
-      
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
@@ -122,42 +119,44 @@ function AppContent() {
         
         if (rotaValida) {
           console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
+          // Set flag to prevent default redirects during restoration
+          localStorage.setItem("restaurandoRota", "true");
           navigate(rotaSalva, { replace: true });
           
-          // Clear flag after a short delay to allow navigation to complete
+          // Clear flag after navigation completes
           setTimeout(() => {
             localStorage.removeItem("restaurandoRota");
-          }, 500);
+          }, 200);
+          return true; // Indicate successful restoration
         } else {
           console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
-          localStorage.removeItem("restaurandoRota");
         }
-      } else {
-        localStorage.removeItem("restaurandoRota");
       }
+      return false; // No restoration needed/possible
+    };
+
+    // Immediate restoration on app load/focus - no delays
+    const handleAppFocus = () => {
+      console.log("[Route Restoration] App focado/visível, executando restauração imediata");
+      restabelecerRota();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log("[Route Restoration] App tornou-se visível, tentando restaurar rota");
-        // Small delay to let contexts finish loading
-        setTimeout(restabelecerRota, 100);
+        handleAppFocus();
       }
-    };
-
-    const handleFocus = () => {
-      console.log("[Route Restoration] App recebeu foco, tentando restaurar rota");
-      // Small delay to let contexts finish loading
-      setTimeout(restabelecerRota, 100);
     };
 
     // Listen for both visibility change and window focus events
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
+    window.addEventListener("focus", handleAppFocus);
+
+    // Also attempt immediate restoration on mount
+    restabelecerRota();
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("focus", handleAppFocus);
     };
   }, [navigate]); // Removed user/aluno dependencies to avoid conflicts
 
@@ -236,9 +235,21 @@ function AppContent() {
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
+
+  // Check if route restoration is in progress - block default redirects
+  const restaurandoRota = localStorage.getItem("restaurandoRota");
+  if (restaurandoRota) {
+    console.log("[AppContent] Route restoration in progress, blocking default redirects");
+    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+  }
   
   if (user) {
     if (location.startsWith("/login")) {
+        // Check if there's a saved route before defaulting to admin/home
+        const rotaSalva = localStorage.getItem("rotaAtual");
+        if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
+          return <Redirect to={rotaSalva} />;
+        }
         const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
         return <Redirect to={redirectTo} />;
     }
@@ -249,6 +260,11 @@ function AppContent() {
   
   if (aluno) {
     if (location.startsWith("/aluno/")) return <AlunoApp />;
+    // Check if there's a saved aluno route before defaulting to dashboard
+    const rotaSalva = localStorage.getItem("rotaAtual");
+    if (rotaSalva && rotaSalva.startsWith("/aluno/")) {
+      return <Redirect to={rotaSalva} />;
+    }
     return <Redirect to="/aluno/dashboard" />;
   } 
   

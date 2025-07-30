@@ -70,13 +70,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const restaurandoRota = localStorage.getItem("restaurandoRota");
       if (restaurandoRota) {
         console.log("[UserContext] Route restoration in progress, delaying logout redirect");
-        // Wait for route restoration to complete before redirecting
+        // Wait longer for route restoration to complete before redirecting
         setTimeout(() => {
           if (!localStorage.getItem("restaurandoRota")) {
             console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
             setLocationWouter("/login");
+          } else {
+            console.log("[UserContext] Route restoration still active, skipping logout redirect");
           }
-        }, 1000);
+        }, 2000); // Increased delay to 2 seconds
       } else {
         console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
         setLocationWouter("/login");
