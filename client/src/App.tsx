@@ -45,6 +45,7 @@ const EditarPersonalPage = lazy(() => import('@/pages/admin/EditarPersonalPage')
 const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvitesPage'));
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
 const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
+const StudentsDemo = lazy(() => import('@/pages/demo-students'));
 
 
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
@@ -334,6 +335,7 @@ function PublicRoutes() {
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
       <Switch>
+        <Route path="/demo-students" component={StudentsDemo} />
         <Route path="/login" component={LandingLoginPage} />
         <Route path="/login/personal" component={PersonalLoginPage} />
         <Route path="/login/aluno" component={AlunoLoginPage} />
@@ -341,7 +343,7 @@ function PublicRoutes() {
         <Route path="/cadastrar-personal/convite/:tokenDeConvite" component={CadastroPersonalPorConvitePage} />
         <Route path="/convite/aluno/:token" component={CadastroAlunoPorConvitePage} />
         
-        <Route><Redirect to="/login" /></Route>
+        <Route path="/"><Redirect to="/login" /></Route>
       </Switch>
     </Suspense>
   );
