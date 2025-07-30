@@ -84,7 +84,7 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
-  // Route persistence implementation - Enhanced version
+  // Route persistence implementation - Enhanced version with coordination
   useEffect(() => {
     // Save current route whenever location changes (for authenticated users only)
     if ((user || aluno) && !location.startsWith("/login")) {
@@ -94,34 +94,72 @@ function AppContent() {
 
   useEffect(() => {
     const restabelecerRota = () => {
+      // Set flag to indicate route restoration is in progress
+      localStorage.setItem("restaurandoRota", "true");
+      
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
       // Check if user is authenticated via localStorage tokens
-      const usuarioLogado = localStorage.getItem("authToken") !== null || localStorage.getItem("alunoAuthToken") !== null;
+      const temTokenPersonal = localStorage.getItem("authToken") !== null;
+      const temTokenAluno = localStorage.getItem("alunoAuthToken") !== null;
+      const usuarioLogado = temTokenPersonal || temTokenAluno;
       const rotaProtegida = rotaSalva && !rotaSalva.includes("/login");
       
       if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
-        // Validate that the saved route is appropriate for current user type
-        const isValidForUser = user && !rotaSalva.startsWith("/aluno/") && !rotaSalva.startsWith("/admin/");
-        const isValidForAluno = aluno && rotaSalva.startsWith("/aluno/");
-        const isValidForAdmin = user && user.role.toLowerCase() === 'admin' && (rotaSalva.startsWith("/admin/") || rotaSalva === "/exercises" || rotaSalva === "/perfil/editar");
+        console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
         
-        if (isValidForUser || isValidForAluno || isValidForAdmin) {
-          navigate(rotaSalva, { replace: true });
+        // Validate route based on token type (more reliable than context state)
+        let rotaValida = false;
+        
+        if (temTokenPersonal && !rotaSalva.startsWith("/aluno/")) {
+          // Personal/Admin routes are valid for authToken
+          rotaValida = true;
+        } else if (temTokenAluno && rotaSalva.startsWith("/aluno/")) {
+          // Aluno routes are valid for alunoAuthToken
+          rotaValida = true;
         }
+        
+        if (rotaValida) {
+          console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
+          navigate(rotaSalva, { replace: true });
+          
+          // Clear flag after a short delay to allow navigation to complete
+          setTimeout(() => {
+            localStorage.removeItem("restaurandoRota");
+          }, 500);
+        } else {
+          console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
+          localStorage.removeItem("restaurandoRota");
+        }
+      } else {
+        localStorage.removeItem("restaurandoRota");
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("[Route Restoration] App tornou-se visível, tentando restaurar rota");
+        // Small delay to let contexts finish loading
+        setTimeout(restabelecerRota, 100);
+      }
+    };
+
+    const handleFocus = () => {
+      console.log("[Route Restoration] App recebeu foco, tentando restaurar rota");
+      // Small delay to let contexts finish loading
+      setTimeout(restabelecerRota, 100);
+    };
+
     // Listen for both visibility change and window focus events
-    document.addEventListener("visibilitychange", restabelecerRota);
-    window.addEventListener("focus", restabelecerRota);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      document.removeEventListener("visibilitychange", restabelecerRota);
-      window.removeEventListener("focus", restabelecerRota);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, [user, aluno, navigate]);
+  }, [navigate]); // Removed user/aluno dependencies to avoid conflicts
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {

@@ -66,8 +66,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     console.log(`[UserContext] logout chamado. Limpando dados do Personal/Admin. Redirecionar: ${shouldRedirect}`);
     handleSetUser(null);
     if (shouldRedirect) {
-      console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
-      setLocationWouter("/login");
+      // Check if route restoration is in progress
+      const restaurandoRota = localStorage.getItem("restaurandoRota");
+      if (restaurandoRota) {
+        console.log("[UserContext] Route restoration in progress, delaying logout redirect");
+        // Wait for route restoration to complete before redirecting
+        setTimeout(() => {
+          if (!localStorage.getItem("restaurandoRota")) {
+            console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
+            setLocationWouter("/login");
+          }
+        }, 1000);
+      } else {
+        console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
+        setLocationWouter("/login");
+      }
     }
   }, [setLocationWouter]);
 
