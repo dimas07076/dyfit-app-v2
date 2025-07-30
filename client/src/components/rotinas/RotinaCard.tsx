@@ -99,7 +99,7 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
             className={
               isModelo 
                 ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
-                : "bg-amber-100 text-amber-700 border-amber-200"
+                : "bg-orange-100 text-orange-700 border-orange-200"
             }
           >
             {isModelo ? 'Modelo' : 'Individual'}
