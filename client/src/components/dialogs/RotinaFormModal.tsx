@@ -14,6 +14,7 @@ import { Aluno } from '@/types/aluno';
 import type { RotinaListagemItem, DiaDeTreinoDetalhado, ExercicioEmDiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 import SelectExerciseModal, { BibliotecaExercicio } from './SelectExerciseModal';
 import { Card, CardContent } from '../ui/card';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 
 type TipoOrganizacaoRotinaBackend = 'diasDaSemana' | 'numerico' | 'livre';
 const OPCOES_TIPO_DOS_TREINOS: { value: TipoOrganizacaoRotinaBackend; label: string }[] = [ { value: 'diasDaSemana', label: 'Dia da Semana' }, { value: 'numerico', label: 'Numérico (A, B, C...)' }, { value: 'livre', label: 'Livre (Nomes)' } ];
@@ -123,12 +124,29 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const queryClient = useQueryClient();
   const isEditing = !!rotinaParaEditar?._id;
 
-  const [step1Data, setStep1Data] = useState<Step1Data>({ titulo: '', descricao: null, tipo: 'modelo', alunoId: null });
-  const [step2Data, setStep2Data] = useState<{ tipoOrganizacaoRotina: TipoOrganizacaoRotinaBackend }>({ tipoOrganizacaoRotina: 'numerico' });
+  // Form persistence hooks
+  const step1Form = useFormPersistence({
+    formKey: 'rotina_step1',
+    initialValues: { titulo: '', descricao: null, tipo: 'modelo', alunoId: null },
+    enabled: open && !isEditing // Only persist for new rotinas, not edits
+  });
+
+  const step2Form = useFormPersistence({
+    formKey: 'rotina_step2', 
+    initialValues: { tipoOrganizacaoRotina: 'numerico' as TipoOrganizacaoRotinaBackend },
+    enabled: open && !isEditing
+  });
+
   const [diasDeTreino, setDiasDeTreino] = useState<DiaDeTreinoState[]>([]);
   const [showDiaForm, setShowDiaForm] = useState(false);
   const [editingDiaTempId, setEditingDiaTempId] = useState<string | null>(null);
-  const [diaFormValues, setDiaFormValues] = useState<DiaDeTreinoFormData>({ identificadorDia: '', nomeSubFicha: null });
+
+  const diaForm = useFormPersistence({
+    formKey: 'rotina_dia_form',
+    initialValues: { identificadorDia: '', nomeSubFicha: null },
+    enabled: open && showDiaForm && !isEditing
+  });
+
   const [isSelectExerciseModalOpen, setIsSelectExerciseModalOpen] = useState(false);
   const [diaAtivo, setDiaAtivo] = useState<string | null>(null);
   
@@ -136,14 +154,25 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   const [isCombinacoesMode, setIsCombinacoesMode] = useState(false);
   const [exerciciosSelecionados, setExerciciosSelecionados] = useState<number[]>([]);
 
+  // Get current form values
+  const step1Data = isEditing ? { 
+    titulo: rotinaParaEditar?.titulo || '', 
+    descricao: rotinaParaEditar?.descricao || null, 
+    tipo: rotinaParaEditar?.tipo || 'modelo', 
+    alunoId: typeof rotinaParaEditar?.alunoId === 'object' && rotinaParaEditar?.alunoId !== null ? 
+      rotinaParaEditar.alunoId._id : rotinaParaEditar?.alunoId as string | null 
+  } : step1Form.values;
+  
+  const step2Data = isEditing ? { 
+    tipoOrganizacaoRotina: rotinaParaEditar?.tipoOrganizacaoRotina || 'numerico' 
+  } : step2Form.values;
+
+  const diaFormValues = diaForm.values;
+
   useEffect(() => {
     if (open) {
       if (isEditing && rotinaParaEditar) {
-        const alunoId = typeof rotinaParaEditar.alunoId === 'object' && rotinaParaEditar.alunoId !== null ? rotinaParaEditar.alunoId._id : rotinaParaEditar.alunoId as string | null;
-        setStep1Data({ titulo: rotinaParaEditar.titulo || '', descricao: rotinaParaEditar.descricao || null, tipo: rotinaParaEditar.tipo || 'modelo', alunoId });
-        setStep2Data({ tipoOrganizacaoRotina: rotinaParaEditar.tipoOrganizacaoRotina || 'numerico' });
-        
-        // <<< CORREÇÃO DE ROBUSTEZ: Filtra exercícios nulos ao carregar para edição >>>
+        // When editing, load data from props and don't use persistence
         const diasEdit = (rotinaParaEditar.diasDeTreino || []).map((dia, i) => ({ 
             ...dia, 
             tempId: dia._id || `edit-dia-${i}-${Date.now()}`, 
@@ -155,14 +184,58 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
         setDiasDeTreino(diasEdit);
         if (diasEdit.length > 0) setDiaAtivo(diasEdit[0].tempId);
       } else {
-        setStep1Data({ titulo: '', descricao: null, tipo: 'modelo', alunoId: null }); setStep2Data({ tipoOrganizacaoRotina: 'numerico' }); setDiasDeTreino([]); setDiaAtivo(null);
+        // For new rotinas, try to restore from localStorage or use defaults
+        const savedDias = localStorage.getItem('rotina_dias_treino');
+        if (savedDias && !isEditing) {
+          try {
+            const parsedDias = JSON.parse(savedDias);
+            setDiasDeTreino(parsedDias);
+            if (parsedDias.length > 0) setDiaAtivo(parsedDias[0].tempId);
+          } catch (error) {
+            localStorage.removeItem('rotina_dias_treino');
+            setDiasDeTreino([]);
+            setDiaAtivo(null);
+          }
+        } else {
+          setDiasDeTreino([]);
+          setDiaAtivo(null);
+        }
       }
-      setStep(1); setShowDiaForm(false); setEditingDiaTempId(null);
+      
+      // Restore step from localStorage if available (and not editing)
+      if (!isEditing) {
+        const savedStep = localStorage.getItem('rotina_current_step');
+        if (savedStep) {
+          setStep(parseInt(savedStep) || 1);
+        } else {
+          setStep(1);
+        }
+      } else {
+        setStep(1);
+      }
+      
+      setShowDiaForm(false); 
+      setEditingDiaTempId(null);
+      
       // Reset combination state
       setIsCombinacoesMode(false);
       setExerciciosSelecionados([]);
     }
   }, [open, isEditing, rotinaParaEditar]);
+
+  // Save current step to localStorage
+  useEffect(() => {
+    if (open && !isEditing) {
+      localStorage.setItem('rotina_current_step', step.toString());
+    }
+  }, [step, open, isEditing]);
+
+  // Save dias de treino to localStorage
+  useEffect(() => {
+    if (open && !isEditing && diasDeTreino.length > 0) {
+      localStorage.setItem('rotina_dias_treino', JSON.stringify(diasDeTreino));
+    }
+  }, [diasDeTreino, open, isEditing]);
 
   const { data: alunosFetched = [], isLoading: isLoadingAlunos } = useQuery<Aluno[]>({ 
     queryKey: ["/api/aluno/gerenciar"], 
@@ -186,7 +259,18 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
     onSuccess: (savedRotina) => {
         toast({ title: "Sucesso!", description: `Rotina "${savedRotina.titulo}" salva.` });
         queryClient.invalidateQueries({ queryKey: ["/api/treinos"] });
-        onSuccess(savedRotina); onClose();
+        
+        // Clear persisted form data on successful save
+        if (!isEditing) {
+          step1Form.clearPersistence();
+          step2Form.clearPersistence();
+          diaForm.clearPersistence();
+          localStorage.removeItem('rotina_current_step');
+          localStorage.removeItem('rotina_dias_treino');
+        }
+        
+        onSuccess(savedRotina); 
+        onClose();
     },
     onError: (error) => toast({ variant: "destructive", title: "Erro ao Salvar", description: error.message }),
   });
@@ -209,10 +293,45 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
     mutation.mutate(payload);
   };
   
-  const handleAddOrUpdateDia = () => { if (!diaFormValues.identificadorDia.trim()) { toast({ variant: "destructive", title: "Erro", description: "O identificador do dia é obrigatório." }); return; } const diaJaExiste = diasDeTreino.some(dia => dia.identificadorDia.toLowerCase() === diaFormValues.identificadorDia.toLowerCase() && dia.tempId !== editingDiaTempId); if (diaJaExiste) { toast({ variant: "destructive", title: "Erro", description: `O identificador "${diaFormValues.identificadorDia}" já foi usado.` }); return; } setDiasDeTreino(prev => { let novosDias = [...prev]; if (editingDiaTempId) { novosDias = novosDias.map(d => d.tempId === editingDiaTempId ? {...d, ...diaFormValues, nomeSubFicha: diaFormValues.nomeSubFicha || null} : d); } else { novosDias.push({ ...diaFormValues, nomeSubFicha: diaFormValues.nomeSubFicha || null, tempId: `new-${Date.now()}`, ordemNaRotina: prev.length, exerciciosDoDia: [] }); } return novosDias; }); setShowDiaForm(false); setEditingDiaTempId(null); setDiaFormValues({ identificadorDia: '', nomeSubFicha: null }); };
-  const handleEditDia = (dia: DiaDeTreinoState) => { setDiaFormValues({ identificadorDia: dia.identificadorDia, nomeSubFicha: dia.nomeSubFicha || null }); setEditingDiaTempId(dia.tempId); setShowDiaForm(true); };
-  const handleRemoveDia = (tempId: string) => { setDiasDeTreino(prev => prev.filter(d => d.tempId !== tempId).map((d, i) => ({...d, ordemNaRotina: i}))); };
-  const handleShowDiaForm = () => { setEditingDiaTempId(null); setDiaFormValues({ identificadorDia: '', nomeSubFicha: null }); setShowDiaForm(true); };
+  const handleAddOrUpdateDia = () => { 
+    if (!diaFormValues.identificadorDia.trim()) { 
+      toast({ variant: "destructive", title: "Erro", description: "O identificador do dia é obrigatório." }); 
+      return; 
+    } 
+    const diaJaExiste = diasDeTreino.some(dia => dia.identificadorDia.toLowerCase() === diaFormValues.identificadorDia.toLowerCase() && dia.tempId !== editingDiaTempId); 
+    if (diaJaExiste) { 
+      toast({ variant: "destructive", title: "Erro", description: `O identificador "${diaFormValues.identificadorDia}" já foi usado.` }); 
+      return; 
+    } 
+    setDiasDeTreino(prev => { 
+      let novosDias = [...prev]; 
+      if (editingDiaTempId) { 
+        novosDias = novosDias.map(d => d.tempId === editingDiaTempId ? {...d, ...diaFormValues, nomeSubFicha: diaFormValues.nomeSubFicha || null} : d); 
+      } else { 
+        novosDias.push({ ...diaFormValues, nomeSubFicha: diaFormValues.nomeSubFicha || null, tempId: `new-${Date.now()}`, ordemNaRotina: prev.length, exerciciosDoDia: [] }); 
+      } 
+      return novosDias; 
+    }); 
+    setShowDiaForm(false); 
+    setEditingDiaTempId(null); 
+    diaForm.resetForm();
+  };
+  
+  const handleEditDia = (dia: DiaDeTreinoState) => { 
+    diaForm.updateFields({ identificadorDia: dia.identificadorDia, nomeSubFicha: dia.nomeSubFicha || null }); 
+    setEditingDiaTempId(dia.tempId); 
+    setShowDiaForm(true); 
+  };
+  
+  const handleRemoveDia = (tempId: string) => { 
+    setDiasDeTreino(prev => prev.filter(d => d.tempId !== tempId).map((d, i) => ({...d, ordemNaRotina: i}))); 
+  };
+  
+  const handleShowDiaForm = () => { 
+    setEditingDiaTempId(null); 
+    diaForm.resetForm(); 
+    setShowDiaForm(true); 
+  };
   const handleOpenSelectExerciseModal = (diaTempId: string) => { setDiaAtivo(diaTempId); setIsSelectExerciseModalOpen(true); };
   const handleExercisesSelected = (selecionados: BibliotecaExercicio[]) => { if (!diaAtivo) return; setDiasDeTreino(prev => prev.map(dia => { if (dia.tempId === diaAtivo) { const novosExercicios = selecionados.map((ex, i) => ({ _id: `new-ex-${Date.now()}-${i}`, exercicioId: { _id: ex._id, nome: ex.nome, grupoMuscular: ex.grupoMuscular, categoria: ex.categoria }, ordemNoDia: (dia.exerciciosDoDia?.length || 0) + i, } as unknown as ExercicioEmDiaDeTreinoDetalhado)); return { ...dia, exerciciosDoDia: [...(dia.exerciciosDoDia || []), ...novosExercicios] }; } return dia; })); setIsSelectExerciseModalOpen(false); };
   const handleExercicioDetailChange = (diaTempId: string, exIndex: number, field: keyof ExercicioEmDiaDeTreinoDetalhado, value: string) => { setDiasDeTreino(prev => prev.map(dia => { if (dia.tempId === diaTempId) { const exerciciosAtualizados = [...dia.exerciciosDoDia]; (exerciciosAtualizados[exIndex] as any)[field] = value; return { ...dia, exerciciosDoDia: exerciciosAtualizados }; } return dia; })); };
@@ -302,15 +421,15 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
         <div className="flex-grow overflow-y-auto p-6">
           <Stepper currentStep={step} />
           {step === 1 && <div className="space-y-4 animate-in fade-in-50">
-              <div><Label className="font-semibold">Título da Rotina*</Label><Input value={step1Data.titulo} onChange={e => setStep1Data(s => ({...s, titulo: e.target.value}))} /></div>
-              <div><Label className="font-semibold">Descrição (Opcional)</Label><Textarea value={step1Data.descricao || ''} onChange={e => setStep1Data(s => ({...s, descricao: e.target.value}))} /></div>
-              <div><Label className="font-semibold">Tipo de Rotina</Label><Select value={step1Data.tipo} onValueChange={(v: any) => setStep1Data(s => ({...s, tipo: v, alunoId: null}))} disabled={isEditing}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="modelo">Modelo</SelectItem><SelectItem value="individual">Individual</SelectItem></SelectContent></Select></div>
-              {step1Data.tipo === 'individual' && (<div><Label className="font-semibold">Aluno*</Label><Select value={step1Data.alunoId || ''} onValueChange={(v) => setStep1Data(s => ({...s, alunoId: v}))} disabled={isEditing}><SelectTrigger>{isLoadingAlunos ? <span className="text-muted-foreground">Carregando alunos...</span> : <SelectValue placeholder="Selecione um aluno..."/>}</SelectTrigger><SelectContent>{alunosFetched.map(aluno => <SelectItem key={aluno._id} value={aluno._id}>{aluno.nome}</SelectItem>)}</SelectContent></Select></div>)}
+              <div><Label className="font-semibold">Título da Rotina*</Label><Input value={step1Data.titulo} onChange={e => isEditing ? {} : step1Form.updateField('titulo', e.target.value)} /></div>
+              <div><Label className="font-semibold">Descrição (Opcional)</Label><Textarea value={step1Data.descricao || ''} onChange={e => isEditing ? {} : step1Form.updateField('descricao', e.target.value)} /></div>
+              <div><Label className="font-semibold">Tipo de Rotina</Label><Select value={step1Data.tipo} onValueChange={(v: any) => isEditing ? {} : step1Form.updateFields({tipo: v, alunoId: null})} disabled={isEditing}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="modelo">Modelo</SelectItem><SelectItem value="individual">Individual</SelectItem></SelectContent></Select></div>
+              {step1Data.tipo === 'individual' && (<div><Label className="font-semibold">Aluno*</Label><Select value={step1Data.alunoId || ''} onValueChange={(v) => isEditing ? {} : step1Form.updateField('alunoId', v)} disabled={isEditing}><SelectTrigger>{isLoadingAlunos ? <span className="text-muted-foreground">Carregando alunos...</span> : <SelectValue placeholder="Selecione um aluno..."/>}</SelectTrigger><SelectContent>{alunosFetched.map(aluno => <SelectItem key={aluno._id} value={aluno._id}>{aluno.nome}</SelectItem>)}</SelectContent></Select></div>)}
           </div>}
           {step === 2 && <div className="space-y-6 animate-in fade-in-50">
-             <div><Label className="font-semibold">Organização dos Dias*</Label><Select value={step2Data.tipoOrganizacaoRotina} onValueChange={(v:any) => setStep2Data(s => ({...s, tipoOrganizacaoRotina: v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{OPCOES_TIPO_DOS_TREINOS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
+             <div><Label className="font-semibold">Organização dos Dias*</Label><Select value={step2Data.tipoOrganizacaoRotina} onValueChange={(v:any) => isEditing ? {} : step2Form.updateField('tipoOrganizacaoRotina', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{OPCOES_TIPO_DOS_TREINOS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
              <div className="space-y-2">{diasDeTreino.map(dia => (<Card key={dia.tempId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border-l-4 border-l-primary"><div><p className="font-medium">{dia.identificadorDia}</p>{dia.nomeSubFicha && <p className="text-xs text-muted-foreground">{dia.nomeSubFicha}</p>}</div><div className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditDia(dia)}><Edit className="h-4 w-4 text-slate-500"/></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleRemoveDia(dia.tempId)}><Trash2 className="h-4 w-4"/></Button></div></Card>))}</div>
-             {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => setDiaFormValues(s => ({...s, identificadorDia: v}))}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => setDiaFormValues(s => ({...s, identificadorDia: e.target.value}))} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => setDiaFormValues(s => ({...s, nomeSubFicha: e.target.value}))} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => setShowDiaForm(false)}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
+             {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => diaForm.updateField('identificadorDia', v)}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => diaForm.updateField('identificadorDia', e.target.value)} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => diaForm.updateField('nomeSubFicha', e.target.value)} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => {setShowDiaForm(false); diaForm.resetForm();}}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
              {!showDiaForm && (<Button variant="outline" className="w-full border-dashed border-primary text-primary hover:text-primary hover:bg-primary/5" onClick={handleShowDiaForm}><PlusCircle className="mr-2 h-4 w-4"/> Adicionar Dia de Treino</Button>)}
           </div>}
           {step === 3 && (
