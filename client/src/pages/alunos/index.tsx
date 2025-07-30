@@ -1,7 +1,7 @@
 // client/src/pages/alunos/index.tsx
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -179,6 +179,7 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
 export default function StudentsIndex() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [, navigate] = useLocation();
     const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog, confirm: confirmAction } = useConfirmDialog();
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
@@ -235,8 +236,8 @@ export default function StudentsIndex() {
 
     const handleViewClick = (student: Aluno) => {
         console.log("Handle view click for student:", student.nome);
-        setSelectedStudent(student);
-        setIsViewModalOpen(true);
+        // Navigate to student details page instead of opening modal
+        navigate(`/alunos/${student._id}`);
     };
 
     return (

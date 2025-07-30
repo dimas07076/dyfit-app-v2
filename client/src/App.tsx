@@ -23,6 +23,7 @@ import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomead
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const StudentsIndex = lazy(() => import("@/pages/alunos/index"));
+const StudentDetailPage = lazy(() => import("@/pages/alunos/[id]"));
 const NewStudent = lazy(() => import("@/pages/alunos/new"));
 const EditStudentPage = lazy(() => import("@/pages/alunos/edit"));
 const ExercisesIndex = lazy(() => import("@/pages/exercises/index"));
@@ -301,6 +302,7 @@ function PersonalApp() {
           <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
           <ProtectedRoute path="/alunos" component={StudentsIndex} /> 
           <ProtectedRoute path="/alunos/novo" component={NewStudent} /> 
+          <ProtectedRoute path="/alunos/:id" component={StudentDetailPage} />
           <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> 
           <ProtectedRoute path="/treinos" component={TreinosPage} /> 
           <ProtectedRoute path="/exercises" component={ExercisesIndex} /> 

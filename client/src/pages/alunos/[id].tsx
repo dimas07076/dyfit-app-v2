@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import { apiRequest } from '@/lib/queryClient';
 import TreinoFormModal from '@/components/dialogs/TreinoFormModal';
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import FichaViewModal, { FichaTreinoView } from "@/components/dialogs/FichaViewModal"; // Será renomeado para RotinaViewModal depois
 import AssociarModeloAlunoModal from "@/components/dialogs/AssociarModeloAlunoModal";
 import { RotinaListagemItem, DiaDeTreinoDetalhado, ExercicioEmDiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 
@@ -31,8 +30,6 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
 
   const [isTreinoFormModalOpen, setIsTreinoFormModalOpen] = useState(false);
   const [fichaParaEditarOuCriar, setFichaParaEditarOuCriar] = useState<RotinaListagemItem | null>(null);
-  const [isViewFichaModalOpen, setIsViewFichaModalOpen] = useState(false);
-  const [fichaParaVisualizar, setFichaParaVisualizar] = useState<FichaTreinoView | null>(null);
   const [isAssociarModalOpen, setIsAssociarModalOpen] = useState(false);
   const [fichaOriginalParaAssociar, setFichaOriginalParaAssociar] = useState<{id: string; titulo: string} | null>(null);
 
@@ -155,41 +152,13 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
   };
 
   const handleViewFichaClick = (rotina: RotinaListagemItem) => {
-    const todosExerciciosPlanos: ExercicioEmDiaDeTreinoDetalhado[] = (rotina.diasDeTreino || []).flatMap(
-      (dia: DiaDeTreinoDetalhado) => (dia.exerciciosDoDia || []).map(
-        (ex: ExercicioEmDiaDeTreinoDetalhado): ExercicioEmDiaDeTreinoDetalhado => ({ ...ex })
-      )
-    );
-    const fichaViewData: FichaTreinoView = {
-        _id: rotina._id, 
-        titulo: rotina.titulo, 
-        descricao: rotina.descricao, 
-        tipo: rotina.tipo, 
-        alunoId: rotina.alunoId, 
-        criadorId: rotina.criadorId, 
-        diasDeTreino: rotina.diasDeTreino || [], 
-        exercicios: todosExerciciosPlanos,  
-        criadoEm: rotina.criadoEm, 
-        atualizadoEm: rotina.atualizadoEm, 
-        statusModelo: rotina.statusModelo, 
-        tipoOrganizacaoRotina: rotina.tipoOrganizacaoRotina, 
-    };
-    setFichaParaVisualizar(fichaViewData); 
-    setIsViewFichaModalOpen(true); 
-  };
-
-  const handleTriggerEditFichaFromView = (fichaFromView: FichaTreinoView) => {
-      setIsViewFichaModalOpen(false); 
-      const fichaOriginal = studentWorkouts.find(f => f._id === fichaFromView._id); 
-      if (fichaOriginal) {
-        handleEditFichaClick(fichaOriginal); 
-      } else {
-        toast({ title: "Erro", description: "Não foi possível encontrar a rotina original para edição.", variant: "destructive"}); 
-      }
+    toast({
+      title: "Visualizar Rotina",
+      description: `Funcionalidade de visualização da rotina "${rotina.titulo}" será implementada em breve.`,
+    });
   };
 
   const handleTriggerCopyFichaFromView = (fichaId: string, fichaTitulo: string, tipoFichaOriginal?: "modelo" | "individual") => {
-    setIsViewFichaModalOpen(false); 
     setFichaOriginalParaAssociar({ id: fichaId, titulo: fichaTitulo }); 
     setIsAssociarModalOpen(true); 
   };
@@ -496,15 +465,6 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
               alunoId={!(fichaParaEditarOuCriar && fichaParaEditarOuCriar._id) ? studentId : undefined}
           />
       )}
-      {isViewFichaModalOpen && fichaParaVisualizar && (
-          <FichaViewModal
-              isOpen={isViewFichaModalOpen}
-              onClose={() => setIsViewFichaModalOpen(false)}
-              ficha={fichaParaVisualizar} 
-              onEditFicha={handleTriggerEditFichaFromView}
-              onUseOuCopiarFicha={handleTriggerCopyFichaFromView}
-          />
-      )}
       {isAssociarModalOpen && fichaOriginalParaAssociar && (
         <AssociarModeloAlunoModal
             isOpen={isAssociarModalOpen}
@@ -527,4 +487,10 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
   );
 }
 
-export default StudentDetail; 
+// Wrapper component to work with wouter routing
+const StudentDetailPage: React.FC = () => {
+  const params = useParams();
+  return <StudentDetail id={params.id} />;
+};
+
+export default StudentDetailPage; 
