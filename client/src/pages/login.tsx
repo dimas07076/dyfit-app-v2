@@ -16,6 +16,39 @@ interface LoginApiResponse {
     user: { id: string; username: string; firstName: string; lastName: string; email: string; role: string; };
 }
 
+// Função para validar e limpar dados corrompidos no localStorage
+const validateAndCleanAuthData = (): void => {
+    try {
+        // Lista de chaves que precisam ser validadas
+        const authKeys = ['authToken', 'refreshToken', 'userData'];
+        
+        authKeys.forEach(key => {
+            const value = localStorage.getItem(key);
+            if (value === 'null' || value === 'undefined' || value === '') {
+                console.warn(`[Login] Removendo valor corrompido para ${key}:`, value);
+                localStorage.removeItem(key);
+            }
+        });
+        
+        // Validação específica para userData
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+            try {
+                const parsed = JSON.parse(userData);
+                if (!parsed || !parsed.id || !parsed.email) {
+                    console.warn('[Login] userData malformado, removendo...');
+                    localStorage.removeItem('userData');
+                }
+            } catch (e) {
+                console.warn('[Login] userData com JSON inválido, removendo...');
+                localStorage.removeItem('userData');
+            }
+        }
+    } catch (error) {
+        console.error('[Login] Erro ao validar localStorage:', error);
+    }
+};
+
 export default function LoginPage() {
     const [, setLocation] = useLocation();
     const userContext = useContext(UserContext);
@@ -25,11 +58,20 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
+    // Limpa dados corrompidos quando o componente é montado
+    React.useEffect(() => {
+        validateAndCleanAuthData();
+    }, []);
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setIsLoading(true);
+        
         try {
+            // Limpa dados corrompidos antes de tentar o login
+            validateAndCleanAuthData();
+            
             const loginData = await fetchWithAuth<LoginApiResponse>('/api/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ email: email.toLowerCase(), password }),
@@ -42,8 +84,29 @@ export default function LoginPage() {
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${loggedInUser.firstName}!` });
             setLocation("/");
         } catch (err: any) {
-            setError(err.message || 'Ocorreu um erro inesperado.');
-            toast({ title: "Erro no Login", description: err.message, variant: "destructive" });
+            console.error('[Login] Erro durante o login:', err);
+            
+            // Tratamento específico de erros
+            let errorMessage = 'Ocorreu um erro inesperado.';
+            
+            if (err.message) {
+                if (err.message.includes('servidor')) {
+                    errorMessage = 'Erro temporário no servidor. Tente novamente em alguns instantes.';
+                } else if (err.message.includes('conexão') || err.message.includes('conectar')) {
+                    errorMessage = 'Problemas de conexão. Verifique sua internet e tente novamente.';
+                } else if (err.message.includes('Credenciais inválidas')) {
+                    errorMessage = 'Email ou senha incorretos.';
+                } else {
+                    errorMessage = err.message;
+                }
+            }
+            
+            setError(errorMessage);
+            toast({ 
+                title: "Erro no Login", 
+                description: errorMessage, 
+                variant: "destructive" 
+            });
         } finally {
             setIsLoading(false);
         }
