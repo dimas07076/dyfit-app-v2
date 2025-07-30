@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 export interface PastaFormData { nome: string; }
 export interface PastaExistente extends PastaFormData { _id: string; }
@@ -23,27 +23,18 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
   const { toast } = useToast();
   const isEditing = !!initialData;
 
-  // Form persistence for new folders only (not when editing)
-  const formPersistence = useFormPersistence({
-    formKey: 'novaPasta',
-    initialValues: { nome: '' },
-    enabled: isOpen && !isEditing
-  });
-
-  const nomePasta = isEditing ? (initialData?.nome || '') : formPersistence.values.nome;
-
-  const setNomePasta = (value: string) => {
-    if (!isEditing) {
-      formPersistence.updateField('nome', value);
-    }
-  };
+  // Persisted state for new folders only (not when editing)
+  const [nomePasta, setNomePasta, clearNomePasta] = usePersistedState(
+    "formNovaPasta_nome", 
+    isEditing ? (initialData?.nome || '') : ""
+  );
 
   useEffect(() => {
-    if (isOpen && isEditing && initialData) {
-      // For editing, we don't use persistence, just set the initial value
-      // The form will show the current folder name
+    if (isEditing && initialData) {
+      // For editing, set the current folder name directly without persistence
+      setNomePasta(initialData.nome || '');
     }
-  }, [isOpen, isEditing, initialData]);
+  }, [isOpen, isEditing, initialData, setNomePasta]);
 
   const mutation = useMutation<any, Error, PastaFormData>({
     mutationFn: (data) => {
@@ -56,7 +47,7 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
       
       // Clear form persistence on successful save (only for new folders)
       if (!isEditing) {
-        formPersistence.clearPersistence();
+        clearNomePasta();
       }
       
       onSuccessCallback(); // Chama a função do componente pai
@@ -78,7 +69,7 @@ const PastaFormModal: React.FC<PastaFormModalProps> = ({ isOpen, onClose, onSucc
   // Enhanced close handler that clears form persistence when cancelled
   const handleClose = () => {
     if (!isEditing) {
-      formPersistence.clearPersistence();
+      clearNomePasta();
     }
     onClose();
   };

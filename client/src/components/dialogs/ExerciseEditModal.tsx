@@ -25,6 +25,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 // Interfaces
 interface ExercicioData {
@@ -51,38 +52,23 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  // Form persistence for exercise editing - use unique key per exercise
-  const formPersistence = useFormPersistence({
-    formKey: `editarExercicio_${exercicio._id}`,
-    initialValues: {
-      nome: exercicio.nome,
-      descricao: exercicio.descricao || "",
-      categoria: exercicio.categoria || NONE_FILTER_VALUE,
-      grupoMuscular: exercicio.grupoMuscular || NONE_FILTER_VALUE,
-      urlVideo: exercicio.urlVideo || ""
-    },
-    enabled: open
-  });
-
-  // Get current form values
-  const nome = formPersistence.values.nome;
-  const descricao = formPersistence.values.descricao;
-  const categoria = formPersistence.values.categoria;
-  const grupoMuscular = formPersistence.values.grupoMuscular;
-  const urlVideo = formPersistence.values.urlVideo;
+  // Persisted state for each form field with unique key per exercise
+  const [nome, setNome, clearNome] = usePersistedState(`formEditarExercicio_${exercicio._id}_nome`, exercicio.nome);
+  const [descricao, setDescricao, clearDescricao] = usePersistedState(`formEditarExercicio_${exercicio._id}_descricao`, exercicio.descricao || "");
+  const [categoria, setCategoria, clearCategoria] = usePersistedState(`formEditarExercicio_${exercicio._id}_categoria`, exercicio.categoria || NONE_FILTER_VALUE);
+  const [grupoMuscular, setGrupoMuscular, clearGrupoMuscular] = usePersistedState(`formEditarExercicio_${exercicio._id}_grupoMuscular`, exercicio.grupoMuscular || NONE_FILTER_VALUE);
+  const [urlVideo, setUrlVideo, clearUrlVideo] = usePersistedState(`formEditarExercicio_${exercicio._id}_urlVideo`, exercicio.urlVideo || "");
 
   useEffect(() => {
       if (exercicio && open) {
           // Reset form with current exercise data when modal opens
-          formPersistence.updateFields({
-            nome: exercicio.nome,
-            descricao: exercicio.descricao || "",
-            categoria: exercicio.categoria || NONE_FILTER_VALUE,
-            grupoMuscular: exercicio.grupoMuscular || NONE_FILTER_VALUE,
-            urlVideo: exercicio.urlVideo || ""
-          });
+          setNome(exercicio.nome);
+          setDescricao(exercicio.descricao || "");
+          setCategoria(exercicio.categoria || NONE_FILTER_VALUE);
+          setGrupoMuscular(exercicio.grupoMuscular || NONE_FILTER_VALUE);
+          setUrlVideo(exercicio.urlVideo || "");
       }
-  }, [exercicio, open]);
+  }, [exercicio, open, setNome, setDescricao, setCategoria, setGrupoMuscular, setUrlVideo]);
 
   const formatVideoUrl = (url: string): string | undefined => {
     if (!url) return undefined;
@@ -103,7 +89,11 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
       toast({ title: "Sucesso!", description: `Exercício "${data.nome}" atualizado.` });
       
       // Clear form persistence on successful save
-      formPersistence.clearPersistence();
+      clearNome();
+      clearDescricao();
+      clearCategoria();
+      clearGrupoMuscular();
+      clearUrlVideo();
       
       onUpdated();
       queryClient.invalidateQueries({ queryKey: ['exercicios'] });
@@ -137,7 +127,11 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
 
   // Enhanced close handler that clears form persistence when cancelled
   const handleClose = () => {
-    formPersistence.clearPersistence();
+    clearNome();
+    clearDescricao();
+    clearCategoria();
+    clearGrupoMuscular();
+    clearUrlVideo();
     setOpen(false);
   };
 
@@ -156,10 +150,10 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
           <DialogDescription>Atualize os dados do exercício abaixo.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
-             <div><Label htmlFor={`edit-nome-${exercicio._id}`}>Nome*</Label><Input id={`edit-nome-${exercicio._id}`} value={nome} onChange={(e) => formPersistence.updateField('nome', e.target.value)} disabled={isLoading} required /></div>
+             <div><Label htmlFor={`edit-nome-${exercicio._id}`}>Nome*</Label><Input id={`edit-nome-${exercicio._id}`} value={nome} onChange={(e) => setNome(e.target.value)} disabled={isLoading} required /></div>
              
              <div><Label htmlFor={`edit-grupo-${exercicio._id}`}>Grupo Muscular</Label>
-                <Select value={grupoMuscular} onValueChange={(value) => formPersistence.updateField('grupoMuscular', value)} disabled={isLoading}>
+                <Select value={grupoMuscular} onValueChange={setGrupoMuscular} disabled={isLoading}>
                     <SelectTrigger id={`edit-grupo-${exercicio._id}`}><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value={NONE_FILTER_VALUE}>Nenhum</SelectItem>
@@ -168,7 +162,7 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
                 </Select>
              </div>
              <div><Label htmlFor={`edit-categoria-${exercicio._id}`}>Categoria</Label>
-                <Select value={categoria} onValueChange={(value) => formPersistence.updateField('categoria', value)} disabled={isLoading}>
+                <Select value={categoria} onValueChange={setCategoria} disabled={isLoading}>
                     <SelectTrigger id={`edit-categoria-${exercicio._id}`}><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value={NONE_FILTER_VALUE}>Nenhuma</SelectItem>
@@ -177,8 +171,8 @@ export default function ExerciseEditModal({ exercicio, onUpdated, gruposMuscular
                 </Select>
              </div>
              
-             <div><Label htmlFor={`edit-descricao-${exercicio._id}`}>Descrição</Label><Textarea id={`edit-descricao-${exercicio._id}`} value={descricao} onChange={(e) => formPersistence.updateField('descricao', e.target.value)} disabled={isLoading} /></div>
-             <div><Label htmlFor={`edit-urlVideo-${exercicio._id}`}>URL do Vídeo</Label><Input id={`edit-urlVideo-${exercicio._id}`} value={urlVideo} onChange={(e) => formPersistence.updateField('urlVideo', e.target.value)} disabled={isLoading} /></div>
+             <div><Label htmlFor={`edit-descricao-${exercicio._id}`}>Descrição</Label><Textarea id={`edit-descricao-${exercicio._id}`} value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={isLoading} /></div>
+             <div><Label htmlFor={`edit-urlVideo-${exercicio._id}`}>URL do Vídeo</Label><Input id={`edit-urlVideo-${exercicio._id}`} value={urlVideo} onChange={(e) => setUrlVideo(e.target.value)} disabled={isLoading} /></div>
         </div>
         <DialogFooter className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={isLoading}>Cancelar</Button>

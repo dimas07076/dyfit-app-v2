@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 interface Sessao {
   id: string;
@@ -22,32 +22,19 @@ interface SessionFormModalProps {
 }
 
 export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFormModalProps) {
-  // Form persistence for session creation
-  const formPersistence = useFormPersistence({
-    formKey: 'novaSessao',
-    initialValues: {
-      aluno: '',
-      data: new Date().toISOString(),
-      hora: '',
-      status: 'pendente' as const,
-      observacoes: ''
-    },
-    enabled: isOpen
-  });
+  // Persisted state for each form field
+  const [aluno, setAluno, clearAluno] = usePersistedState("formNovaSessao_aluno", "");
+  const [dataString, setDataString, clearDataString] = usePersistedState("formNovaSessao_data", new Date().toISOString());
+  const [hora, setHora, clearHora] = usePersistedState("formNovaSessao_hora", "");
+  const [status, setStatus, clearStatus] = usePersistedState<"confirmada" | "pendente" | "concluida" | "cancelada">("formNovaSessao_status", "pendente");
+  const [observacoes, setObservacoes, clearObservacoes] = usePersistedState("formNovaSessao_observacoes", "");
 
-  // Get current form values from persistence
-  const aluno = formPersistence.values.aluno;
-  const dataString = formPersistence.values.data;
+  // Convert dataString to Date for calendar component
   const data = dataString ? new Date(dataString) : new Date();
-  const hora = formPersistence.values.hora;
-  const status = formPersistence.values.status;
-  const observacoes = formPersistence.values.observacoes;
-
-  const setAluno = (value: string) => formPersistence.updateField('aluno', value);
-  const setData = (value: Date | undefined) => formPersistence.updateField('data', value ? value.toISOString() : new Date().toISOString());
-  const setHora = (value: string) => formPersistence.updateField('hora', value);
-  const setStatus = (value: "confirmada" | "pendente" | "concluida" | "cancelada") => formPersistence.updateField('status', value);
-  const setObservacoes = (value: string) => formPersistence.updateField('observacoes', value);
+  
+  const handleSetData = (value: Date | undefined) => {
+    setDataString(value ? value.toISOString() : new Date().toISOString());
+  };
 
   const handleSalvar = () => {
     if (!aluno || !data || !hora) return alert("Preencha todos os campos obrigatórios.");
@@ -64,19 +51,31 @@ export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFor
     onSave(novaSessao);
     
     // Clear form persistence on successful save
-    formPersistence.clearPersistence();
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
     
     onClose();
   };
 
   // Enhanced close handler that clears form persistence when cancelled
   const handleClose = () => {
-    formPersistence.clearPersistence();
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
     onClose();
   };
 
   const limparCampos = () => {
-    formPersistence.resetForm();
+    clearAluno();
+    clearDataString();
+    clearHora();
+    clearStatus();
+    clearObservacoes();
   };
 
   return (
@@ -88,7 +87,7 @@ export default function SessionFormModal({ isOpen, onClose, onSave }: SessionFor
         <div className="space-y-4">
           <Input placeholder="Nome do aluno" value={aluno} onChange={(e) => setAluno(e.target.value)} />
           <div className="flex gap-2 items-center">
-            <Calendar selected={data} onSelect={setData} mode="single" className="border rounded-md" />
+            <Calendar selected={data} onSelect={handleSetData} mode="single" className="border rounded-md" />
             <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="w-1/2" />
           </div>
           <Select value={status} onValueChange={(value) => setStatus(value as any)}>
