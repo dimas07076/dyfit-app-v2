@@ -19,6 +19,7 @@ import { Loader2, CalendarIcon, Folder as FolderIcon, Activity, PlusCircle, Tras
 import { Card, CardContent } from "@/components/ui/card";
 import { Aluno } from '@/types/aluno';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 import type { RotinaListagemItem, DiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 import SelectExerciseModal, { BibliotecaExercicio } from './SelectExerciseModal';
@@ -168,20 +169,35 @@ export default function TreinoFormModal({
   const [editingDiaTempId, setEditingDiaTempId] = useState<string | null>(null);
 
   // Form persistence for dia form (when adding/editing workout days)
-  const diaFormPersistence = useFormPersistence({
-    formKey: 'treinoFormModal_dia',
-    initialValues: { identificadorDia: '', nomeSubFicha: '' },
-    enabled: showDiaForm && !isEditing
-  });
+  const [diaIdentificador, setDiaIdentificador, clearDiaIdentificador] = usePersistedState(
+    "formTreinoFormModal_dia_identificadorDia", 
+    ""
+  );
+  const [diaNomeSubFicha, setDiaNomeSubFicha, clearDiaNomeSubFicha] = usePersistedState(
+    "formTreinoFormModal_dia_nomeSubFicha", 
+    ""
+  );
 
   // Use persisted values or default for dia form
   const diaFormValues = isEditing ? 
     { identificadorDia: '', nomeSubFicha: '' } : 
-    diaFormPersistence.values;
+    { identificadorDia: diaIdentificador, nomeSubFicha: diaNomeSubFicha };
 
   const setDiaFormValues = (newValues: Partial<DiaDeTreinoFormValues>) => {
     if (!isEditing) {
-      diaFormPersistence.updateFields(newValues);
+      if (newValues.identificadorDia !== undefined) {
+        setDiaIdentificador(newValues.identificadorDia);
+      }
+      if (newValues.nomeSubFicha !== undefined) {
+        setDiaNomeSubFicha(newValues.nomeSubFicha || '');
+      }
+    }
+  };
+
+  const clearDiaFormPersistence = () => {
+    if (!isEditing) {
+      clearDiaIdentificador();
+      clearDiaNomeSubFicha();
     }
   };
 
@@ -341,7 +357,7 @@ export default function TreinoFormModal({
       }
       setShowDiaForm(false); 
       if (!isEditing) {
-        diaFormPersistence.resetForm();
+        clearDiaFormPersistence();
       }
       setEditingDiaTempId(null);
       setIsSelectExerciseModalOpen(false); setDiaAtivoParaAdicionarExercicio(null);
@@ -421,7 +437,7 @@ export default function TreinoFormModal({
     });
     setShowDiaForm(false); 
     if (!isEditing) {
-      diaFormPersistence.resetForm();
+      clearDiaFormPersistence();
     }
     setEditingDiaTempId(null);
   };
@@ -488,7 +504,7 @@ export default function TreinoFormModal({
         toast({ title: "Sucesso!", description: `Rotina "${savedRotina.titulo}" ${currentIsEditingOnSuccess ? 'atualizada' : 'criada'} com sucesso.`});
         // Clear form persistence on successful save (for new routines)
         if (!currentIsEditingOnSuccess) {
-          diaFormPersistence.clearPersistence();
+          clearDiaFormPersistence();
         }
         queryClientHook.invalidateQueries({ queryKey: TREINOS_QUERY_KEY });
         if (currentIsEditingOnSuccess && rotinaParaEditar?._id) { queryClientHook.invalidateQueries({ queryKey: [`/api/treinos/${rotinaParaEditar._id}`] }); }
@@ -519,7 +535,7 @@ export default function TreinoFormModal({
       if (!openStatus) {
         // Clear dia form persistence when modal is closed/cancelled (for new routines)
         if (!isEditing) {
-          diaFormPersistence.clearPersistence();
+          clearDiaFormPersistence();
         }
         onClose(); 
       } 
@@ -619,7 +635,7 @@ export default function TreinoFormModal({
                 <div className="pt-6 mt-6 border-t dark:border-gray-700">
                     <div className="flex justify-between items-center mb-4"> <h3 className="text-lg font-semibold">Dias de Treino da Rotina</h3> <Button type="button" size="sm" variant="outline" onClick={() => { 
       if (!isEditing) {
-        diaFormPersistence.resetForm();
+        clearDiaFormPersistence();
       }
       setEditingDiaTempId(null); 
       setShowDiaForm(true); 
@@ -628,7 +644,7 @@ export default function TreinoFormModal({
   setShowDiaForm(false); 
   setEditingDiaTempId(null); 
   if (!isEditing) {
-    diaFormPersistence.resetForm();
+    clearDiaFormPersistence();
   }
 }}>Cancelar</Button> <Button type="button" onClick={handleAddOrUpdateDia}>{editingDiaTempId ? "Atualizar Dia" : "Confirmar Dia"}</Button> </div> </CardContent> </Card> )}
                     {diasDeTreinoState.length === 0 && !showDiaForm && ( <div className="text-center py-6"> <Activity className="mx-auto h-12 w-12 text-gray-400" /> <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Nenhum dia de treino adicionado</h3> <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Comece adicionando o primeiro dia de treino da rotina.</p> </div> )}
