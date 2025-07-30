@@ -220,7 +220,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
 
   const renderFichasContent = () => {
     if (isLoadingWorkouts) {
-      return <LoadingSpinner text="Carregando rotinas..." />; 
+      return <LoadingSpinner text="Carregando rotinas de treino..." />; 
     }
     if (errorLoadingWorkouts) {
       return <ErrorMessage title="Erro ao Carregar Rotinas" message={errorLoadingWorkouts.message} />; 
@@ -229,21 +229,58 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
       return (
         <div className="space-y-4">
           {studentWorkouts.map((rotina) => ( 
-            <div key={rotina._id} className="border rounded-lg p-4 shadow-sm dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div key={rotina._id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex-grow">
-                <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 mb-1">{rotina.titulo}</h3> 
-                {rotina.descricao && <p className="text-sm text-muted-foreground mb-2">{rotina.descricao}</p>} 
-                <p className="text-xs text-muted-foreground">
-                  Criada em: {formatDate(rotina.criadoEm)}
-                </p>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{rotina.titulo}</h3>
+                </div>
+                {rotina.descricao && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 leading-relaxed">
+                    {rotina.descricao}
+                  </p>
+                )} 
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Criada em: {formatDate(rotina.criadoEm)}
+                  </span>
+                </div>
               </div>
        
               <div className="flex-shrink-0 flex gap-2 self-start sm:self-center"> 
-                <Button variant="outline" size="icon" className="h-8 w-8" title="Visualizar Rotina" onClick={() => handleViewFichaClick(rotina)}> <Eye className="w-4 h-4" /> </Button> 
-                <Button variant="outline" size="icon" className="h-8 w-8" title="Editar Rotina" onClick={() => handleEditFichaClick(rotina)} disabled={deleteMutation.isPending} > <Edit className="w-4 h-4" /> </Button> 
-                <Button variant="destructive" size="icon" className="h-8 w-8" title="Excluir Rotina" onClick={() => handleDeleteClick(rotina)} 
-                  disabled={deleteMutation.isPending && deleteMutation.variables === rotina._id} > 
-                  {deleteMutation.isPending && deleteMutation.variables === rotina._id ? ( <Loader2 className="w-4 h-4 animate-spin" /> ) : ( <Trash2 className="w-4 h-4" /> )} 
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-lg hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-900/20" 
+                  title="Visualizar Rotina" 
+                  onClick={() => handleViewFichaClick(rotina)}
+                > 
+                  <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" /> 
+                </Button> 
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-lg hover:bg-orange-50 hover:border-orange-200 dark:hover:bg-orange-900/20" 
+                  title="Editar Rotina" 
+                  onClick={() => handleEditFichaClick(rotina)} 
+                  disabled={deleteMutation.isPending}
+                > 
+                  <Edit className="w-4 h-4 text-orange-600 dark:text-orange-400" /> 
+                </Button> 
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-lg hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-900/20" 
+                  title="Excluir Rotina" 
+                  onClick={() => handleDeleteClick(rotina)} 
+                  disabled={deleteMutation.isPending && deleteMutation.variables === rotina._id}
+                > 
+                  {deleteMutation.isPending && deleteMutation.variables === rotina._id ? ( 
+                    <Loader2 className="w-4 h-4 animate-spin text-red-600 dark:text-red-400" /> 
+                  ) : ( 
+                    <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" /> 
+                  )} 
                 </Button>
               </div>
             </div>
@@ -251,103 +288,200 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
         </div>
       );
     }
-    return <p className="text-center py-6 text-gray-600 dark:text-gray-400">Este aluno ainda não possui rotinas de treino atribuídas.</p>; 
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+          <Dumbbell className="w-8 h-8 text-gray-400" />
+        </div>
+        <p className="text-gray-600 dark:text-gray-400 text-sm">
+          Este aluno ainda não possui rotinas de treino atribuídas.
+        </p>
+        <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
+          Clique no botão "Nova Rotina" para começar.
+        </p>
+      </div>
+    ); 
   };
 
   return (
-    <div className="container mx-auto py-8 px-4"> 
+    <div className="container mx-auto py-8 px-4 space-y-6"> 
+      {/* Back Navigation */}
       <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate("/alunos")} >
+        <Button variant="outline" onClick={() => navigate("/alunos")} className="rounded-xl">
           <ArrowLeft className="w-4 h-4 mr-2" />
            Voltar para Lista de Alunos
         </Button>
       </div>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between"> 
-             <span>Detalhes de {student?.nome}</span>
-             <Link href={`/alunos/editar/${studentId}`}>
-               <Button variant="outline" size="sm">
-                 <Edit className="w-4 h-4 mr-2" /> Editar Aluno
-               </Button>
-             </Link>
-          </CardTitle> 
+      {/* Main Student Header */}
+      <Card className="mb-8 rounded-2xl shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-t-2xl">
+          <CardTitle className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+                {student?.nome}
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Informações do Aluno
+              </p>
+            </div>
+            <Link href={`/alunos/editar/${studentId}`}>
+              <Button variant="outline" size="sm" className="rounded-xl">
+                <Edit className="w-4 h-4 mr-2" /> Editar Aluno
+              </Button>
+            </Link>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <UserCircle className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Nome:</strong> {student?.nome ?? 'Não informado'}</span> 
+        <CardContent className="p-6 space-y-6">
+          
+          {/* Personal Information Section */}
+          <div className="bg-muted/10 rounded-lg p-4 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <UserCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              Informações Pessoais
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Nome Completo</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{student?.nome ?? 'Não informado'}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" /> </svg>
-                <span><strong>Email:</strong> {student?.email ?? 'Não informado'}</span> 
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Email</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{student?.email ?? 'Não informado'}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Telefone:</strong> {student?.phone ?? 'Não informado'}</span> 
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Telefone</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{student?.phone ?? 'Não informado'}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Calendar className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Data de Nasc.:</strong> {formatDate(student?.birthDate)}</span>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Data de Nascimento</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{formatDate(student?.birthDate)}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300"> 
-                <Info className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Gênero:</strong> {student?.gender ?? 'Não informado'}</span> 
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Gênero</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{student?.gender ?? 'Não informado'}</p>
+                </div>
               </div>
-          </div>
-           <Separator className="my-4" />
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Weight className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Peso:</strong> {student?.weight ? `${student.weight} kg` : 'Não informado'}</span> 
-              </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Ruler className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Altura:</strong> {student?.height ? `${student.height} cm` : 'Não informado'}</span> 
-              </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Target className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Objetivo:</strong> {student?.goal ?? 'Não informado'}</span> 
-              </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <Calendar className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                <span><strong>Data de Início:</strong> {formatDate(student?.startDate)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"> 
-                 <Info className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                 <strong>Status:</strong>
-                 <Badge variant={student?.status === 'active' ? 'success' : 'secondary'} className="ml-1"> 
-                     {student?.status === 'active' ? 'Ativo' : 'Inativo'} 
-                 </Badge>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Status</p>
+                  <Badge variant={student?.status === 'active' ? 'success' : 'secondary'} className="mt-1">
+                    {student?.status === 'active' ? 'Ativo' : 'Inativo'}
+                  </Badge>
+                </div>
               </div>
             </div>
-           {student?.notes && (
-               <>
-                  <Separator className="my-4" />
-                  <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"> 
-                      <StickyNote className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-1 flex-shrink-0" />
-                      <div>
-                          <strong>Observações:</strong>
-                          <p className="mt-1 whitespace-pre-wrap">{student.notes}</p> 
-                      </div>
-                  </div>
-               </>
-           )}
+          </div>
+
+          {/* Physical Data Section */}
+          <div className="bg-muted/10 rounded-lg p-4 shadow-sm border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Weight className="w-5 h-5 text-green-600 dark:text-green-400" />
+              Dados Físicos
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Peso</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {student?.weight ? `${student.weight} kg` : 'Não informado'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Altura</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {student?.height ? `${student.height} cm` : 'Não informado'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Training Information Section */}
+          <div className="bg-muted/10 rounded-lg p-4 shadow-sm border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              Informações de Treinamento
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Objetivo</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{student?.goal ?? 'Não informado'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Data de Início</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{formatDate(student?.startDate)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes Section */}
+          {student?.notes && (
+            <div className="bg-muted/10 rounded-lg p-4 shadow-sm border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <StickyNote className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                Observações
+              </h3>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border-l-4 border-yellow-400">
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                  {student.notes}
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card> 
 
-      <Card>
-        <CardHeader>
+      {/* Workout Routines Section */}
+      <Card className="rounded-2xl shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 rounded-t-2xl">
           <CardTitle className="flex items-center justify-between">
-            Rotinas de Treino Atribuídas
-            <Button size="sm" onClick={handleCreateFichaClick} disabled={!studentId || !student}> 
-              <Dumbbell className="w-4 h-4 mr-2" /> Nova Rotina para {student?.nome?.split(' ')[0]}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1 flex items-center gap-2">
+                <Dumbbell className="w-6 h-6 text-green-600 dark:text-green-400" />
+                Rotinas de Treino
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Gerencie as rotinas atribuídas ao aluno
+              </p>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={handleCreateFichaClick} 
+              disabled={!studentId || !student}
+              className="rounded-xl bg-green-600 hover:bg-green-700 text-white"
+            > 
+              <Dumbbell className="w-4 h-4 mr-2" /> 
+              Nova Rotina para {student?.nome?.split(' ')[0]}
             </Button> 
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {renderFichasContent()}
         </CardContent>
       </Card> 
