@@ -61,23 +61,36 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   );
 
   return (
-    <Card className="group card-hover-lift flex flex-col h-full shadow-md border border-border/60 bg-amber-50 backdrop-blur-sm">
+    <Card className="group card-hover-lift flex flex-col h-full shadow-md border border-border/60 bg-amber-50 backdrop-blur-sm overflow-hidden">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-bold text-zinc-800 flex items-center gap-2 group-hover:text-primary transition-colors duration-200" title={rotina.titulo}>
-          {/* Icon based on type */}
-          <div className={`w-2 h-2 rounded-full ${isModelo ? 'bg-primary' : 'bg-accent'} animate-pulse`} />
-          <span className="truncate">{rotina.titulo}</span>
-        </CardTitle>
-        <CardDescription className="text-xs text-zinc-500 truncate w-full max-w-full leading-relaxed" title={rotina.descricao ?? undefined}>
-          {rotina.descricao || 'Sem descrição.'}
-        </CardDescription>
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-base font-bold text-zinc-800 flex items-center gap-2 group-hover:text-primary transition-colors duration-200 flex-1 min-w-0" title={rotina.titulo}>
+            {/* Icon based on type */}
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isModelo ? 'bg-primary' : 'bg-accent'} animate-pulse`} />
+            <span className="truncate">{rotina.titulo}</span>
+          </CardTitle>
+        </div>
+        {rotina.descricao && (
+          <CardDescription 
+            className="text-xs text-zinc-500 leading-relaxed overflow-hidden"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              textOverflow: 'ellipsis'
+            }}
+            title={rotina.descricao}
+          >
+            {rotina.descricao}
+          </CardDescription>
+        )}
       </CardHeader>
       
       <CardContent className="flex-grow pt-2 pb-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <Badge 
             variant="secondary" 
-            className="bg-sky-100 text-sky-700 border border-sky-200 text-xs font-medium"
+            className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-medium"
           >
             {`${diasDeTreinoCount} Dia${diasDeTreinoCount !== 1 ? 's' : ''}`}
           </Badge>
@@ -157,7 +170,7 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <ActionButton 
             title="Visualizar" 
             onClick={() => onView(rotina)}
