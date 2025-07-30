@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter'; // Removed Link, kept useLocation
+import { motion, AnimatePresence } from 'framer-motion';
 import { fetchWithAuth, apiRequest } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -189,8 +190,25 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
 };
 
 
-const InfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: React.ReactNode }) => ( <div className="flex items-start text-sm py-2 border-b border-slate-100 dark:border-slate-800"> <Icon className="h-4 w-4 mr-3 mt-0.5 text-slate-500" /> <span className="font-medium text-slate-600 dark:text-slate-400 w-32">{label}:</span> <span className="text-slate-900 dark:text-slate-100">{value || <span className="italic text-slate-400">Não informado</span>}</span> </div> );
-const KpiCard = ({ title, value, icon: Icon }: { title: string, value: string | number, icon: React.ElementType }) => ( <Card className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"> <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> <CardTitle className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</CardTitle> <Icon className="h-4 w-4 text-slate-500" /> </CardHeader> <CardContent> <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">{value}</div> </CardContent> </Card> );
+const InfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: React.ReactNode }) => ( 
+    <div className="flex items-start text-sm py-3 border-b border-gray-100 dark:border-gray-800 last:border-b-0"> 
+        <Icon className="h-4 w-4 mr-3 mt-0.5 text-gray-500 dark:text-gray-400" /> 
+        <span className="font-medium text-gray-600 dark:text-gray-400 w-32">{label}:</span> 
+        <span className="text-gray-900 dark:text-gray-100 flex-1">{value || <span className="italic text-gray-400">Não informado</span>}</span> 
+    </div> 
+);
+
+const KpiCard = ({ title, value, icon: Icon }: { title: string, value: string | number, icon: React.ElementType }) => ( 
+    <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200"> 
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> 
+            <CardTitle className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{title}</CardTitle> 
+            <Icon className="h-4 w-4 text-gray-500 dark:text-gray-400" /> 
+        </CardHeader> 
+        <CardContent> 
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-50">{value}</div> 
+        </CardContent> 
+    </Card> 
+);
 
 const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChange }) => {
     const queryClient = useQueryClient();
@@ -359,69 +377,173 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
 
     return (
         <>
-            <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-3xl p-0" aria-describedby="aluno-modal-description">
-                    <div className="flex">
-                        <div className="w-1/3 bg-slate-50 dark:bg-slate-900/50 p-6 border-r dark:border-slate-800 hidden md:flex flex-col">
-                            <div className="flex flex-col items-center text-center"><Avatar className="h-24 w-24 mb-4 border-4 border-primary/50"><AvatarFallback className="text-3xl bg-slate-200 dark:bg-slate-700 text-primary">{getInitials(aluno.nome)}</AvatarFallback></Avatar><h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{aluno.nome}</h2><p className="text-sm text-slate-500 dark:text-slate-400">{aluno.email}</p><Badge variant={aluno.status === "active" ? "success" : "destructive"} className="mt-3">{aluno.status === "active" ? "Ativo" : "Inativo"}</Badge></div>
-                            <div className="mt-8 space-y-4">
-                                <InfoItem icon={Mail} label="Email" value={aluno.email} />
-                                <InfoItem icon={Phone} label="Telefone" value={aluno.phone} />
-                                
-                                {trainerPlanStatus && (
-                                    <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                                        <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">Informações do Plano</h3>
-                                        <InfoItem 
-                                            icon={Crown} 
-                                            label="Plano" 
-                                            value={trainerPlanStatus.plano?.nome || "Sem plano ativo"} 
-                                        />
-                                        {trainerPlanStatus.tokensAvulsos > 0 && (
-                                            <InfoItem 
-                                                icon={Zap} 
-                                                label="Tokens Avulsos" 
-                                                value={`${trainerPlanStatus.tokensAvulsos} disponíveis`} 
-                                            />
+            <AnimatePresence>
+                {open && (
+                    <Dialog open={open} onOpenChange={onOpenChange}>
+                        <DialogContent className="max-w-4xl p-0 border-0 overflow-hidden bg-white dark:bg-gray-900 rounded-2xl shadow-2xl" aria-describedby="aluno-modal-description">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
+                                className="flex flex-col md:flex-row"
+                            >
+                                {/* Sidebar com informações do aluno */}
+                                <div className="w-full md:w-1/3 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800 p-8 border-r dark:border-gray-700">
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.1 }}
+                                        className="flex flex-col items-center text-center"
+                                    >
+                                        <Avatar className="h-28 w-28 mb-6 ring-4 ring-primary/20 shadow-lg">
+                                            <AvatarFallback className="text-4xl bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-bold">
+                                                {getInitials(aluno.nome)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{aluno.nome}</h2>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{aluno.email}</p>
+                                        <Badge 
+                                            variant={aluno.status === "active" ? "success" : "destructive"} 
+                                            className="text-xs px-3 py-1 rounded-full"
+                                        >
+                                            {aluno.status === "active" ? "Ativo" : "Inativo"}
+                                        </Badge>
+                                    </motion.div>
+                                    
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.2 }}
+                                        className="mt-8 space-y-4"
+                                    >
+                                        <InfoItem icon={Mail} label="Email" value={aluno.email} />
+                                        <InfoItem icon={Phone} label="Telefone" value={aluno.phone} />
+                                        
+                                        {trainerPlanStatus && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: 0.3 }}
+                                                className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700"
+                                            >
+                                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wider">Informações do Plano</h3>
+                                                <div className="space-y-3">
+                                                    <InfoItem 
+                                                        icon={Crown} 
+                                                        label="Plano" 
+                                                        value={trainerPlanStatus.plano?.nome || "Sem plano ativo"} 
+                                                    />
+                                                    {trainerPlanStatus.tokensAvulsos > 0 && (
+                                                        <InfoItem 
+                                                            icon={Zap} 
+                                                            label="Tokens Avulsos" 
+                                                            value={`${trainerPlanStatus.tokensAvulsos} disponíveis`} 
+                                                        />
+                                                    )}
+                                                    <InfoItem 
+                                                        icon={Users} 
+                                                        label="Vagas" 
+                                                        value={`${trainerPlanStatus.alunosAtivos}/${trainerPlanStatus.limiteAtual}`} 
+                                                    />
+                                                </div>
+                                            </motion.div>
                                         )}
-                                        <InfoItem 
-                                            icon={Users} 
-                                            label="Vagas" 
-                                            value={`${trainerPlanStatus.alunosAtivos}/${trainerPlanStatus.limiteAtual}`} 
-                                        />
+                                    </motion.div>
+                                </div>
+
+                                {/* Conteúdo principal */}
+                                <div className="w-full md:w-2/3 p-8 flex flex-col">
+                                    <DialogHeader className="md:hidden mb-6 text-center">
+                                        <DialogTitle className="text-2xl font-bold">{aluno.nome}</DialogTitle>
+                                        <DialogDescription id="aluno-modal-description">
+                                            Informações detalhadas do aluno, incluindo dados pessoais, rotinas de treino e histórico de atividades
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    
+                                    <div id="aluno-modal-description" className="hidden md:block sr-only">
+                                        Informações detalhadas do aluno {aluno.nome}, incluindo dados pessoais, rotinas de treino e histórico de atividades
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="w-full md:w-2/3 p-6 flex flex-col">
-                            <DialogHeader className="md:hidden mb-4 text-center">
-                                <DialogTitle>{aluno.nome}</DialogTitle>
-                                <DialogDescription id="aluno-modal-description">
-                                    Informações detalhadas do aluno, incluindo dados pessoais, rotinas de treino e histórico de atividades
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div id="aluno-modal-description" className="hidden md:block sr-only">
-                                Informações detalhadas do aluno {aluno.nome}, incluindo dados pessoais, rotinas de treino e histórico de atividades
-                            </div>
-                            <div className="grid grid-cols-3 gap-4 mb-6"><KpiCard title="Frequência" value={`${frequenciaSemanal}/sem`} icon={BarChart} /><KpiCard title="PSE Médio" value={pseMedio.toFixed(1)} icon={Sigma} /><KpiCard title="Progresso" value={`${progressoFicha}%`} icon={CheckCircle2} /></div>
-                            {progressoFicha > 0 && <Progress value={progressoFicha} className="w-full h-2 mb-6" />}
-                            <Tabs defaultValue="detalhes" className="w-full flex-grow" onValueChange={setActiveTab}>
-                                <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="detalhes">Detalhes</TabsTrigger><TabsTrigger value="rotinas">Rotinas</TabsTrigger><TabsTrigger value="historico">Histórico</TabsTrigger></TabsList>
-                                <TabsContent value="detalhes" className="mt-4 pr-2 h-[250px] overflow-y-auto"><div className="space-y-1"><InfoItem icon={Target} label="Objetivo" value={aluno.goal} /><InfoItem icon={Cake} label="Nascimento" value={formatDateBR(aluno.birthDate)} /><InfoItem icon={Weight} label="Peso" value={`${aluno.weight} kg`} /><InfoItem icon={Ruler} label="Altura" value={`${aluno.height} cm`} /><InfoItem icon={User} label="Gênero" value={aluno.gender} /><InfoItem icon={CalendarDays} label="Início" value={formatDateBR(aluno.startDate)} /></div></TabsContent>
-                                <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} /></TabsContent>
-                                <TabsContent value="historico"><HistoricoTab alunoId={aluno._id} isActive={activeTab === "historico"} /></TabsContent>
-                            </Tabs>
-                            <DialogFooter className="mt-auto pt-6">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => navigate(`/alunos/editar/${aluno._id}`)}
-                                >
-                                    <Edit className="mr-2 h-4 w-4" /> Editar Aluno
-                                </Button>
-                            </DialogFooter>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                                    
+                                    {/* KPIs Cards */}
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.2 }}
+                                        className="grid grid-cols-3 gap-4 mb-8"
+                                    >
+                                        <KpiCard title="Frequência" value={`${frequenciaSemanal}/sem`} icon={BarChart} />
+                                        <KpiCard title="PSE Médio" value={pseMedio.toFixed(1)} icon={Sigma} />
+                                        <KpiCard title="Progresso" value={`${progressoFicha}%`} icon={CheckCircle2} />
+                                    </motion.div>
+                                    
+                                    {progressoFicha > 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scaleX: 0 }}
+                                            animate={{ opacity: 1, scaleX: 1 }}
+                                            transition={{ delay: 0.3, duration: 0.6 }}
+                                            className="mb-8"
+                                        >
+                                            <Progress value={progressoFicha} className="w-full h-3 rounded-full" />
+                                        </motion.div>
+                                    )}
+                                    
+                                    {/* Tabs */}
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.4 }}
+                                        className="flex-grow"
+                                    >
+                                        <Tabs defaultValue="detalhes" className="w-full" onValueChange={setActiveTab}>
+                                            <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                                                <TabsTrigger value="detalhes" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">Detalhes</TabsTrigger>
+                                                <TabsTrigger value="rotinas" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">Rotinas</TabsTrigger>
+                                                <TabsTrigger value="historico" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">Histórico</TabsTrigger>
+                                            </TabsList>
+                                            
+                                            <TabsContent value="detalhes" className="mt-6 pr-2 h-[280px] overflow-y-auto">
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ duration: 0.3 }}
+                                                    className="space-y-1"
+                                                >
+                                                    <InfoItem icon={Target} label="Objetivo" value={aluno.goal} />
+                                                    <InfoItem icon={Cake} label="Nascimento" value={formatDateBR(aluno.birthDate)} />
+                                                    <InfoItem icon={Weight} label="Peso" value={`${aluno.weight} kg`} />
+                                                    <InfoItem icon={Ruler} label="Altura" value={`${aluno.height} cm`} />
+                                                    <InfoItem icon={User} label="Gênero" value={aluno.gender} />
+                                                    <InfoItem icon={CalendarDays} label="Início" value={formatDateBR(aluno.startDate)} />
+                                                </motion.div>
+                                            </TabsContent>
+                                            
+                                            <TabsContent value="rotinas">
+                                                <RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} />
+                                            </TabsContent>
+                                            
+                                            <TabsContent value="historico">
+                                                <HistoricoTab alunoId={aluno._id} isActive={activeTab === "historico"} />
+                                            </TabsContent>
+                                        </Tabs>
+                                    </motion.div>
+                                    
+                                    {/* Footer com botão de editar */}
+                                    <DialogFooter className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => navigate(`/alunos/editar/${aluno._id}`)}
+                                            className="rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                        >
+                                            <Edit className="mr-2 h-4 w-4" /> Editar Aluno
+                                        </Button>
+                                    </DialogFooter>
+                                </div>
+                            </motion.div>
+                        </DialogContent>
+                    </Dialog>
+                )}
+            </AnimatePresence>
 
             {rotinaDetalhada && (
                 <RotinaViewModal isOpen={isRotinaViewModalOpen} onClose={() => { setIsRotinaViewModalOpen(false); setRotinaIdParaVer(null); }} rotina={rotinaDetalhada} onEdit={handleEditFromView} onAssign={() => {}} onPlayVideo={handlePlayVideo} onConvertToModel={handleConvertToModelFromRotinaView} />
