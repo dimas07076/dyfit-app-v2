@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient, QueryKey } from "@tanstack/react
 import { Loader2, CalendarIcon, Folder as FolderIcon, Activity, PlusCircle, Trash2, GripVertical, Edit, ListPlus, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Aluno } from '@/types/aluno';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 
 import type { RotinaListagemItem, DiaDeTreinoDetalhado } from '@/types/treinoOuRotinaTypes';
 import SelectExerciseModal, { BibliotecaExercicio } from './SelectExerciseModal';
@@ -164,8 +165,25 @@ export default function TreinoFormModal({
 
   const [diasDeTreinoState, setDiasDeTreinoState] = useState<DiaDeTreinoStateItem[]>([]);
   const [showDiaForm, setShowDiaForm] = useState(false);
-  const [diaFormValues, setDiaFormValues] = useState<DiaDeTreinoFormValues>({ identificadorDia: '', nomeSubFicha: '' });
   const [editingDiaTempId, setEditingDiaTempId] = useState<string | null>(null);
+
+  // Form persistence for dia form (when adding/editing workout days)
+  const diaFormPersistence = useFormPersistence({
+    formKey: 'treinoFormModal_dia',
+    initialValues: { identificadorDia: '', nomeSubFicha: '' },
+    enabled: showDiaForm && !isEditing
+  });
+
+  // Use persisted values or default for dia form
+  const diaFormValues = isEditing ? 
+    { identificadorDia: '', nomeSubFicha: '' } : 
+    diaFormPersistence.values;
+
+  const setDiaFormValues = (newValues: Partial<DiaDeTreinoFormValues>) => {
+    if (!isEditing) {
+      diaFormPersistence.updateFields(newValues);
+    }
+  };
 
   const [isSelectExerciseModalOpen, setIsSelectExerciseModalOpen] = useState(false);
   const [diaAtivoParaAdicionarExercicio, setDiaAtivoParaAdicionarExercicio] = useState<string | null>(null);
@@ -182,7 +200,11 @@ export default function TreinoFormModal({
   const watchedTipoOrganizacao = form.watch('tipoOrganizacaoRotina');
   const watchedTipoRotina = form.watch('tipo');
 
-  useEffect(() => { if (showDiaForm) { setDiaFormValues(prev => ({ ...prev, identificadorDia: '' })); } }, [watchedTipoOrganizacao, showDiaForm]);
+  useEffect(() => { if (showDiaForm) { 
+    if (!isEditing) {
+      diaFormPersistence.updateField('identificadorDia', ''); 
+    }
+  } }, [watchedTipoOrganizacao, showDiaForm]);
 
   const { data: pastas = [], isLoading: isLoadingPastas } = useQuery<Pasta[], Error>({ queryKey: ["pastasParaRotinaForm", watchedTipoRotina], queryFn: () => apiRequest<Pasta[]>("GET", "/api/pastas/treinos"), enabled: open && watchedTipoRotina === "modelo", });
   const { data: alunosFetched = [], isLoading: isLoadingAlunos } = useQuery<Aluno[], Error>({ queryKey: ["alunosParaRotinaForm", watchedTipoRotina], queryFn: async () => apiRequest<Aluno[]>("GET", "/api/alunos").then(data => Array.isArray(data) ? data : []), enabled: open && watchedTipoRotina === 'individual', initialData: watchedTipoRotina === 'individual' ? alunosProp : undefined, });
@@ -317,7 +339,11 @@ export default function TreinoFormModal({
         form.reset(valoresParaReset);
         setDiasDeTreinoState([]);
       }
-      setShowDiaForm(false); setDiaFormValues({ identificadorDia: '', nomeSubFicha: '' }); setEditingDiaTempId(null);
+      setShowDiaForm(false); 
+      if (!isEditing) {
+        diaFormPersistence.resetForm();
+      }
+      setEditingDiaTempId(null);
       setIsSelectExerciseModalOpen(false); setDiaAtivoParaAdicionarExercicio(null);
     } else {
         // console.log("[TreinoFormModal useEffect] Modal FECHADO, não faz nada no form.reset.");
@@ -370,7 +396,12 @@ export default function TreinoFormModal({
   }, [currentWatchedTipo, rotinaParaEditar, alunoIdProp, form]);
 
 
-  const handleDiaInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { const { name, value } = e.target; setDiaFormValues(prev => ({ ...prev, [name]: value })); };
+  const handleDiaInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { 
+    const { name, value } = e.target; 
+    if (!isEditing) {
+      diaFormPersistence.updateField(name as keyof DiaDeTreinoFormValues, value);
+    }
+  };
 
   const handleAddOrUpdateDia = () => {
     if (!diaFormValues.identificadorDia || !diaFormValues.identificadorDia.trim()) { toast({ title: "Erro", description: "O identificador do dia é obrigatório.", variant: "destructive" }); return; }
@@ -388,10 +419,20 @@ export default function TreinoFormModal({
         }
         return newOrUpdatedDias.map((d, i) => ({ ...d, ordemNaRotina: i }));
     });
-    setShowDiaForm(false); setDiaFormValues({ identificadorDia: '', nomeSubFicha: '' }); setEditingDiaTempId(null);
+    setShowDiaForm(false); 
+    if (!isEditing) {
+      diaFormPersistence.resetForm();
+    }
+    setEditingDiaTempId(null);
   };
 
-  const handleEditDia = (dia: DiaDeTreinoStateItem) => { setDiaFormValues({ identificadorDia: dia.identificadorDia, nomeSubFicha: dia.nomeSubFicha || '' }); setEditingDiaTempId(dia.tempId); setShowDiaForm(true); };
+  const handleEditDia = (dia: DiaDeTreinoStateItem) => { 
+    if (!isEditing) {
+      diaFormPersistence.updateFields({ identificadorDia: dia.identificadorDia, nomeSubFicha: dia.nomeSubFicha || '' }); 
+    }
+    setEditingDiaTempId(dia.tempId); 
+    setShowDiaForm(true); 
+  };
   const handleRemoveDia = (tempIdToRemove: string) => { setDiasDeTreinoState(prevDias => prevDias.filter(d => d.tempId !== tempIdToRemove).map((d, index) => ({ ...d, ordemNaRotina: index }))); };
   const handleOpenSelectExerciseModal = (diaTempId: string) => { setDiaAtivoParaAdicionarExercicio(diaTempId); setIsSelectExerciseModalOpen(true); };
 
@@ -445,6 +486,10 @@ export default function TreinoFormModal({
     onSuccess: (savedRotina) => {
         const currentIsEditingOnSuccess = !!(rotinaParaEditar && rotinaParaEditar._id);
         toast({ title: "Sucesso!", description: `Rotina "${savedRotina.titulo}" ${currentIsEditingOnSuccess ? 'atualizada' : 'criada'} com sucesso.`});
+        // Clear form persistence on successful save (for new routines)
+        if (!currentIsEditingOnSuccess) {
+          diaFormPersistence.clearPersistence();
+        }
         queryClientHook.invalidateQueries({ queryKey: TREINOS_QUERY_KEY });
         if (currentIsEditingOnSuccess && rotinaParaEditar?._id) { queryClientHook.invalidateQueries({ queryKey: [`/api/treinos/${rotinaParaEditar._id}`] }); }
         if (form.getValues("tipo") === 'modelo') { queryClientHook.invalidateQueries({ queryKey: ["pastasParaRotinaForm"] }); queryClientHook.invalidateQueries({ queryKey: ["/api/pastas/treinos"] });}
@@ -470,7 +515,15 @@ export default function TreinoFormModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(openStatus) => { if (!openStatus) onClose(); }}>
+    <Dialog open={open} onOpenChange={(openStatus) => { 
+      if (!openStatus) {
+        // Clear dia form persistence when modal is closed/cancelled (for new routines)
+        if (!isEditing) {
+          diaFormPersistence.clearPersistence();
+        }
+        onClose(); 
+      } 
+    }}>
       <DialogContent className="sm:max-w-3xl w-[95vw] md:w-[80vw] lg:w-[70vw] xl:w-[60vw] max-h-[95vh] flex flex-col p-0">
         <DialogHeader className="p-4 md:p-6 pb-4 border-b bg-background z-10 shrink-0">
           <DialogTitle>{isEditing ? "Editar Rotina de Treino" : "Nova Rotina de Treino"}</DialogTitle>
@@ -481,7 +534,7 @@ export default function TreinoFormModal({
             <form id="rotinaFormHandler" onSubmit={form.handleSubmit(onSubmit)} className="px-4 md:px-6 py-4 space-y-6">
                 {/* Campos de metadados da rotina */}
                 <FormField control={form.control} name="titulo" render={({ field }) => ( <FormItem><FormLabel>Nome da Rotina*</FormLabel><FormControl><Input placeholder="Ex: Programa de Hipertrofia Semanal" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                <FormField control={form.control} name="tipoOrganizacaoRotina" render={({ field }) => ( <FormItem><FormLabel>Organização dos Dias de Treino*</FormLabel><Select onValueChange={(value) => { field.onChange(value); if (showDiaForm) { setDiaFormValues(prev => ({...prev, identificadorDia: ''})); } }} value={field.value ?? "numerico"} > <FormControl><SelectTrigger><SelectValue placeholder="Como os treinos serão divididos?" /></SelectTrigger></FormControl> <SelectContent> {OPCOES_TIPO_DOS_TREINOS.map(opcao => ( <SelectItem key={opcao.value} value={opcao.value}>{opcao.label}</SelectItem> ))} </SelectContent> </Select> <FormDescription className="text-xs">Define como os dias (Ex: A, B, C ou Seg, Ter, Qua) são gerenciados.</FormDescription> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="tipoOrganizacaoRotina" render={({ field }) => ( <FormItem><FormLabel>Organização dos Dias de Treino*</FormLabel><Select onValueChange={(value) => { field.onChange(value); if (showDiaForm && !isEditing) { diaFormPersistence.updateField('identificadorDia', ''); } }} value={field.value ?? "numerico"} > <FormControl><SelectTrigger><SelectValue placeholder="Como os treinos serão divididos?" /></SelectTrigger></FormControl> <SelectContent> {OPCOES_TIPO_DOS_TREINOS.map(opcao => ( <SelectItem key={opcao.value} value={opcao.value}>{opcao.label}</SelectItem> ))} </SelectContent> </Select> <FormDescription className="text-xs">Define como os dias (Ex: A, B, C ou Seg, Ter, Qua) são gerenciados.</FormDescription> <FormMessage /> </FormItem> )}/>
                 <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Observações/Instruções Gerais</FormLabel><FormControl><Textarea placeholder="Detalhes adicionais sobre a rotina, recomendações, etc." {...field} value={field.value ?? ""} rows={2} /></FormControl><FormMessage /></FormItem> )}/>
                 <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo de Rotina*</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={(isEditing && rotinaParaEditar?.tipo === 'individual') || !!alunoIdProp}><FormControl><SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="modelo">Modelo (Template)</SelectItem><SelectItem value="individual">Individual (Para um aluno)</SelectItem></SelectContent></Select>{((isEditing && rotinaParaEditar?.tipo === 'individual') || !!alunoIdProp) && <FormDescription className="text-xs">O tipo da rotina não pode ser alterado neste contexto.</FormDescription>}<FormMessage /></FormItem> )}/>
                 
@@ -564,8 +617,20 @@ export default function TreinoFormModal({
                 
                 {/* Seção de Dias de Treino */}
                 <div className="pt-6 mt-6 border-t dark:border-gray-700">
-                    <div className="flex justify-between items-center mb-4"> <h3 className="text-lg font-semibold">Dias de Treino da Rotina</h3> <Button type="button" size="sm" variant="outline" onClick={() => { setDiaFormValues({ identificadorDia: '', nomeSubFicha: '' }); setEditingDiaTempId(null); setShowDiaForm(true); }}> <PlusCircle className="w-4 h-4 mr-2"/> Adicionar Dia de Treino </Button> </div>
-                    {showDiaForm && ( <Card className="p-4 mb-4 border-dashed dark:border-gray-600 bg-slate-50 dark:bg-slate-800/30"> <CardContent className="p-0 space-y-4"> <div> <Label htmlFor="identificadorDiaForm" className="text-sm font-medium"> {watchedTipoOrganizacao === 'diasDaSemana' && "Selecione o Dia da Semana*"} {watchedTipoOrganizacao === 'numerico' && "Número do Dia* (Ex: 1)"} {watchedTipoOrganizacao === 'livre' && "Identificador do Dia* (Ex: Peito/Tríceps)"} </Label> {watchedTipoOrganizacao === 'diasDaSemana' ? ( <Select value={diaFormValues.identificadorDia} onValueChange={(value) => { setDiaFormValues(prev => ({ ...prev, identificadorDia: value })); }} > <SelectTrigger className="mt-1"> <SelectValue placeholder="Selecione o dia" /> </SelectTrigger> <SelectContent> {diasDaSemanaOptions.map(opt => ( <SelectItem key={opt.value} value={opt.value} disabled={diasDaSemanaUtilizados.includes(opt.value) && diaFormValues.identificadorDia !== opt.value} > {opt.label} </SelectItem> ))} </SelectContent> </Select> ) : watchedTipoOrganizacao === 'numerico' ? ( <Input id="identificadorDiaForm" name="identificadorDia" type="number" value={diaFormValues.identificadorDia} onChange={handleDiaInputChange} placeholder={`Ex: ${diasDeTreinoState.filter(d => !editingDiaTempId || d.tempId !== editingDiaTempId).length + 1}`} className="mt-1" min="1" /> ) : ( <Input id="identificadorDiaForm" name="identificadorDia" value={diaFormValues.identificadorDia} onChange={handleDiaInputChange} placeholder="Ex: Peito e Tríceps, Dia de Força" className="mt-1" /> )} <p className="text-xs text-muted-foreground mt-1"> {watchedTipoOrganizacao === 'diasDaSemana' && "Selecione um dia da semana."} {watchedTipoOrganizacao === 'numerico' && `Sugestão para próximo dia: ${diasDeTreinoState.filter(d => !editingDiaTempId || d.tempId !== editingDiaTempId).length + 1}`} {watchedTipoOrganizacao === 'livre' && "Use um nome curto e descritivo."} </p> </div> <div> <Label htmlFor="nomeSubFichaForm" className="text-sm font-medium">Nome Específico do Treino (Opcional)</Label> <Input id="nomeSubFichaForm" name="nomeSubFicha" value={diaFormValues.nomeSubFicha ?? ""} onChange={handleDiaInputChange} placeholder="Ex: Foco em Peito e Tríceps" className="mt-1" /> </div> <div className="flex justify-end gap-2 pt-2"> <Button type="button" variant="ghost" onClick={() => {setShowDiaForm(false); setEditingDiaTempId(null); setDiaFormValues({identificadorDia: '', nomeSubFicha: ''});}}>Cancelar</Button> <Button type="button" onClick={handleAddOrUpdateDia}>{editingDiaTempId ? "Atualizar Dia" : "Confirmar Dia"}</Button> </div> </CardContent> </Card> )}
+                    <div className="flex justify-between items-center mb-4"> <h3 className="text-lg font-semibold">Dias de Treino da Rotina</h3> <Button type="button" size="sm" variant="outline" onClick={() => { 
+      if (!isEditing) {
+        diaFormPersistence.resetForm();
+      }
+      setEditingDiaTempId(null); 
+      setShowDiaForm(true); 
+    }}> <PlusCircle className="w-4 h-4 mr-2"/> Adicionar Dia de Treino </Button> </div>
+                    {showDiaForm && ( <Card className="p-4 mb-4 border-dashed dark:border-gray-600 bg-slate-50 dark:bg-slate-800/30"> <CardContent className="p-0 space-y-4"> <div> <Label htmlFor="identificadorDiaForm" className="text-sm font-medium"> {watchedTipoOrganizacao === 'diasDaSemana' && "Selecione o Dia da Semana*"} {watchedTipoOrganizacao === 'numerico' && "Número do Dia* (Ex: 1)"} {watchedTipoOrganizacao === 'livre' && "Identificador do Dia* (Ex: Peito/Tríceps)"} </Label> {watchedTipoOrganizacao === 'diasDaSemana' ? ( <Select value={diaFormValues.identificadorDia} onValueChange={(value) => { setDiaFormValues({ identificadorDia: value }); }} > <SelectTrigger className="mt-1"> <SelectValue placeholder="Selecione o dia" /> </SelectTrigger> <SelectContent> {diasDaSemanaOptions.map(opt => ( <SelectItem key={opt.value} value={opt.value} disabled={diasDaSemanaUtilizados.includes(opt.value) && diaFormValues.identificadorDia !== opt.value} > {opt.label} </SelectItem> ))} </SelectContent> </Select> ) : watchedTipoOrganizacao === 'numerico' ? ( <Input id="identificadorDiaForm" name="identificadorDia" type="number" value={diaFormValues.identificadorDia} onChange={handleDiaInputChange} placeholder={`Ex: ${diasDeTreinoState.filter(d => !editingDiaTempId || d.tempId !== editingDiaTempId).length + 1}`} className="mt-1" min="1" /> ) : ( <Input id="identificadorDiaForm" name="identificadorDia" value={diaFormValues.identificadorDia} onChange={handleDiaInputChange} placeholder="Ex: Peito e Tríceps, Dia de Força" className="mt-1" /> )} <p className="text-xs text-muted-foreground mt-1"> {watchedTipoOrganizacao === 'diasDaSemana' && "Selecione um dia da semana."} {watchedTipoOrganizacao === 'numerico' && `Sugestão para próximo dia: ${diasDeTreinoState.filter(d => !editingDiaTempId || d.tempId !== editingDiaTempId).length + 1}`} {watchedTipoOrganizacao === 'livre' && "Use um nome curto e descritivo."} </p> </div> <div> <Label htmlFor="nomeSubFichaForm" className="text-sm font-medium">Nome Específico do Treino (Opcional)</Label> <Input id="nomeSubFichaForm" name="nomeSubFicha" value={diaFormValues.nomeSubFicha ?? ""} onChange={handleDiaInputChange} placeholder="Ex: Foco em Peito e Tríceps" className="mt-1" /> </div> <div className="flex justify-end gap-2 pt-2"> <Button type="button" variant="ghost" onClick={() => {
+  setShowDiaForm(false); 
+  setEditingDiaTempId(null); 
+  if (!isEditing) {
+    diaFormPersistence.resetForm();
+  }
+}}>Cancelar</Button> <Button type="button" onClick={handleAddOrUpdateDia}>{editingDiaTempId ? "Atualizar Dia" : "Confirmar Dia"}</Button> </div> </CardContent> </Card> )}
                     {diasDeTreinoState.length === 0 && !showDiaForm && ( <div className="text-center py-6"> <Activity className="mx-auto h-12 w-12 text-gray-400" /> <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Nenhum dia de treino adicionado</h3> <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Comece adicionando o primeiro dia de treino da rotina.</p> </div> )}
                     
                     {diasDeTreinoState.length > 0 && (
