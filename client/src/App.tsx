@@ -28,6 +28,7 @@ const EditStudentPage = lazy(() => import("@/pages/alunos/edit"));
 const ExercisesIndex = lazy(() => import("@/pages/exercises/index"));
 const SessionsPage = lazy(() => import("@/pages/sessoes/index"));
 const TreinosPage = lazy(() => import("@/pages/treinos/index"));
+const MeuPlanoPage = lazy(() => import("@/pages/meu-plano"));
 const ProfileEditPage = lazy(() => import('@/pages/perfil/editar'));
 const PersonalLoginPage = lazy(() => import("@/pages/login")); 
 const LandingLoginPage = lazy(() => import("@/pages/public/LandingLoginPage")); 
@@ -82,6 +83,38 @@ function AppContent() {
   const { aluno, isLoadingAluno } = useAluno();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
+
+  // Route persistence implementation
+  useEffect(() => {
+    // Only persist routes for authenticated users (not login pages)
+    if ((user || aluno) && !location.startsWith("/login")) {
+      localStorage.setItem("lastPath", location);
+    }
+
+    // Restore last path when user returns to app
+    const handleVisibilityChange = () => {
+      if (!document.hidden && (user || aluno)) {
+        const lastPath = localStorage.getItem("lastPath");
+        if (lastPath && lastPath !== location && !location.startsWith("/login")) {
+          // Only restore if it's a valid path for the current user type
+          const isValidPath = user ? 
+            (lastPath.startsWith("/") && !lastPath.startsWith("/aluno/") && !lastPath.startsWith("/login")) :
+            (lastPath.startsWith("/aluno/") && !lastPath.startsWith("/login"));
+          
+          if (isValidPath) {
+            navigate(lastPath);
+          }
+        }
+      }
+    };
+
+    // Listen for tab/window visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user, aluno, location, navigate]);
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
@@ -197,8 +230,44 @@ function AdminApp() {
     </MainLayout> 
   );
 }
-function PersonalApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <ProtectedRoute path="/" component={Dashboard} /> <ProtectedRoute path="/alunos" component={StudentsIndex} /> <ProtectedRoute path="/alunos/novo" component={NewStudent} /> <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> <ProtectedRoute path="/treinos" component={TreinosPage} /> <ProtectedRoute path="/exercises" component={ExercisesIndex} /> <ProtectedRoute path="/sessoes" component={SessionsPage} /> <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> <Route path="/admin/:rest*"><Redirect to="/" /></Route> <Route component={NotFound} /> </Switch> </Suspense> </MainLayout> );}
-function AlunoApp() { return ( <MainLayout> <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> <Switch> <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> <Route><Redirect to="/aluno/dashboard" /></Route> </Switch> </Suspense> </MainLayout> );}
+
+function PersonalApp() { 
+  return ( 
+    <MainLayout> 
+      <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+        <Switch> 
+          <ProtectedRoute path="/" component={Dashboard} /> 
+          <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
+          <ProtectedRoute path="/alunos" component={StudentsIndex} /> 
+          <ProtectedRoute path="/alunos/novo" component={NewStudent} /> 
+          <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> 
+          <ProtectedRoute path="/treinos" component={TreinosPage} /> 
+          <ProtectedRoute path="/exercises" component={ExercisesIndex} /> 
+          <ProtectedRoute path="/sessoes" component={SessionsPage} /> 
+          <ProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> 
+          <Route path="/admin/:rest*"><Redirect to="/" /></Route> 
+          <Route component={NotFound} /> 
+        </Switch> 
+      </Suspense> 
+    </MainLayout> 
+  );
+}
+
+function AlunoApp() { 
+  return ( 
+    <MainLayout> 
+      <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
+        <Switch> 
+          <AlunoProtectedRoute path="/aluno/dashboard" component={AlunoDashboardPage} /> 
+          <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> 
+          <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> 
+          <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> 
+          <Route><Redirect to="/aluno/dashboard" /></Route> 
+        </Switch> 
+      </Suspense> 
+    </MainLayout> 
+  );
+}
 
 function PublicRoutes() {
   return (
