@@ -61,14 +61,14 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
   );
 
   return (
-    <Card className="group card-hover-lift flex flex-col h-full shadow-md border border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm">
+    <Card className="group card-hover-lift flex flex-col h-full shadow-md border border-border/60 bg-amber-50 backdrop-blur-sm">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-bold text-foreground flex items-center gap-2 group-hover:text-primary transition-colors duration-200" title={rotina.titulo}>
+        <CardTitle className="text-base font-bold text-zinc-800 flex items-center gap-2 group-hover:text-primary transition-colors duration-200" title={rotina.titulo}>
           {/* Icon based on type */}
           <div className={`w-2 h-2 rounded-full ${isModelo ? 'bg-primary' : 'bg-accent'} animate-pulse`} />
           <span className="truncate">{rotina.titulo}</span>
         </CardTitle>
-        <CardDescription className="text-xs text-muted-foreground h-8 leading-relaxed" title={rotina.descricao ?? undefined}>
+        <CardDescription className="text-xs text-zinc-500 truncate w-full max-w-full leading-relaxed" title={rotina.descricao ?? undefined}>
           {rotina.descricao || 'Sem descrição.'}
         </CardDescription>
       </CardHeader>
@@ -77,7 +77,7 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         <div className="flex flex-wrap gap-2">
           <Badge 
             variant="secondary" 
-            className="bg-gradient-to-r from-muted to-muted/50 border border-border/40 text-xs font-medium"
+            className="bg-sky-100 text-sky-700 border border-sky-200 text-xs font-medium"
           >
             {`${diasDeTreinoCount} Dia${diasDeTreinoCount !== 1 ? 's' : ''}`}
           </Badge>
@@ -85,8 +85,8 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
             variant={isModelo ? 'outline' : 'default'} 
             className={
               isModelo 
-                ? "border-primary/50 text-primary bg-primary/5 hover:bg-primary/10" 
-                : "bg-gradient-to-r from-accent/90 to-accent text-accent-foreground border-transparent hover:from-accent hover:to-accent/90"
+                ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
+                : "bg-amber-100 text-amber-700 border-amber-200"
             }
           >
             {isModelo ? 'Modelo' : 'Individual'}
@@ -94,14 +94,14 @@ export const RotinaCard: React.FC<RotinaCardProps> = ({
         </div>
         
         {!isModelo && alunoNome && (
-            <div className="flex items-center text-sm text-muted-foreground pt-1 bg-muted/30 rounded-lg p-2 border border-border/40">
+            <div className="flex items-center text-sm text-zinc-600 pt-1 bg-zinc-100 rounded-lg p-2 border border-zinc-200">
                 <User className="h-4 w-4 mr-2 shrink-0 text-accent" />
                 <span className="truncate font-medium" title={alunoNome}>{alunoNome}</span>
             </div>
         )}
       </CardContent>
 
-      <CardFooter className="p-3 border-t border-border/40 bg-gradient-to-r from-muted/20 to-muted/10 flex justify-between items-center gap-2 mt-auto rounded-b-lg">
+      <CardFooter className="p-3 border-t border-zinc-200 bg-zinc-50 flex justify-between items-center gap-2 mt-auto rounded-b-lg">
         <div className="flex-1">
           {isModelo && (
             <Popover>

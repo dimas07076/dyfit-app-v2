@@ -6,4 +6,4 @@ node_modules/
 
 # Ignorar diretórios de build do servidor e arquivos compilados
 /server/dist
-/shared/dist
+/shared/distshared/dist/
