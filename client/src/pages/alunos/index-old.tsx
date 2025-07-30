@@ -40,7 +40,7 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
                 </div>
             </div>
             <div className="flex items-center gap-2">
-                <Badge variant={student.status === "active" ? "default" : "destructive"} className="hidden sm:inline-flex">
+                <Badge variant={student.status === "active" ? "success" : "destructive"} className="hidden sm:inline-flex">
                     {student.status === "active" ? "Ativo" : "Inativo"}
                 </Badge>
                 <DropdownMenu>
@@ -66,6 +66,7 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
         </div>
     );
 };
+
 
 export default function StudentsIndex() {
     const { toast } = useToast();
@@ -180,7 +181,7 @@ export default function StudentsIndex() {
                                             <TableCell className="pl-6 font-medium">{student.nome}</TableCell>
                                             <TableCell className="text-muted-foreground">{student.email}</TableCell>
                                             <TableCell>
-                                                <Badge variant={student.status === "active" ? "default" : "destructive"}>
+                                                <Badge variant={student.status === "active" ? "success" : "destructive"}>
                                                     {student.status === "active" ? "Ativo" : "Inativo"}
                                                 </Badge>
                                             </TableCell>
