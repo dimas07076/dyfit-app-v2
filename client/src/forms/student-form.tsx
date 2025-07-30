@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Aluno } from '@/types/aluno';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { useEffect } from 'react';
 
 // --- Funções de Validação (sem alterações) ---
 const requiredNumericString = (fieldName: string) => z.string().min(1, `${fieldName} é obrigatório.`).refine((val) => !isNaN(parseFloat(val.replace(',', '.'))), { message: "Deve ser um número." });
@@ -69,22 +71,70 @@ export interface StudentFormDataProcessed {
     password?: string;
 }
 
-interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; }
+interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; }
 
-export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false }: StudentFormProps) {
+export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel }: StudentFormProps) {
+    // Form persistence for new students only
+    const persistedForm = useFormPersistence({
+        formKey: 'novo_aluno',
+        initialValues: {
+            nome: "", email: "", phone: "", birthDate: "", gender: undefined, goal: "",
+            weight: "", height: "", startDate: "", status: 'active', notes: "",
+            password: "", confirmPassword: ""
+        },
+        enabled: !isEditing // Only persist for new students, not edits
+    });
+
+    // Determine initial values: editing uses initialData, new student uses persisted values
+    const getInitialValues = () => {
+        if (isEditing) {
+            return {
+                nome: initialData?.nome || "", email: initialData?.email || "", phone: initialData?.phone || "",
+                birthDate: initialData?.birthDate ? initialData.birthDate.split('T')[0] : "",
+                gender: initialData?.gender as any || undefined, goal: initialData?.goal || "",
+                weight: initialData?.weight ? String(initialData.weight) : '', height: initialData?.height ? String(initialData.height) : '',
+                startDate: initialData?.startDate ? initialData.startDate.split('T')[0] : "",
+                status: initialData?.status || 'active', notes: initialData?.notes || "",
+                password: "", confirmPassword: ""
+            };
+        } else {
+            // For new students, use persisted values if available
+            return {
+                nome: persistedForm.values.nome || "", 
+                email: persistedForm.values.email || "", 
+                phone: persistedForm.values.phone || "",
+                birthDate: persistedForm.values.birthDate || "",
+                gender: persistedForm.values.gender || undefined, 
+                goal: persistedForm.values.goal || "",
+                weight: persistedForm.values.weight || '', 
+                height: persistedForm.values.height || '',
+                startDate: persistedForm.values.startDate || "",
+                status: persistedForm.values.status || 'active', 
+                notes: persistedForm.values.notes || "",
+                password: persistedForm.values.password || "", 
+                confirmPassword: persistedForm.values.confirmPassword || ""
+            };
+        }
+    };
+
     const form = useForm<StudentFormValues>({
         resolver: zodResolver(createStudentFormSchema(isEditing)),
-        defaultValues: {
-            nome: initialData?.nome || "", email: initialData?.email || "", phone: initialData?.phone || "",
-            birthDate: initialData?.birthDate ? initialData.birthDate.split('T')[0] : "",
-            gender: initialData?.gender as any || undefined, goal: initialData?.goal || "",
-            weight: initialData?.weight ? String(initialData.weight) : '', height: initialData?.height ? String(initialData.height) : '',
-            startDate: initialData?.startDate ? initialData.startDate.split('T')[0] : "",
-            status: initialData?.status || 'active', notes: initialData?.notes || "",
-            password: "",
-            confirmPassword: "",
-        },
+        defaultValues: getInitialValues(),
     });
+
+    // Watch form changes and sync with persistence for new students
+    const watchedValues = form.watch();
+    useEffect(() => {
+        if (!isEditing) {
+            // Only update persistence if form is dirty and has values
+            const hasAnyValue = Object.values(watchedValues).some(value => 
+                value !== undefined && value !== null && value !== ""
+            );
+            if (hasAnyValue) {
+                persistedForm.updateFields(watchedValues);
+            }
+        }
+    }, [watchedValues, isEditing, persistedForm]);
 
     function handleFormSubmit(data: StudentFormValues) {
         const { confirmPassword, ...restOfData } = data;
@@ -94,8 +144,27 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
             height: parseInt(data.height, 10),
             password: data.password && data.password.trim() !== '' ? data.password : undefined,
         };
+        
+        // Clear persistence before submitting for new students
+        if (!isEditing) {
+            persistedForm.clearPersistence();
+        }
+        
         onSubmitProp(processedData);
     }
+
+    const handleCancel = () => {
+        // Clear persistence when cancelled for new students
+        if (!isEditing) {
+            persistedForm.clearPersistence();
+        }
+        
+        if (onCancel) {
+            onCancel();
+        } else {
+            window.history.back();
+        }
+    };
 
     const passwordValue = form.watch('password');
 
@@ -148,7 +217,7 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
                 
                 <Separator className="my-8" />
                 <div className="flex justify-end space-x-3">
-                    <Button variant="outline" type="button" onClick={() => window.history.back()} disabled={isLoading}>Cancelar</Button>
+                    <Button variant="outline" type="button" onClick={handleCancel} disabled={isLoading}>Cancelar</Button>
                     <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditing ? "Salvar Alterações" : "Adicionar Aluno"}</Button>
                 </div>
             </form>
