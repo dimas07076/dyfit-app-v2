@@ -51,18 +51,17 @@ export function StatsCard({
   const getIconBgColor = () => {
     switch (icon) {
       case "students":
-        return "bg-primary/10 text-primary";
+        return "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-500/25";
       case "workouts":
-        return "bg-secondary/10 text-secondary";
+        return "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-indigo-500/25";
       case "sessions":
-        return "bg-accent/10 text-accent";
+        return "bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-purple-500/25";
       case "completion":
-        return "bg-success/10 text-success";
-      // <<< ADIÇÃO: Novo caso de cor para o ícone 'activity' >>>
+        return "bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-500/25";
       case "activity":
-        return "bg-orange-100 text-orange-500";
+        return "bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-orange-500/25";
       default:
-        return "bg-primary/10 text-primary";
+        return "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-500/25";
     }
   };
 
@@ -81,26 +80,55 @@ export function StatsCard({
   };
 
   return (
-    <Card className="p-5 border-0 shadow-md bg-white">
-      <div className="flex justify-between items-center">
-        <div>
-          <p className="text-gray-500 text-sm">{title}</p>
+    <Card className="group relative p-6 border-0 shadow-lg hover:shadow-2xl 
+                   bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm 
+                   transition-all duration-500 ease-out
+                   hover:scale-105 hover:-translate-y-2
+                   rounded-xl overflow-hidden">
+      
+      {/* Gradient background overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-indigo-50/30 to-purple-50/50 
+                     dark:from-blue-900/10 dark:via-indigo-900/5 dark:to-purple-900/10
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      <div className="relative flex justify-between items-start">
+        <div className="flex-1 space-y-3">
+          <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base font-medium leading-relaxed">
+            {title}
+          </p>
           {isLoading ? (
-            <div className="h-8 w-16 bg-gray-200 animate-pulse rounded mt-1"></div>
+            <div className="h-8 md:h-10 w-16 md:w-20 bg-gradient-to-r from-gray-200 to-gray-300 
+                           dark:from-slate-600 dark:to-slate-700 animate-pulse rounded-lg"></div>
           ) : (
-            <h3 className="text-2xl font-bold mt-1">{value}</h3>
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-800 to-gray-900 
+                         dark:from-gray-100 dark:to-gray-200 bg-clip-text text-transparent
+                         group-hover:from-blue-600 group-hover:via-indigo-600 group-hover:to-purple-600
+                         dark:group-hover:from-blue-400 dark:group-hover:via-indigo-400 dark:group-hover:to-purple-400
+                         transition-all duration-500">
+              {value}
+            </h3>
           )}
           {change && (
-            <p className={`text-xs ${getTrendColor()} mt-1 flex items-center`}>
+            <p className={`text-sm font-medium flex items-center gap-1 ${getTrendColor()} 
+                          opacity-80 group-hover:opacity-100 transition-opacity duration-300`}>
               {getTrendIcon()}
               {change.value}
             </p>
           )}
         </div>
-        <div
-          className={`h-12 w-12 rounded-full flex items-center justify-center ${getIconBgColor()}`}
-        >
-          {getIcon()}
+        
+        <div className={`relative h-14 w-14 md:h-16 md:w-16 rounded-2xl flex items-center justify-center 
+                        shadow-lg group-hover:shadow-xl transition-all duration-500
+                        group-hover:scale-110 group-hover:rotate-3
+                        ${getIconBgColor()}`}>
+          
+          {/* Icon glow effect */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent 
+                         opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          
+          <div className="relative transform transition-transform duration-500 group-hover:scale-110">
+            {getIcon()}
+          </div>
         </div>
       </div>
     </Card>
