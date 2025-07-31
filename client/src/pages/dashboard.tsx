@@ -199,7 +199,6 @@ export default function Dashboard() {
                     <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
                     <div className="text-center">
                       <div className="font-bold">Adicionar Aluno</div>
-                      <div className="text-xs md:text-sm opacity-70 font-normal">Cadastrar novo estudante</div>
                     </div>
                   </div>
                 </Button>
@@ -225,7 +224,6 @@ export default function Dashboard() {
                     <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
                     <div className="text-center">
                       <div className="font-bold">Criar Ficha Modelo</div>
-                      <div className="text-xs md:text-sm opacity-70 font-normal">Novo plano de treino</div>
                     </div>
                   </div>
                 </Button>
@@ -251,7 +249,6 @@ export default function Dashboard() {
                     <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
                     <div className="text-center">
                       <div className="font-bold">Novo Exercício</div>
-                      <div className="text-xs md:text-sm opacity-70 font-normal">Adicionar movimento</div>
                     </div>
                   </div>
                 </Button>
@@ -272,7 +269,6 @@ export default function Dashboard() {
                     <Plus className="w-6 h-6 md:w-7 md:h-7" />
                     <div className="text-center">
                       <div className="font-bold">Nova Avaliação</div>
-                      <div className="text-xs md:text-sm opacity-70 font-normal">Em breve</div>
                     </div>
                   </div>
                 </Button>
