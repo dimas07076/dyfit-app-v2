@@ -75,6 +75,8 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             });
         }
 
+        const cargasParaSalvar = cargas || {};
+
         const novaSessao = new Sessao({
             personalId: rotina.criadorId,
             alunoId: new Types.ObjectId(alunoId),
@@ -89,7 +91,7 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             pseAluno: pseAluno || null,
             comentarioAluno: comentarioAluno || null,
             duracaoSegundos: duracaoSegundos || 0,
-            cargasExecutadas: cargas || {},
+            cargasExecutadas: cargasParaSalvar,
         });
         await novaSessao.save({ session: mongoTransactionSession });
         

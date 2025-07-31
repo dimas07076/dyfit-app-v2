@@ -11,19 +11,50 @@ console.log("--- [server/src/routes/activityLogsRoutes.ts] Ficheiro carregado --
 
 // Função auxiliar para verificar se houve aumento de carga comparando com a sessão anterior
 function verificarAumentoCarga(sessaoAtual: any, sessaoAnterior: any): boolean {
-    if (!sessaoAtual?.cargasExecutadas || !sessaoAnterior?.cargasExecutadas) {
-        return false; // Se não há dados de carga, não houve aumento
+    // Se não há sessão anterior, não pode haver comparação de aumento
+    if (!sessaoAtual || !sessaoAnterior) {
+        return false;
     }
-
+    
+    // Obtém os dados de carga das duas sessões
     const cargasAtuais = sessaoAtual.cargasExecutadas;
     const cargasAnteriores = sessaoAnterior.cargasExecutadas;
+    
+    // Se alguma das sessões não tem dados de carga, não pode haver comparação
+    if (!cargasAtuais || !cargasAnteriores) {
+        return false;
+    }
+    
+    // Handle both Map and Object cases (MongoDB pode retornar Maps)
+    let cargasAtuaisObj: any = {};
+    let cargasAnterioresObj: any = {};
+    
+    if (cargasAtuais instanceof Map) {
+        cargasAtuaisObj = Object.fromEntries(cargasAtuais);
+    } else {
+        cargasAtuaisObj = cargasAtuais;
+    }
+    
+    if (cargasAnteriores instanceof Map) {
+        cargasAnterioresObj = Object.fromEntries(cargasAnteriores);
+    } else {
+        cargasAnterioresObj = cargasAnteriores;
+    }
+    
+    // Verifica se há dados para comparar
+    const keysAtuais = Object.keys(cargasAtuaisObj);
+    const keysAnteriores = Object.keys(cargasAnterioresObj);
+    
+    if (keysAtuais.length === 0 || keysAnteriores.length === 0) {
+        return false;
+    }
 
     // Verifica se algum exercício teve aumento de carga
-    for (const [exercicioId, cargaAtual] of Object.entries(cargasAtuais)) {
-        const cargaAnterior = cargasAnteriores[exercicioId];
+    for (const [exercicioId, cargaAtual] of Object.entries(cargasAtuaisObj)) {
+        const cargaAnterior = cargasAnterioresObj[exercicioId];
         
+        // Só compara se ambas as cargas existem
         if (cargaAnterior && cargaAtual) {
-            // Converte strings para números para comparação
             const cargaAtualNum = parseFloat(cargaAtual as string);
             const cargaAnteriorNum = parseFloat(cargaAnterior);
             
@@ -73,10 +104,10 @@ router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Respo
                 _id: sessao._id,
                 treinoId: sessao.rotinaId?._id || null,
                 treinoTitulo: (sessao.rotinaId as any)?.titulo || sessao.diaDeTreinoIdentificador || 'Treino Concluído',
-                dataInicio: sessao.sessionDate, // <-- ADICIONADO: Inclui a data de início
+                dataInicio: sessao.sessionDate,
                 dataFim: sessao.concluidaEm,
                 duracaoTotalMinutos: sessao.duracaoSegundos ? Math.round(sessao.duracaoSegundos / 60) : 0,
-                nivelTreino: sessao.pseAluno, // O frontend já sabe como traduzir isso
+                nivelTreino: sessao.pseAluno,
                 comentarioAluno: sessao.comentarioAluno,
                 aumentoCarga: aumentoCarga, // <-- MUDANÇA: Agora calcula dinamicamente
             };
@@ -86,6 +117,60 @@ router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Respo
 
     } catch (error) {
         console.error(`[GET /api/activity-logs/aluno/${alunoId}] Erro:`, error);
+        next(error);
+    }
+});
+
+// DEBUG: Endpoint para ver dados brutos das sessões para diagnóstico
+router.get('/aluno/:alunoId/debug', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+
+    const { alunoId } = req.params;
+    const personalId = req.user?.id;
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ mensagem: "ID do aluno inválido." });
+    }
+    if (!personalId) {
+        return res.status(401).json({ mensagem: "Usuário não autenticado." });
+    }
+
+    try {
+        const historico = await Sessao.find({ 
+            alunoId: new mongoose.Types.ObjectId(alunoId),
+            personalId: new mongoose.Types.ObjectId(personalId),
+            status: 'completed' 
+        })
+        .sort({ concluidaEm: -1 })
+        .lean();
+
+        // Retorna dados brutos para debugging
+        const debugData = historico.map((sessao, index) => {
+            const sessaoAnterior = index < historico.length - 1 ? historico[index + 1] : null;
+            
+            return {
+                index,
+                _id: sessao._id,
+                sessionDate: sessao.sessionDate,
+                concluidaEm: sessao.concluidaEm,
+                cargasExecutadas: sessao.cargasExecutadas,
+                cargasExecutadasType: typeof sessao.cargasExecutadas,
+                cargasExecutadasKeys: sessao.cargasExecutadas ? Object.keys(sessao.cargasExecutadas) : [],
+                cargasExecutadasIsMap: sessao.cargasExecutadas instanceof Map,
+                temSessaoAnterior: !!sessaoAnterior,
+                sessaoAnteriorId: sessaoAnterior?._id,
+                sessaoAnteriorCargasExecutadas: sessaoAnterior?.cargasExecutadas,
+                resultadoComparacao: verificarAumentoCarga(sessao, sessaoAnterior)
+            };
+        });
+
+        res.json({
+            totalSessoes: historico.length,
+            sessoes: debugData
+        });
+
+    } catch (error) {
+        console.error(`[GET /api/activity-logs/aluno/${alunoId}/debug] Erro:`, error);
         next(error);
     }
 });
