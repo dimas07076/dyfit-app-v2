@@ -245,7 +245,7 @@ export default function StudentsIndex() {
                                          shadow-md hover:shadow-lg transition-all duration-300
                                          hover:scale-105 active:scale-95 rounded-lg">
                             <Mail className="h-4 w-4 mr-2" /> 
-                            <span className="hidden sm:inline">Convidar</span> Aluno
+                            Convidar Aluno
                         </Button>
                         
                         <Link href="/alunos/novo">
