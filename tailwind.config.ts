@@ -95,6 +95,21 @@ export default {
         '88': '22rem',
         '128': '32rem',
         '144': '36rem',
+        '160': '40rem',
+      },
+
+      // Enhanced Screen Breakpoints
+      screens: {
+        'xs': '475px',
+        'sm': '640px',
+        'md': '768px',
+        'lg': '1024px',
+        'xl': '1280px',
+        '2xl': '1536px',
+        // Custom breakpoints for component responsiveness
+        'mobile': {'max': '767px'},
+        'tablet': {'min': '768px', 'max': '1023px'},
+        'desktop': {'min': '1024px'},
       },
       
       // Enhanced Animation System

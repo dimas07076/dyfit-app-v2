@@ -23,36 +23,40 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
     };
 
     return (
-        <div className="group relative flex items-center justify-between p-4 md:p-5 border-b last:border-b-0 
+        <div className="group relative flex items-center justify-between p-3 sm:p-4 lg:p-5 border-b last:border-b-0 
                         hover:bg-gradient-to-r hover:from-blue-50/80 hover:via-indigo-50/40 hover:to-purple-50/80 
                         dark:hover:from-blue-900/20 dark:hover:via-indigo-900/10 dark:hover:to-purple-900/20 
                         transition-all duration-300 ease-out cursor-pointer
                         hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.01]
-                        active:scale-[0.99] active:transition-transform active:duration-75">
+                        active:scale-[0.99] active:transition-transform active:duration-75
+                        mobile:flex-col mobile:items-start mobile:gap-3 mobile:p-4
+                        mobile:bg-white/90 mobile:dark:bg-slate-800/90 mobile:rounded-lg mobile:shadow-sm
+                        mobile:hover:shadow-lg mobile:border mobile:border-gray-200/60 mobile:dark:border-slate-700/60">
             
             {/* Subtle gradient overlay on hover */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5 
                             opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg" />
             
-            <div className="relative flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+            <div className="relative flex items-center gap-3 md:gap-4 flex-1 min-w-0 mobile:w-full">
                 <Avatar className="ring-2 ring-blue-100 dark:ring-blue-900/30 
                                  group-hover:ring-blue-200 dark:group-hover:ring-blue-800/50
                                  group-hover:scale-110 transition-all duration-300 
-                                 shadow-lg group-hover:shadow-xl">
+                                 shadow-lg group-hover:shadow-xl
+                                 h-10 w-10 sm:h-11 sm:w-11 lg:h-12 lg:w-12">
                     <AvatarFallback className="bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 
-                                             text-white font-semibold text-xs md:text-sm
+                                             text-white font-semibold text-xs sm:text-sm
                                              group-hover:from-blue-600 group-hover:via-indigo-600 group-hover:to-purple-700
                                              transition-all duration-300">
                         {getInitials(student.nome)}
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0 space-y-1">
-                    <h4 className="font-semibold text-sm md:text-base text-gray-800 dark:text-gray-100 
+                    <h4 className="font-semibold text-sm sm:text-base text-gray-800 dark:text-gray-100 
                                    group-hover:text-blue-700 dark:group-hover:text-blue-300 
-                                   transition-colors duration-300 truncate">
+                                   transition-colors duration-300 truncate leading-tight">
                         {student.nome}
                     </h4>
-                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 
                                   group-hover:text-gray-600 dark:group-hover:text-gray-300 
                                   transition-colors duration-300 truncate">
                         {student.email || "Email não disponível"}
@@ -64,13 +68,14 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" 
                             size="icon" 
-                            className="relative h-9 w-9 md:h-10 md:w-10 min-h-[44px] min-w-[44px] 
+                            className="relative h-9 w-9 sm:h-10 sm:w-10 min-h-[44px] min-w-[44px] 
                                      hover:bg-white/80 dark:hover:bg-slate-700/80 
                                      hover:shadow-lg hover:scale-110 
                                      active:scale-95 transition-all duration-200 
                                      group-hover:bg-white/50 dark:group-hover:bg-slate-600/50
                                      backdrop-blur-sm border border-transparent
-                                     hover:border-blue-200 dark:hover:border-blue-700">
+                                     hover:border-blue-200 dark:hover:border-blue-700
+                                     mobile:self-end mobile:mt-2">
                         <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-300 
                                                hover:text-blue-600 dark:hover:text-blue-400 
                                                transition-colors duration-200" />
@@ -85,7 +90,7 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                         onClick={() => onView(student)} 
                         className="hover:bg-blue-50 dark:hover:bg-blue-900/30 
                                  focus:bg-blue-50 dark:focus:bg-blue-900/30 
-                                 transition-colors duration-200 cursor-pointer">
+                                 transition-colors duration-200 cursor-pointer touch-target">
                         <Eye className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" /> 
                         <span className="font-medium">Visualizar</span>
                     </DropdownMenuItem>
@@ -94,7 +99,7 @@ const AlunoAtivoCard = ({ student, onView }: { student: Aluno, onView: (s: Aluno
                               className="flex items-center hover:bg-indigo-50 dark:hover:bg-indigo-900/30 
                                        focus:bg-indigo-50 dark:focus:bg-indigo-900/30 
                                        transition-colors duration-200 cursor-pointer
-                                       px-2 py-1.5 text-sm rounded-sm">
+                                       px-2 py-1.5 text-sm rounded-sm touch-target">
                             <Pencil className="mr-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" /> 
                             <span className="font-medium">Editar Aluno</span>
                         </Link>
@@ -198,12 +203,14 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                 </CardHeader>
                 <CardContent className="relative p-0">
                     {isLoading && (
-                        <div className="p-4 md:p-6 space-y-4">
+                        <div className="p-4 md:p-6 space-y-4 mobile:grid mobile:grid-cols-1 mobile:gap-4">
                             {[...Array(3)].map((_, i) => (
                                 <div key={i} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 
                                                        bg-gray-50/50 dark:bg-slate-700/30 rounded-lg 
-                                                       animate-pulse">
-                                    <Skeleton className="h-10 w-10 md:h-12 md:w-12 rounded-full 
+                                                       animate-pulse mobile:bg-white/90 mobile:dark:bg-slate-800/90
+                                                       mobile:shadow-sm mobile:border mobile:border-gray-200/60 
+                                                       mobile:dark:border-slate-700/60">
+                                    <Skeleton className="h-10 w-10 sm:h-11 sm:w-11 lg:h-12 lg:w-12 rounded-full 
                                                        bg-gradient-to-br from-gray-200 to-gray-300 
                                                        dark:from-slate-600 dark:to-slate-700" />
                                     <div className="flex-grow space-y-2">
@@ -212,7 +219,7 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                                         <Skeleton className="h-3 md:h-4 w-2/5 bg-gradient-to-r from-gray-200 to-gray-300 
                                                          dark:from-slate-600 dark:to-slate-700 rounded-full" />
                                     </div>
-                                    <Skeleton className="h-8 w-8 md:h-10 md:w-10 rounded-lg 
+                                    <Skeleton className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg 
                                                        bg-gradient-to-br from-gray-200 to-gray-300 
                                                        dark:from-slate-600 dark:to-slate-700" />
                                 </div>
@@ -227,7 +234,8 @@ export function AlunosAtivosList({ trainerId }: { trainerId: string }) {
                     )}
                     
                     {!isLoading && !isError && filteredStudents.length > 0 && (
-                        <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
+                        <div className="mobile:grid mobile:grid-cols-1 mobile:gap-3 mobile:p-4 
+                                      desktop:divide-y desktop:divide-gray-100 desktop:dark:divide-slate-700/50">
                             {filteredStudents.map((student, index) => (
                                 <div key={student._id} 
                                      className="animate-in fade-in-0 slide-in-from-bottom-4 duration-300"

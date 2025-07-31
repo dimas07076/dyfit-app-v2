@@ -114,8 +114,8 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 md:space-y-10">
-          {/* Enhanced Stats Cards with Responsive Grid */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          {/* Enhanced Stats Cards with Mobile-First Responsive Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-100">
               <StatsCard 
                 title="Total de Alunos" 
@@ -183,20 +183,23 @@ export default function Dashboard() {
               <Link href="/alunos/novo" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
-                                 bg-gradient-to-br from-blue-50 to-indigo-50 
-                                 dark:from-blue-900/30 dark:to-indigo-900/30 
-                                 hover:from-blue-100 hover:to-indigo-100
-                                 dark:hover:from-blue-800/40 dark:hover:to-indigo-800/40
-                                 border-2 border-blue-200 dark:border-blue-700
+                                 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 
+                                 dark:from-blue-900/30 dark:via-blue-900/25 dark:to-indigo-900/30 
+                                 hover:from-blue-100 hover:via-blue-100 hover:to-indigo-100
+                                 dark:hover:from-blue-800/40 dark:hover:via-blue-800/35 dark:hover:to-indigo-800/40
+                                 border-2 border-blue-200/60 dark:border-blue-700/60
                                  hover:border-blue-300 dark:hover:border-blue-600
                                  shadow-lg hover:shadow-xl
                                  transition-all duration-300 ease-out
-                                 hover:scale-105 hover:-translate-y-1
+                                 hover:scale-[1.02] sm:hover:scale-105 hover:-translate-y-1
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-blue-700 dark:text-blue-400
-                                 rounded-xl group">
+                                 rounded-xl group touch-target">
                   <div className="flex items-center justify-center">
-                    <div className="font-bold">Adicionar Aluno +</div>
+                    <UserPlus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform duration-300" />
+                    <div className="font-bold">
+                      <span className="hidden sm:inline">Adicionar </span>Aluno
+                    </div>
                   </div>
                 </Button>
               </Link>
@@ -205,20 +208,23 @@ export default function Dashboard() {
               <Link href="/treinos" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
-                                 bg-gradient-to-br from-indigo-50 to-purple-50 
-                                 dark:from-indigo-900/30 dark:to-purple-900/30 
-                                 hover:from-indigo-100 hover:to-purple-100
-                                 dark:hover:from-indigo-800/40 dark:hover:to-purple-800/40
-                                 border-2 border-indigo-200 dark:border-indigo-700
+                                 bg-gradient-to-br from-indigo-50 via-purple-50 to-purple-50 
+                                 dark:from-indigo-900/30 dark:via-purple-900/25 dark:to-purple-900/30 
+                                 hover:from-indigo-100 hover:via-purple-100 hover:to-purple-100
+                                 dark:hover:from-indigo-800/40 dark:hover:via-purple-800/35 dark:hover:to-purple-800/40
+                                 border-2 border-indigo-200/60 dark:border-indigo-700/60
                                  hover:border-indigo-300 dark:hover:border-indigo-600
                                  shadow-lg hover:shadow-xl
                                  transition-all duration-300 ease-out
-                                 hover:scale-105 hover:-translate-y-1
+                                 hover:scale-[1.02] sm:hover:scale-105 hover:-translate-y-1
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-indigo-700 dark:text-indigo-400
-                                 rounded-xl group">
+                                 rounded-xl group touch-target">
                   <div className="flex items-center justify-center">
-                    <div className="font-bold">Criar Ficha Modelo +</div>
+                    <Plus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform duration-300" />
+                    <div className="font-bold text-center">
+                      <span className="hidden sm:inline">Criar </span>Ficha<span className="hidden xs:inline"> Modelo</span>
+                    </div>
                   </div>
                 </Button>
               </Link>
@@ -227,20 +233,23 @@ export default function Dashboard() {
               <Link href="/exercises" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
-                                 bg-gradient-to-br from-purple-50 to-pink-50 
-                                 dark:from-purple-900/30 dark:to-pink-900/30 
-                                 hover:from-purple-100 hover:to-pink-100
-                                 dark:hover:from-purple-800/40 dark:hover:to-pink-800/40
-                                 border-2 border-purple-200 dark:border-purple-700
+                                 bg-gradient-to-br from-purple-50 via-pink-50 to-pink-50 
+                                 dark:from-purple-900/30 dark:via-pink-900/25 dark:to-pink-900/30 
+                                 hover:from-purple-100 hover:via-pink-100 hover:to-pink-100
+                                 dark:hover:from-purple-800/40 dark:hover:via-pink-800/35 dark:hover:to-pink-800/40
+                                 border-2 border-purple-200/60 dark:border-purple-700/60
                                  hover:border-purple-300 dark:hover:border-purple-600
                                  shadow-lg hover:shadow-xl
                                  transition-all duration-300 ease-out
-                                 hover:scale-105 hover:-translate-y-1
+                                 hover:scale-[1.02] sm:hover:scale-105 hover:-translate-y-1
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-purple-700 dark:text-purple-400
-                                 rounded-xl group">
+                                 rounded-xl group touch-target">
                   <div className="flex items-center justify-center">
-                    <div className="font-bold">Novo Exercício +</div>
+                    <Plus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform duration-300" />
+                    <div className="font-bold">
+                      <span className="hidden sm:inline">Novo </span>Exercício
+                    </div>
                   </div>
                 </Button>
               </Link>
@@ -252,12 +261,15 @@ export default function Dashboard() {
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
                                  bg-gradient-to-br from-gray-50 to-gray-100 
                                  dark:from-gray-800/50 dark:to-gray-700/50 
-                                 border-2 border-gray-200 dark:border-gray-600
+                                 border-2 border-gray-200/60 dark:border-gray-600/60
                                  shadow-md cursor-not-allowed opacity-60
                                  text-gray-500 dark:text-gray-400
-                                 rounded-xl">
+                                 rounded-xl touch-target">
                   <div className="flex items-center justify-center">
-                    <div className="font-bold">Nova Avaliação +</div>
+                    <Plus className="h-5 w-5 mr-2" />
+                    <div className="font-bold">
+                      <span className="hidden sm:inline">Nova </span>Avaliação
+                    </div>
                   </div>
                 </Button>
               </div>
