@@ -9,6 +9,34 @@ const router = express.Router();
 
 console.log("--- [server/src/routes/activityLogsRoutes.ts] Ficheiro carregado ---");
 
+// Função auxiliar para verificar se houve aumento de carga comparando com a sessão anterior
+function verificarAumentoCarga(sessaoAtual: any, sessaoAnterior: any): boolean {
+    if (!sessaoAtual?.cargasExecutadas || !sessaoAnterior?.cargasExecutadas) {
+        return false; // Se não há dados de carga, não houve aumento
+    }
+
+    const cargasAtuais = sessaoAtual.cargasExecutadas;
+    const cargasAnteriores = sessaoAnterior.cargasExecutadas;
+
+    // Verifica se algum exercício teve aumento de carga
+    for (const [exercicioId, cargaAtual] of Object.entries(cargasAtuais)) {
+        const cargaAnterior = cargasAnteriores[exercicioId];
+        
+        if (cargaAnterior && cargaAtual) {
+            // Converte strings para números para comparação
+            const cargaAtualNum = parseFloat(cargaAtual as string);
+            const cargaAnteriorNum = parseFloat(cargaAnterior);
+            
+            // Se qualquer exercício teve aumento de carga, retorna true
+            if (!isNaN(cargaAtualNum) && !isNaN(cargaAnteriorNum) && cargaAtualNum > cargaAnteriorNum) {
+                return true;
+            }
+        }
+    }
+
+    return false; // Nenhum exercício teve aumento de carga
+}
+
 // ROTA AJUSTADA PARA BUSCAR DA COLEÇÃO CORRETA ('sessoes')
 router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
@@ -36,17 +64,23 @@ router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Respo
         .lean(); // Usa .lean() para um desempenho melhor
 
         // Mapeia os dados para a estrutura que o frontend espera (IWorkoutHistoryLog)
-        const historicoMapeado = historico.map(sessao => ({
-            _id: sessao._id,
-            treinoId: sessao.rotinaId?._id || null,
-            treinoTitulo: (sessao.rotinaId as any)?.titulo || sessao.diaDeTreinoIdentificador || 'Treino Concluído',
-            dataInicio: sessao.sessionDate, // <-- ADICIONADO: Inclui a data de início
-            dataFim: sessao.concluidaEm,
-            duracaoTotalMinutos: sessao.duracaoSegundos ? Math.round(sessao.duracaoSegundos / 60) : 0,
-            nivelTreino: sessao.pseAluno, // O frontend já sabe como traduzir isso
-            comentarioAluno: sessao.comentarioAluno,
-            aumentoCarga: false, // O modelo Sessao não tem este campo, então definimos um padrão
-        }));
+        const historicoMapeado = historico.map((sessao, index) => {
+            // Para calcular o aumento de carga, compara com a sessão anterior (próxima no array, pois está ordenado desc)
+            const sessaoAnterior = index < historico.length - 1 ? historico[index + 1] : null;
+            const aumentoCarga = verificarAumentoCarga(sessao, sessaoAnterior);
+
+            return {
+                _id: sessao._id,
+                treinoId: sessao.rotinaId?._id || null,
+                treinoTitulo: (sessao.rotinaId as any)?.titulo || sessao.diaDeTreinoIdentificador || 'Treino Concluído',
+                dataInicio: sessao.sessionDate, // <-- ADICIONADO: Inclui a data de início
+                dataFim: sessao.concluidaEm,
+                duracaoTotalMinutos: sessao.duracaoSegundos ? Math.round(sessao.duracaoSegundos / 60) : 0,
+                nivelTreino: sessao.pseAluno, // O frontend já sabe como traduzir isso
+                comentarioAluno: sessao.comentarioAluno,
+                aumentoCarga: aumentoCarga, // <-- MUDANÇA: Agora calcula dinamicamente
+            };
+        });
 
         res.json(historicoMapeado);
 
