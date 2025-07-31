@@ -38,6 +38,10 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
     // <-- 1. MUDANÇA: Recebe 'dataInicio' do corpo da requisição -->
     const { rotinaId, diaDeTreinoId, pseAluno, comentarioAluno, duracaoSegundos, cargas, dataInicio } = req.body;
 
+    // Log cargas data for debugging
+    console.log(`[CONCLUIR DIA] Aluno ${alunoId} - Cargas recebidas:`, JSON.stringify(cargas, null, 2));
+    console.log(`[CONCLUIR DIA] Cargas type: ${typeof cargas}, keys: ${cargas ? Object.keys(cargas).length : 0}`);
+
     if (!alunoId) return res.status(401).json({ message: "Aluno não autenticado." });
     if (!rotinaId || !diaDeTreinoId) return res.status(400).json({ message: "ID da rotina e do dia de treino são obrigatórios." });
 
@@ -76,6 +80,7 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
         }
 
         const cargasParaSalvar = cargas || {};
+        console.log(`[CONCLUIR DIA] Salvando cargasExecutadas:`, JSON.stringify(cargasParaSalvar, null, 2));
 
         const novaSessao = new Sessao({
             personalId: rotina.criadorId,
