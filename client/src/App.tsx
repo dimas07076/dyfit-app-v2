@@ -45,6 +45,7 @@ const EditarPersonalPage = lazy(() => import('@/pages/admin/EditarPersonalPage')
 const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvitesPage'));
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
 const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
+const DemoDashboard = lazy(() => import("@/pages/demo-dashboard"));
 
 
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
@@ -337,6 +338,7 @@ function PublicRoutes() {
         <Route path="/login" component={LandingLoginPage} />
         <Route path="/login/personal" component={PersonalLoginPage} />
         <Route path="/login/aluno" component={AlunoLoginPage} />
+        <Route path="/demo-dashboard" component={DemoDashboard} />
 
         <Route path="/cadastrar-personal/convite/:tokenDeConvite" component={CadastroPersonalPorConvitePage} />
         <Route path="/convite/aluno/:token" component={CadastroAlunoPorConvitePage} />
