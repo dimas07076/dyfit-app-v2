@@ -68,6 +68,26 @@ function verificarAumentoCarga(sessaoAtual: any, sessaoAnterior: any): boolean {
     return false; // Nenhum exercício teve aumento de carga
 }
 
+// Função aprimorada para encontrar a sessão anterior mais relevante para comparação
+function encontrarSessaoAnteriorParaComparacao(historico: any[], indexAtual: number): any | null {
+    const sessaoAtual = historico[indexAtual];
+    
+    // Procura pela sessão anterior do mesmo dia de treino (mais relevante)
+    for (let i = indexAtual + 1; i < historico.length; i++) {
+        const sessaoCandidata = historico[i];
+        
+        // Se encontrar uma sessão do mesmo dia de treino, use essa
+        if (sessaoCandidata.diaDeTreinoId && 
+            sessaoAtual.diaDeTreinoId && 
+            sessaoCandidata.diaDeTreinoId.toString() === sessaoAtual.diaDeTreinoId.toString()) {
+            return sessaoCandidata;
+        }
+    }
+    
+    // Se não encontrar do mesmo dia, use a próxima sessão disponível (fallback para comportamento anterior)
+    return indexAtual < historico.length - 1 ? historico[indexAtual + 1] : null;
+}
+
 // ROTA AJUSTADA PARA BUSCAR DA COLEÇÃO CORRETA ('sessoes')
 router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
@@ -96,8 +116,8 @@ router.get('/aluno/:alunoId', authenticateToken, async (req: Request, res: Respo
 
         // Mapeia os dados para a estrutura que o frontend espera (IWorkoutHistoryLog)
         const historicoMapeado = historico.map((sessao, index) => {
-            // Para calcular o aumento de carga, compara com a sessão anterior (próxima no array, pois está ordenado desc)
-            const sessaoAnterior = index < historico.length - 1 ? historico[index + 1] : null;
+            // Usa a função aprimorada para encontrar a sessão anterior mais relevante
+            const sessaoAnterior = encontrarSessaoAnteriorParaComparacao(historico, index);
             const aumentoCarga = verificarAumentoCarga(sessao, sessaoAnterior);
 
             return {
@@ -146,20 +166,26 @@ router.get('/aluno/:alunoId/debug', authenticateToken, async (req: Request, res:
 
         // Retorna dados brutos para debugging
         const debugData = historico.map((sessao, index) => {
-            const sessaoAnterior = index < historico.length - 1 ? historico[index + 1] : null;
+            const sessaoAnterior = encontrarSessaoAnteriorParaComparacao(historico, index);
             
             return {
                 index,
                 _id: sessao._id,
                 sessionDate: sessao.sessionDate,
                 concluidaEm: sessao.concluidaEm,
+                diaDeTreinoId: sessao.diaDeTreinoId,
+                diaDeTreinoIdentificador: sessao.diaDeTreinoIdentificador,
                 cargasExecutadas: sessao.cargasExecutadas,
                 cargasExecutadasType: typeof sessao.cargasExecutadas,
                 cargasExecutadasKeys: sessao.cargasExecutadas ? Object.keys(sessao.cargasExecutadas) : [],
                 cargasExecutadasIsMap: sessao.cargasExecutadas instanceof Map,
                 temSessaoAnterior: !!sessaoAnterior,
                 sessaoAnteriorId: sessaoAnterior?._id,
+                sessaoAnteriorDiaDeTreinoId: sessaoAnterior?.diaDeTreinoId,
                 sessaoAnteriorCargasExecutadas: sessaoAnterior?.cargasExecutadas,
+                tipoComparacao: sessaoAnterior ? 
+                    (sessaoAnterior.diaDeTreinoId?.toString() === sessao.diaDeTreinoId?.toString() ? 
+                        'mesmo_dia_treino' : 'sessao_anterior_geral') : 'primeira_sessao',
                 resultadoComparacao: verificarAumentoCarga(sessao, sessaoAnterior)
             };
         });
