@@ -225,7 +225,8 @@ export default function DemoDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 md:space-y-10">
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          {/* Enhanced Stats Cards with Mobile-First 2x2 Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-100">
               <StatsCard title="Total de Alunos" value="12" icon="students" />
             </div>

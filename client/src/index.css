@@ -16,20 +16,23 @@
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
   
-  /* Primary Brand Colors with Gradients */
-  --primary: 225 83% 60%;
+  /* Enhanced Primary Brand Colors with Modern Gradients */
+  --primary: 220 91% 64%;
   --primary-foreground: 210 40% 98%;
-  --primary-gradient: linear-gradient(135deg, hsl(225 83% 60%) 0%, hsl(235 83% 65%) 100%);
+  --primary-gradient: linear-gradient(135deg, hsl(220 91% 64%) 0%, hsl(240 91% 68%) 100%);
+  --primary-gradient-soft: linear-gradient(135deg, hsl(220 91% 64% / 0.9) 0%, hsl(240 91% 68% / 0.9) 100%);
   
-  /* Secondary Colors */
-  --secondary: 258 87% 33%;
+  /* Enhanced Secondary Colors */
+  --secondary: 260 87% 38%;
   --secondary-foreground: 210 40% 98%;
-  --secondary-gradient: linear-gradient(135deg, hsl(258 87% 33%) 0%, hsl(268 87% 38%) 100%);
+  --secondary-gradient: linear-gradient(135deg, hsl(260 87% 38%) 0%, hsl(280 87% 42%) 100%);
+  --secondary-gradient-soft: linear-gradient(135deg, hsl(260 87% 38% / 0.9) 0%, hsl(280 87% 42% / 0.9) 100%);
   
-  /* Accent Colors */
-  --accent: 331 91% 56%;
+  /* Enhanced Accent Colors */
+  --accent: 340 91% 60%;
   --accent-foreground: 210 40% 98%;
-  --accent-gradient: linear-gradient(135deg, hsl(331 91% 56%) 0%, hsl(341 91% 61%) 100%);
+  --accent-gradient: linear-gradient(135deg, hsl(340 91% 60%) 0%, hsl(350 91% 64%) 100%);
+  --accent-gradient-soft: linear-gradient(135deg, hsl(340 91% 60% / 0.9) 0%, hsl(350 91% 64% / 0.9) 100%);
   
   /* Status Colors */
   --destructive: 0 84.2% 60.2%;
@@ -61,10 +64,12 @@
   --glass-border: rgba(255, 255, 255, 0.2);
   --glass-backdrop: blur(10px);
   
-  /* Gradient Backgrounds */
-  --bg-gradient-primary: linear-gradient(135deg, hsl(225 83% 60%) 0%, hsl(258 87% 33%) 100%);
-  --bg-gradient-secondary: linear-gradient(135deg, hsl(258 87% 33%) 0%, hsl(331 91% 56%) 100%);
+  /* Enhanced Gradient Backgrounds */
+  --bg-gradient-primary: linear-gradient(135deg, hsl(220 91% 64%) 0%, hsl(260 87% 38%) 100%);
+  --bg-gradient-secondary: linear-gradient(135deg, hsl(260 87% 38%) 0%, hsl(340 91% 60%) 100%);
   --bg-gradient-subtle: linear-gradient(135deg, hsl(210 40% 98%) 0%, hsl(220 40% 96%) 100%);
+  --bg-gradient-card: linear-gradient(135deg, hsl(220 91% 64% / 0.05) 0%, hsl(260 87% 38% / 0.05) 50%, hsl(340 91% 60% / 0.05) 100%);
+  --bg-gradient-hover: linear-gradient(135deg, hsl(220 91% 64% / 0.1) 0%, hsl(260 87% 38% / 0.1) 50%, hsl(340 91% 60% / 0.1) 100%);
   
   /* Sidebar specific colors */
   --sidebar-background: 222.2 84% 4.9%;
@@ -90,20 +95,23 @@
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
   
-  /* Primary Brand Colors for Dark Mode */
-  --primary: 225 83% 65%;
+  /* Enhanced Primary Brand Colors for Dark Mode */
+  --primary: 220 91% 68%;
   --primary-foreground: 222.2 84% 4.9%;
-  --primary-gradient: linear-gradient(135deg, hsl(225 83% 65%) 0%, hsl(235 83% 70%) 100%);
+  --primary-gradient: linear-gradient(135deg, hsl(220 91% 68%) 0%, hsl(240 91% 72%) 100%);
+  --primary-gradient-soft: linear-gradient(135deg, hsl(220 91% 68% / 0.9) 0%, hsl(240 91% 72% / 0.9) 100%);
   
-  /* Secondary Colors for Dark Mode */
-  --secondary: 258 87% 38%;
+  /* Enhanced Secondary Colors for Dark Mode */
+  --secondary: 260 87% 42%;
   --secondary-foreground: 210 40% 98%;
-  --secondary-gradient: linear-gradient(135deg, hsl(258 87% 38%) 0%, hsl(268 87% 43%) 100%);
+  --secondary-gradient: linear-gradient(135deg, hsl(260 87% 42%) 0%, hsl(280 87% 46%) 100%);
+  --secondary-gradient-soft: linear-gradient(135deg, hsl(260 87% 42% / 0.9) 0%, hsl(280 87% 46% / 0.9) 100%);
   
-  /* Accent Colors for Dark Mode */
-  --accent: 331 91% 61%;
+  /* Enhanced Accent Colors for Dark Mode */
+  --accent: 340 91% 64%;
   --accent-foreground: 222.2 84% 4.9%;
-  --accent-gradient: linear-gradient(135deg, hsl(331 91% 61%) 0%, hsl(341 91% 66%) 100%);
+  --accent-gradient: linear-gradient(135deg, hsl(340 91% 64%) 0%, hsl(350 91% 68%) 100%);
+  --accent-gradient-soft: linear-gradient(135deg, hsl(340 91% 64% / 0.9) 0%, hsl(350 91% 68% / 0.9) 100%);
   
   /* Ring for Dark Mode */
   --ring: 225 83% 65%;
@@ -112,10 +120,12 @@
   --glass-background: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.1);
   
-  /* Gradient Backgrounds for Dark Mode */
-  --bg-gradient-primary: linear-gradient(135deg, hsl(225 83% 30%) 0%, hsl(258 87% 20%) 100%);
-  --bg-gradient-secondary: linear-gradient(135deg, hsl(258 87% 20%) 0%, hsl(331 91% 35%) 100%);
+  /* Enhanced Gradient Backgrounds for Dark Mode */
+  --bg-gradient-primary: linear-gradient(135deg, hsl(220 91% 30%) 0%, hsl(260 87% 25%) 100%);
+  --bg-gradient-secondary: linear-gradient(135deg, hsl(260 87% 25%) 0%, hsl(340 91% 35%) 100%);
   --bg-gradient-subtle: linear-gradient(135deg, hsl(217.2 32.6% 17.5%) 0%, hsl(215 27.9% 16.9%) 100%);
+  --bg-gradient-card: linear-gradient(135deg, hsl(220 91% 30% / 0.1) 0%, hsl(260 87% 25% / 0.1) 50%, hsl(340 91% 35% / 0.1) 100%);
+  --bg-gradient-hover: linear-gradient(135deg, hsl(220 91% 30% / 0.15) 0%, hsl(260 87% 25% / 0.15) 50%, hsl(340 91% 35% / 0.15) 100%);
 }
 
 @layer base {
@@ -180,6 +190,26 @@
   
   .bg-gradient-subtle {
     background: var(--bg-gradient-subtle);
+  }
+
+  .bg-gradient-card {
+    background: var(--bg-gradient-card);
+  }
+
+  .bg-gradient-hover {
+    background: var(--bg-gradient-hover);
+  }
+
+  .bg-gradient-primary-soft {
+    background: var(--primary-gradient-soft);
+  }
+
+  .bg-gradient-secondary-soft {
+    background: var(--secondary-gradient-soft);
+  }
+
+  .bg-gradient-accent-soft {
+    background: var(--accent-gradient-soft);
   }
   
   /* Glassmorphism Effect */
