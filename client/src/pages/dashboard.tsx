@@ -195,11 +195,8 @@ export default function Dashboard() {
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-blue-700 dark:text-blue-400
                                  rounded-xl group">
-                  <div className="flex flex-col items-center gap-2 md:gap-3">
-                    <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
-                    <div className="text-center">
-                      <div className="font-bold">Adicionar Aluno</div>
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <div className="font-bold">Adicionar Aluno +</div>
                   </div>
                 </Button>
               </Link>
@@ -220,11 +217,8 @@ export default function Dashboard() {
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-indigo-700 dark:text-indigo-400
                                  rounded-xl group">
-                  <div className="flex flex-col items-center gap-2 md:gap-3">
-                    <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
-                    <div className="text-center">
-                      <div className="font-bold">Criar Ficha Modelo</div>
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <div className="font-bold">Criar Ficha Modelo +</div>
                   </div>
                 </Button>
               </Link>
@@ -245,11 +239,8 @@ export default function Dashboard() {
                                  active:scale-95 active:transition-transform active:duration-75
                                  text-purple-700 dark:text-purple-400
                                  rounded-xl group">
-                  <div className="flex flex-col items-center gap-2 md:gap-3">
-                    <Plus className="w-6 h-6 md:w-7 md:h-7 group-hover:scale-110 transition-transform duration-300" />
-                    <div className="text-center">
-                      <div className="font-bold">Novo Exercício</div>
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <div className="font-bold">Novo Exercício +</div>
                   </div>
                 </Button>
               </Link>
@@ -265,11 +256,8 @@ export default function Dashboard() {
                                  shadow-md cursor-not-allowed opacity-60
                                  text-gray-500 dark:text-gray-400
                                  rounded-xl">
-                  <div className="flex flex-col items-center gap-2 md:gap-3">
-                    <Plus className="w-6 h-6 md:w-7 md:h-7" />
-                    <div className="text-center">
-                      <div className="font-bold">Nova Avaliação</div>
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <div className="font-bold">Nova Avaliação +</div>
                   </div>
                 </Button>
               </div>
