@@ -14,12 +14,13 @@ import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
-// CORREÇÃO: Removendo importação de Button, pois não é usado diretamente em App.tsx
 import { useToast } from '@/hooks/use-toast';
 
-// <<< ADIÇÃO 1 de 2: Importar o componente de prompt de atualização >>>
-import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomeada
+import { ReloadPrompt } from '@/components/ReloadPrompt';
+import { WorkoutMiniPlayer } from '@/components/layout/WorkoutMiniPlayer';
 
+
+// <<< INÍCIO DA CORREÇÃO 1: Restaurando o bloco de importações lazy >>>
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const StudentsIndex = lazy(() => import("@/pages/alunos/index"));
@@ -46,6 +47,7 @@ const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvites
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
 const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
 const DemoDashboard = lazy(() => import("@/pages/demo-dashboard"));
+// <<< FIM DA CORREÇÃO 1 >>>
 
 
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
@@ -85,9 +87,7 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
-  // Route persistence implementation - Enhanced version with immediate coordination
   useEffect(() => {
-    // Save current route whenever location changes (for authenticated users only)
     if ((user || aluno) && !location.startsWith("/login")) {
       localStorage.setItem("rotaAtual", location);
     }
@@ -98,47 +98,33 @@ function AppContent() {
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
-      // Check if user is authenticated via localStorage tokens
       const temTokenPersonal = localStorage.getItem("authToken") !== null;
       const temTokenAluno = localStorage.getItem("alunoAuthToken") !== null;
       const usuarioLogado = temTokenPersonal || temTokenAluno;
       const rotaProtegida = rotaSalva && !rotaSalva.includes("/login");
       
       if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
-        console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
-        
-        // Validate route based on token type (more reliable than context state)
         let rotaValida = false;
-        
         if (temTokenPersonal && !rotaSalva.startsWith("/aluno/")) {
-          // Personal/Admin routes are valid for authToken
           rotaValida = true;
         } else if (temTokenAluno && rotaSalva.startsWith("/aluno/")) {
-          // Aluno routes are valid for alunoAuthToken
           rotaValida = true;
         }
         
         if (rotaValida) {
-          console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
-          // Set flag to prevent default redirects during restoration
           localStorage.setItem("restaurandoRota", "true");
           navigate(rotaSalva, { replace: true });
           
-          // Clear flag after navigation completes
           setTimeout(() => {
             localStorage.removeItem("restaurandoRota");
           }, 200);
-          return true; // Indicate successful restoration
-        } else {
-          console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
+          return true;
         }
       }
-      return false; // No restoration needed/possible
+      return false;
     };
 
-    // Immediate restoration on app load/focus - no delays
     const handleAppFocus = () => {
-      console.log("[Route Restoration] App focado/visível, executando restauração imediata");
       restabelecerRota();
     };
 
@@ -148,25 +134,21 @@ function AppContent() {
       }
     };
 
-    // Listen for both visibility change and window focus events
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleAppFocus);
 
-    // Also attempt immediate restoration on mount
     restabelecerRota();
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleAppFocus);
     };
-  }, [navigate]); // Removed user/aluno dependencies to avoid conflicts
+  }, [navigate]);
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent<AuthFailedEventDetail>;
       const { status, forAluno, forPersonalAdmin, code } = customEvent.detail;
-
-      console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
 
       let redirectPath = '/';
       let message = 'Sua sessão expirou ou é inválida. Por favor, faça login novamente.';
@@ -197,7 +179,6 @@ function AppContent() {
           redirectPath = forPersonalAdmin ? '/' : '/aluno/dashboard';
           break;
         case 'INVALID_CREDENTIALS':
-          console.log("[Global Auth Handler] Erro de credenciais inválidas, tratado no componente de login.");
           return;
         case 'ACCOUNT_INACTIVE':
             message = 'Sua conta está inativa. Fale com seu personal trainer.';
@@ -237,16 +218,13 @@ function AppContent() {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
 
-  // Check if route restoration is in progress - block default redirects
   const restaurandoRota = localStorage.getItem("restaurandoRota");
   if (restaurandoRota) {
-    console.log("[AppContent] Route restoration in progress, blocking default redirects");
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
   
   if (user) {
     if (location.startsWith("/login")) {
-        // Check if there's a saved route before defaulting to admin/home
         const rotaSalva = localStorage.getItem("rotaAtual");
         if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
           return <Redirect to={rotaSalva} />;
@@ -261,7 +239,6 @@ function AppContent() {
   
   if (aluno) {
     if (location.startsWith("/aluno/")) return <AlunoApp />;
-    // Check if there's a saved aluno route before defaulting to dashboard
     const rotaSalva = localStorage.getItem("rotaAtual");
     if (rotaSalva && rotaSalva.startsWith("/aluno/")) {
       return <Redirect to={rotaSalva} />;
@@ -340,8 +317,10 @@ function PublicRoutes() {
         <Route path="/login/aluno" component={AlunoLoginPage} />
         <Route path="/demo-dashboard" component={DemoDashboard} />
 
+        {/* <<< INÍCIO DA CORREÇÃO 2: Movendo a rota para o local correto >>> */}
         <Route path="/cadastrar-personal/convite/:tokenDeConvite" component={CadastroPersonalPorConvitePage} />
         <Route path="/convite/aluno/:token" component={CadastroAlunoPorConvitePage} />
+        {/* <<< FIM DA CORREÇÃO 2 >>> */}
         
         <Route><Redirect to="/login" /></Route>
       </Switch>
@@ -359,7 +338,6 @@ function App() {
               <AlunoProvider>
                 <WorkoutPlayerProvider>
                   <Toaster />
-                  {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
                   <ReloadPrompt />
                   <AppContent />
                 </WorkoutPlayerProvider>
