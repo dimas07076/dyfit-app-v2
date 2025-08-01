@@ -51,6 +51,18 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const [emailConvidado, setEmailConvidado] = useState<string | null>(null);
   const [personalName, setPersonalName] = useState<string | null>(null);
 
+  // Debug logging for production troubleshooting
+  const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
+  
+  React.useEffect(() => {
+    if (isDebugMode || import.meta.env.DEV) {
+      console.log('[CadastroAlunoPorConvitePage] Página carregada com token:', token);
+      console.log('[CadastroAlunoPorConvitePage] URL atual:', window.location.href);
+      console.log('[CadastroAlunoPorConvitePage] Pathname:', window.location.pathname);
+      console.log('[CadastroAlunoPorConvitePage] Environment:', import.meta.env.MODE);
+    }
+  }, [token, isDebugMode]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -62,13 +74,27 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const { isLoading: isValidating, isError, error: validationError } = useQuery({
     queryKey: ['validateAlunoInvite', token],
     queryFn: async () => {
-      const data = await apiRequest<{ email?: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
-      if (data.email) {
-        setEmailConvidado(data.email);
-        form.setValue('email', data.email); // Pré-popula o formulário com o e-mail
+      if (isDebugMode || import.meta.env.DEV) {
+        console.log('[CadastroAlunoPorConvitePage] Validando token:', token);
       }
-      setPersonalName(data.personalName);
-      return data;
+      try {
+        const data = await apiRequest<{ email?: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
+        if (isDebugMode || import.meta.env.DEV) {
+          console.log('[CadastroAlunoPorConvitePage] Token validado com sucesso:', data);
+        }
+        
+        if (data.email) {
+          setEmailConvidado(data.email);
+          form.setValue('email', data.email); // Pré-popula o formulário com o e-mail
+        }
+        setPersonalName(data.personalName);
+        return data;
+      } catch (error) {
+        if (isDebugMode || import.meta.env.DEV) {
+          console.error('[CadastroAlunoPorConvitePage] Erro na validação do token:', error);
+        }
+        throw error;
+      }
     },
     enabled: !!token,
     retry: false,
@@ -97,6 +123,15 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   });
 
   const onSubmit = (data: FormValues) => registerMutation.mutate(data);
+  
+  if (!token) {
+    return (
+      <ErrorMessage 
+        title="Link de Convite Inválido" 
+        message="O link de convite está malformado ou incompleto. Verifique se você acessou o link correto enviado pelo seu personal trainer." 
+      />
+    );
+  }
   
   if (isValidating) return <LoadingSpinner text="Validando convite..." />;
   if (isError) return <ErrorMessage title="Convite Inválido" message={validationError?.message || "O link de convite que você usou é inválido ou já expirou."} />;
