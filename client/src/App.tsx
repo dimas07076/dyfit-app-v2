@@ -86,11 +86,15 @@ function AppContent() {
   const { toast } = useToast();
 
   // Debug logging for production troubleshooting
+  const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
+  
   React.useEffect(() => {
-    console.log('[AppContent] Location changed:', location);
-    console.log('[AppContent] User:', user ? 'authenticated' : 'not authenticated');
-    console.log('[AppContent] Aluno:', aluno ? 'authenticated' : 'not authenticated');
-  }, [location, user, aluno]);
+    if (isDebugMode || import.meta.env.DEV) {
+      console.log('[AppContent] Location changed:', location);
+      console.log('[AppContent] User:', user ? 'authenticated' : 'not authenticated');
+      console.log('[AppContent] Aluno:', aluno ? 'authenticated' : 'not authenticated');
+    }
+  }, [location, user, aluno, isDebugMode]);
 
   // Route persistence implementation - Enhanced version with immediate coordination
   useEffect(() => {
@@ -279,7 +283,9 @@ function AppContent() {
   
   // For public routes, ensure invitation routes don't get redirected
   if (location.startsWith("/convite/") || location.startsWith("/cadastrar-personal/convite/")) {
-    console.log('[AppContent] Accessing invitation route:', location);
+    if (isDebugMode || import.meta.env.DEV) {
+      console.log('[AppContent] Accessing invitation route:', location);
+    }
     return <PublicRoutes />;
   }
   
@@ -347,11 +353,15 @@ function AlunoApp() {
 
 function PublicRoutes() {
   // Debug logging for production troubleshooting
+  const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
+  
   React.useEffect(() => {
-    console.log('[PublicRoutes] Rotas públicas carregadas');
-    console.log('[PublicRoutes] URL atual:', window.location.href);
-    console.log('[PublicRoutes] Pathname:', window.location.pathname);
-  }, []);
+    if (isDebugMode || import.meta.env.DEV) {
+      console.log('[PublicRoutes] Rotas públicas carregadas');
+      console.log('[PublicRoutes] URL atual:', window.location.href);
+      console.log('[PublicRoutes] Pathname:', window.location.pathname);
+    }
+  }, [isDebugMode]);
 
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>

@@ -52,11 +52,16 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const [personalName, setPersonalName] = useState<string | null>(null);
 
   // Debug logging for production troubleshooting
+  const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
+  
   React.useEffect(() => {
-    console.log('[CadastroAlunoPorConvitePage] Página carregada com token:', token);
-    console.log('[CadastroAlunoPorConvitePage] URL atual:', window.location.href);
-    console.log('[CadastroAlunoPorConvitePage] Pathname:', window.location.pathname);
-  }, [token]);
+    if (isDebugMode || import.meta.env.DEV) {
+      console.log('[CadastroAlunoPorConvitePage] Página carregada com token:', token);
+      console.log('[CadastroAlunoPorConvitePage] URL atual:', window.location.href);
+      console.log('[CadastroAlunoPorConvitePage] Pathname:', window.location.pathname);
+      console.log('[CadastroAlunoPorConvitePage] Environment:', import.meta.env.MODE);
+    }
+  }, [token, isDebugMode]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -69,10 +74,14 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
   const { isLoading: isValidating, isError, error: validationError } = useQuery({
     queryKey: ['validateAlunoInvite', token],
     queryFn: async () => {
-      console.log('[CadastroAlunoPorConvitePage] Validando token:', token);
+      if (isDebugMode || import.meta.env.DEV) {
+        console.log('[CadastroAlunoPorConvitePage] Validando token:', token);
+      }
       try {
         const data = await apiRequest<{ email?: string; personalName: string }>('GET', `/api/public/convite-aluno/${token}`);
-        console.log('[CadastroAlunoPorConvitePage] Token validado com sucesso:', data);
+        if (isDebugMode || import.meta.env.DEV) {
+          console.log('[CadastroAlunoPorConvitePage] Token validado com sucesso:', data);
+        }
         
         if (data.email) {
           setEmailConvidado(data.email);
@@ -81,7 +90,9 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
         setPersonalName(data.personalName);
         return data;
       } catch (error) {
-        console.error('[CadastroAlunoPorConvitePage] Erro na validação do token:', error);
+        if (isDebugMode || import.meta.env.DEV) {
+          console.error('[CadastroAlunoPorConvitePage] Erro na validação do token:', error);
+        }
         throw error;
       }
     },
