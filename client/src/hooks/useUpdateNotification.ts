@@ -1,4 +1,3 @@
-// client/src/hooks/useUpdateNotification.ts
 import { useState, useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -7,14 +6,20 @@ export function useUpdateNotification() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const {
-    needRefresh: [needRefresh],
+    offlineReady: [offlineReady], // Removido setOfflineReady que não estava sendo usado
+    needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('SW Registered: ' + r);
+      console.log('PWA Service Worker registered:', r);
+      // Verifica por atualizações a cada 1 hora
+      r && setInterval(() => {
+        console.log('PWA: Checking for updates...');
+        r.update();
+      }, 60 * 60 * 1000);
     },
     onRegisterError(error) {
-      console.log('SW registration error', error);
+      console.error('PWA Service Worker registration error:', error);
     },
   });
 
@@ -27,16 +32,18 @@ export function useUpdateNotification() {
   const handleUpdate = async () => {
     setIsUpdating(true);
     await updateServiceWorker(true);
-    // A página irá recarregar automaticamente após a atualização.
+    setShowUpdatePrompt(false);
   };
 
   const handleDismiss = () => {
     setShowUpdatePrompt(false);
+    setNeedRefresh(false);
   };
 
   return {
     showUpdatePrompt,
     isUpdating,
+    offlineReady,
     handleUpdate,
     handleDismiss,
   };
