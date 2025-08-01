@@ -180,19 +180,38 @@ function AppContent() {
 
       console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
 
+      // CORREÇÃO: Verificar contexto antes de processar evento
+      // Só processa eventos de aluno se há um aluno logado, e eventos de personal/admin se há user logado
+      const shouldProcessAlunoEvent = forAluno && aluno;
+      const shouldProcessPersonalEvent = forPersonalAdmin && user;
+      
+      if (!shouldProcessAlunoEvent && !shouldProcessPersonalEvent) {
+        console.log(`[Global Auth Handler] Evento não aplicável ao contexto atual. ForAluno: ${forAluno}, AlunoLogado: ${!!aluno}, ForPersonalAdmin: ${forPersonalAdmin}, UserLogado: ${!!user}`);
+        return;
+      }
+
       let redirectPath = '/';
       let message = 'Sua sessão expirou ou é inválida. Por favor, faça login novamente.';
 
-      if (forAluno) {
+      if (forAluno && shouldProcessAlunoEvent) {
+        // CORREÇÃO: Só remove token se o evento é realmente para o aluno atual
         localStorage.removeItem('alunoAuthToken');
+        localStorage.removeItem('alunoRefreshToken');
+        localStorage.removeItem('alunoData');
         redirectPath = '/login/aluno';
       }
-      if (forPersonalAdmin) {
+      if (forPersonalAdmin && shouldProcessPersonalEvent) {
+        // CORREÇÃO: Só remove token se o evento é realmente para o personal/admin atual
         localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userData');
         redirectPath = '/login';
       }
 
-      queryClient.clear();
+      // CORREÇÃO: Só limpa queryClient se realmente processou um evento válido
+      if (shouldProcessAlunoEvent || shouldProcessPersonalEvent) {
+        queryClient.clear();
+      }
 
       switch (code) {
         case 'TOKEN_NOT_PROVIDED':
@@ -232,7 +251,9 @@ function AppContent() {
         });
       }
       
+      // CORREÇÃO: Só redireciona se não já estamos na rota de destino
       if (window.location.pathname !== redirectPath && !location.startsWith(redirectPath)) {
+        console.log(`[Global Auth Handler] Redirecionando para: ${redirectPath}`);
         navigate(redirectPath);
       }
     };
@@ -242,7 +263,7 @@ function AppContent() {
     return () => {
       window.removeEventListener('auth-failed', handleAuthFailed as EventListener);
     };
-  }, [location, navigate, toast]);
+  }, [location, navigate, toast, user, aluno]); // Adicionadas dependências user e aluno
 
 
   if (isUserLoading || isLoadingAluno) {

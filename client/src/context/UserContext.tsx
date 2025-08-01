@@ -90,10 +90,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent;
       console.log("[UserContext] Evento 'auth-failed' recebido:", customEvent.detail);
+      
+      // CORREÇÃO: Só processa eventos destinados ao Personal/Admin e se há usuário logado
       if (customEvent.detail && customEvent.detail.status === 401) {
         if (customEvent.detail.forPersonalAdmin && user) {
           console.warn("[UserContext] Falha de autenticação (401) para Personal/Admin detectada. Fazendo logout...");
           logout();
+        } else if (!customEvent.detail.forPersonalAdmin) {
+          console.log("[UserContext] Evento auth-failed não é para Personal/Admin, ignorando.");
+        } else if (!user) {
+          console.log("[UserContext] Evento auth-failed recebido, mas nenhum usuário Personal/Admin logado. Ignorando.");
         }
       }
     };

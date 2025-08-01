@@ -38,6 +38,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
   const [lastValidationTime, setLastValidationTime] = useState<number>(0);
   const [refreshAttempts, setRefreshAttempts] = useState<number>(0); // Contador de tentativas de refresh
+  const [isValidating, setIsValidating] = useState<boolean>(false); // NOVO: Flag para evitar validações simultâneas
   const [, setLocationWouter] = useLocation();
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
@@ -46,6 +47,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const VALIDATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
   const MAX_REFRESH_ATTEMPTS = 3; // Máximo de tentativas de refresh consecutivas
   const REFRESH_COOLDOWN = 60 * 1000; // 1 minuto de cooldown após falhas
+  const DEBOUNCE_VALIDATION_TIME = 1000; // 1 segundo de debounce para validações
 
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
@@ -82,13 +84,16 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       console.log("[AlunoContext] Tentando decodificar token de aluno...");
       const decodedToken = jwtDecode<AlunoLogado>(token);
+      
+      // CORREÇÃO: Verificação mais robusta de expiração
       if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
         console.warn("Contexto Aluno: Token de aluno expirado ao tentar decodificar. Expirou em:", new Date(decodedToken.exp * 1000));
-        logoutAluno({ redirect: false });
+        // CORREÇÃO: Não fazer logout imediatamente, tentar refresh primeiro
         return null;
       }
       
-      if (decodedToken.id && decodedToken.role === 'aluno') {
+      // CORREÇÃO: Verificação mais rigorosa dos campos obrigatórios
+      if (decodedToken.id && decodedToken.role === 'aluno' && decodedToken.nome && decodedToken.email) {
         const alunoData: AlunoLogado = {
           id: decodedToken.id,
           nome: decodedToken.nome,
@@ -105,19 +110,25 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.log("[AlunoContext] Aluno logado com sucesso:", alunoData.nome, "(ID:", alunoData.id, ")");
         return alunoData;
       } else {
-        console.error("Contexto Aluno: Payload do token de aluno inválido ou faltando 'id'/'role'. Payload:", decodedToken);
-        logoutAluno({ redirect: false });
+        console.error("Contexto Aluno: Payload do token de aluno inválido ou faltando campos obrigatórios. Payload:", decodedToken);
+        // CORREÇÃO: Não fazer logout imediatamente se for apenas campos faltando
         return null;
       }
     } catch (error) {
       console.error("Contexto Aluno: Erro ao decodificar token de aluno:", error);
-      logoutAluno({ redirect: false });
+      // CORREÇÃO: Não fazer logout imediatamente em caso de erro de decodificação
       return null;
     }
-  }, [logoutAluno]);
+  }, []); // Removida dependência de logoutAluno para evitar loops
   
   // Função para renovar o token do aluno com controle de tentativas
   const refreshAlunoToken = useCallback(async (): Promise<boolean> => {
+    // CORREÇÃO: Verificar se já está validando para evitar execuções simultâneas
+    if (isValidating) {
+      console.warn("[AlunoContext] refreshAlunoToken: Validação já em andamento, aguardando...");
+      return false;
+    }
+
     // Verifica se já tentamos renovar muitas vezes recentemente
     if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
       const lastAttemptKey = 'alunoLastRefreshAttempt';
@@ -152,11 +163,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Tipagem explícita da resposta da apiRequest
       const response = await apiRequest('POST', '/api/auth/aluno/refresh', { refreshToken }, 'aluno') as AlunoRefreshResponse;
       if (response.token && response.aluno) {
-        setAlunoFromToken(response.token);
-        setRefreshAttempts(0); // Reset contador em caso de sucesso
-        localStorage.removeItem('alunoLastRefreshAttempt');
-        console.log("[AlunoContext] Token de aluno renovado com sucesso! Novo token gerado.");
-        return true;
+        // CORREÇÃO: Usar função melhorada para definir token
+        const alunoData = setAlunoFromToken(response.token);
+        if (alunoData) {
+          setRefreshAttempts(0); // Reset contador em caso de sucesso
+          localStorage.removeItem('alunoLastRefreshAttempt');
+          console.log("[AlunoContext] Token de aluno renovado com sucesso! Novo token gerado.");
+          return true;
+        } else {
+          console.warn("[AlunoContext] Falha ao processar token renovado.");
+          return false;
+        }
       }
       console.warn("[AlunoContext] Resposta de refresh token inválida:", response);
       return false;
@@ -171,7 +188,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       return false;
     }
-  }, [logoutAluno, setAlunoFromToken, refreshAttempts]);
+  }, [logoutAluno, setAlunoFromToken, refreshAttempts, isValidating, MAX_REFRESH_ATTEMPTS, REFRESH_COOLDOWN]);
 
   const loginAluno = useCallback((token: string, refreshToken: string) => {
     console.log("[AlunoContext] Iniciando login do aluno...");
@@ -185,43 +202,54 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [setAlunoFromToken]);
 
   const checkAlunoSession = useCallback(async () => { // Tornar assíncrona
-    console.log("[AlunoContext] checkAlunoSession: Verificando sessão do aluno...");
-    setIsLoadingAluno(true);
-    const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
-    console.log("[AlunoContext] checkAlunoSession: Token de acesso armazenado:", !!storedToken);
-
-    if (storedToken) {
-      try {
-        const decodedToken = jwtDecode<AlunoLogado>(storedToken);
-        const expiresIn = decodedToken.exp ? decodedToken.exp * 1000 - Date.now() : 0;
-        console.log("[AlunoContext] checkAlunoSession: Token expira em (ms):", expiresIn);
-
-        // Se o token estiver expirado ou expirar em menos de 1 minuto, tenta renovar
-        if (expiresIn <= 60 * 1000) { // 1 minuto
-          console.log("[AlunoContext] Token de aluno expirado ou próximo de expirar. Tentando renovar...");
-          const refreshed = await refreshAlunoToken();
-          if (!refreshed) {
-            console.log("[AlunoContext] Falha na renovação durante checkAlunoSession. Encerrando sessão.");
-            setIsLoadingAluno(false);
-            return;
-          }
-        } else {
-          setAlunoFromToken(storedToken);
-          console.log("[AlunoContext] Token de aluno válido e ativo.");
-        }
-      } catch (error) {
-        console.error("[AlunoContext] Erro ao decodificar token armazenado durante checkAlunoSession:", error);
-        logoutAluno();
-      }
-    } else {
-      // Se não há token de acesso, tenta renovar com refresh token
-      console.log("[AlunoContext] Nenhum token de acesso encontrado. Tentando renovar com refresh token...");
-      await refreshAlunoToken();
+    // CORREÇÃO: Adicionar debounce e verificação de validação em andamento
+    if (isValidating) {
+      console.log("[AlunoContext] checkAlunoSession: Validação já em andamento, pulando...");
+      return;
     }
-    setLastValidationTime(Date.now());
-    setIsLoadingAluno(false);
-    console.log("[AlunoContext] checkAlunoSession: Verificação de sessão concluída. isLoadingAluno:", false);
-  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno]);
+
+    console.log("[AlunoContext] checkAlunoSession: Verificando sessão do aluno...");
+    setIsValidating(true);
+    setIsLoadingAluno(true);
+    
+    try {
+      const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+      console.log("[AlunoContext] checkAlunoSession: Token de acesso armazenado:", !!storedToken);
+
+      if (storedToken) {
+        try {
+          const decodedToken = jwtDecode<AlunoLogado>(storedToken);
+          const expiresIn = decodedToken.exp ? decodedToken.exp * 1000 - Date.now() : 0;
+          console.log("[AlunoContext] checkAlunoSession: Token expira em (ms):", expiresIn);
+
+          // Se o token estiver expirado ou expirar em menos de 1 minuto, tenta renovar
+          if (expiresIn <= 60 * 1000) { // 1 minuto
+            console.log("[AlunoContext] Token de aluno expirado ou próximo de expirar. Tentando renovar...");
+            const refreshed = await refreshAlunoToken();
+            if (!refreshed) {
+              console.log("[AlunoContext] Falha na renovação durante checkAlunoSession. Encerrando sessão.");
+              return;
+            }
+          } else {
+            setAlunoFromToken(storedToken);
+            console.log("[AlunoContext] Token de aluno válido e ativo.");
+          }
+        } catch (error) {
+          console.error("[AlunoContext] Erro ao decodificar token armazenado durante checkAlunoSession:", error);
+          logoutAluno();
+        }
+      } else {
+        // Se não há token de acesso, tenta renovar com refresh token
+        console.log("[AlunoContext] Nenhum token de acesso encontrado. Tentando renovar com refresh token...");
+        await refreshAlunoToken();
+      }
+      setLastValidationTime(Date.now());
+    } finally {
+      setIsLoadingAluno(false);
+      setIsValidating(false);
+      console.log("[AlunoContext] checkAlunoSession: Verificação de sessão concluída. isLoadingAluno:", false);
+    }
+  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno, isValidating]);
 
   useEffect(() => {
     console.log("[AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().");
@@ -233,15 +261,22 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     console.log("[AlunoContext] useEffect (intervalo de refresh): Configurando intervalo.");
     const interval = setInterval(() => {
-      if (tokenAluno) {
+      // CORREÇÃO: Só executa se não está validando no momento
+      if (tokenAluno && !isValidating) {
         try {
           const decodedToken = jwtDecode<AlunoLogado>(tokenAluno);
           const expiresIn = decodedToken.exp ? decodedToken.exp * 1000 - Date.now() : 0;
           console.log("[AlunoContext] Intervalo de refresh: Token expira em (ms):", expiresIn);
+          
           // Se o token expirar em menos de 10 minutos (600000 ms), tenta renovar
           if (expiresIn > 0 && expiresIn < 10 * 60 * 1000) {
             console.log("[AlunoContext] Token de aluno próximo de expirar (intervalo). Tentando renovar...");
-            refreshAlunoToken();
+            // CORREÇÃO: Só tenta renovar se não há muitas tentativas recentes
+            if (refreshAttempts < MAX_REFRESH_ATTEMPTS) {
+              refreshAlunoToken();
+            } else {
+              console.warn("[AlunoContext] Muitas tentativas de refresh no intervalo, aguardando cooldown.");
+            }
           } else if (expiresIn <= 0) {
             console.warn("[AlunoContext] Token de aluno já expirado (intervalo). Forçando logout.");
             logoutAluno();
@@ -252,8 +287,10 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           console.error("[AlunoContext] Erro ao verificar expiração do token no intervalo:", error);
           logoutAluno();
         }
-      } else {
+      } else if (!tokenAluno) {
         console.log("[AlunoContext] Intervalo de refresh: Nenhum token de aluno ativo. Pulando verificação.");
+      } else {
+        console.log("[AlunoContext] Intervalo de refresh: Validação em andamento, pulando verificação.");
       }
     }, 5 * 60 * 1000); // Roda a cada 5 minutos
 
@@ -261,7 +298,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log("[AlunoContext] useEffect (intervalo de refresh): Limpando intervalo.");
       clearInterval(interval);
     };
-  }, [tokenAluno, refreshAlunoToken, logoutAluno]);
+  }, [tokenAluno, refreshAlunoToken, logoutAluno, isValidating, refreshAttempts, MAX_REFRESH_ATTEMPTS]);
 
   useEffect(() => {
     console.log("[AlunoContext] useEffect (storage change): Configurando listener.");
@@ -287,61 +324,93 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent;
       console.log("[AlunoContext] Evento 'auth-failed' recebido. Detalhes:", customEvent.detail);
-      if (customEvent.detail && customEvent.detail.status === 401) {
-        if (customEvent.detail.forAluno && aluno) {
+      
+      // CORREÇÃO: Verificar se o evento é realmente para aluno antes de processar
+      if (customEvent.detail && customEvent.detail.forAluno && customEvent.detail.status === 401) {
+        // CORREÇÃO: Só processa se realmente há um aluno logado e não está validando
+        if (aluno && !isValidating) {
           console.warn("[AlunoContext] Falha de autenticação (401) para Aluno detectada. Tentando renovar token ou fazendo logout...");
-          refreshAlunoToken(); // Tenta renovar antes de deslogar
+          
+          // CORREÇÃO: Tentar renovar apenas se não houve muitas tentativas recentes
+          if (refreshAttempts < MAX_REFRESH_ATTEMPTS) {
+            refreshAlunoToken(); // Tenta renovar antes de deslogar
+          } else {
+            console.warn("[AlunoContext] Muitas tentativas de refresh, forçando logout.");
+            logoutAluno();
+          }
+        } else if (!aluno) {
+          console.log("[AlunoContext] Evento auth-failed recebido, mas nenhum aluno logado. Ignorando.");
+        } else {
+          console.log("[AlunoContext] Evento auth-failed recebido, mas validação em andamento. Ignorando para evitar conflito.");
         }
+      } else if (customEvent.detail && !customEvent.detail.forAluno) {
+        console.log("[AlunoContext] Evento auth-failed não é para aluno, ignorando.");
       }
     };
+    
     window.addEventListener('auth-failed', handleAuthFailed);
     return () => {
       console.log("[AlunoContext] useEffect (auth-failed event): Removendo listener.");
       window.removeEventListener('auth-failed', handleAuthFailed);
     };
-  }, [aluno, refreshAlunoToken]); // Alterado para tentar refresh antes de logout
+  }, [aluno, refreshAlunoToken, logoutAluno, isValidating, refreshAttempts, MAX_REFRESH_ATTEMPTS]); // Adicionadas dependências necessárias
 
-  // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA COM CACHE INTELIGENTE ---
+  // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA COM CACHE INTELIGENTE E DEBOUNCE ---
   useEffect(() => {
     console.log("[AlunoContext] useEffect (visibility change): Configurando listener.");
+    let debounceTimer: NodeJS.Timeout | null = null;
+    
     // Esta função será chamada sempre que o estado de visibilidade da página mudar.
     const handleVisibilityChange = () => {
       // Verificamos o estado apenas quando a página se torna visível.
       if (document.visibilityState === 'visible') {
-        // Check if route restoration is in progress - if so, delay validation significantly
-        const restaurandoRota = localStorage.getItem("restaurandoRota");
-        if (restaurandoRota) {
-          console.log("[AlunoContext] Route restoration in progress, delaying session validation");
-          // Wait longer for route restoration to complete before validating
-          setTimeout(() => {
-            if (!localStorage.getItem("restaurandoRota")) {
-              console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
-              handleVisibilityChange(); // Retry after route restoration completes
-            } else {
-              console.log("[AlunoContext] Route restoration still in progress, skipping validation");
-            }
-          }, 2000); // Increased delay to 2 seconds
-          return;
+        // CORREÇÃO: Limpar timer anterior se existir
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
         }
-
-        const now = Date.now();
-        const timeSinceLastValidation = now - lastValidationTime;
-        console.log("[AlunoContext] App tornou-se visível. Tempo desde última validação (ms):", timeSinceLastValidation);
-        console.log("[AlunoContext] App tornou-se visível. Token atual:", !!tokenAluno);
         
-        // Só revalida se passou do tempo de cache ou se nunca foi validado
-        // E se o token atual não for nulo, para evitar loop de refresh sem token
-        if ((timeSinceLastValidation > VALIDATION_CACHE_DURATION || lastValidationTime === 0) && tokenAluno) {
-          console.log("[AlunoContext] App tornou-se visível. Revalidando a sessão do aluno... (cache expirado ou primeira validação)");
-          checkAlunoSession();
-        } else if (!tokenAluno) {
-          // Se não há token, tenta renovar com refresh token (caso tenha sido removido por algum motivo)
-          console.log("[AlunoContext] App tornou-se visível, mas sem token de acesso. Tentando renovar com refresh token...");
-          refreshAlunoToken();
-        }
-        else {
-          console.log("[AlunoContext] App tornou-se visível. Cache ainda válido, pulando revalidação.");
-        }
+        // CORREÇÃO: Implementar debounce para evitar validações excessivas
+        debounceTimer = setTimeout(() => {
+          // Check if route restoration is in progress - if so, delay validation significantly
+          const restaurandoRota = localStorage.getItem("restaurandoRota");
+          if (restaurandoRota) {
+            console.log("[AlunoContext] Route restoration in progress, delaying session validation");
+            // Wait longer for route restoration to complete before validating
+            setTimeout(() => {
+              if (!localStorage.getItem("restaurandoRota") && !isValidating) {
+                console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
+                handleVisibilityChange(); // Retry after route restoration completes
+              } else {
+                console.log("[AlunoContext] Route restoration still in progress or validation in progress, skipping validation");
+              }
+            }, 2000); // Increased delay to 2 seconds
+            return;
+          }
+
+          // CORREÇÃO: Verificar se já está validando antes de prosseguir
+          if (isValidating) {
+            console.log("[AlunoContext] Validação já em andamento, pulando verificação de visibilidade.");
+            return;
+          }
+
+          const now = Date.now();
+          const timeSinceLastValidation = now - lastValidationTime;
+          console.log("[AlunoContext] App tornou-se visível. Tempo desde última validação (ms):", timeSinceLastValidation);
+          console.log("[AlunoContext] App tornou-se visível. Token atual:", !!tokenAluno);
+          
+          // Só revalida se passou do tempo de cache ou se nunca foi validado
+          // E se o token atual não for nulo, para evitar loop de refresh sem token
+          if ((timeSinceLastValidation > VALIDATION_CACHE_DURATION || lastValidationTime === 0) && tokenAluno) {
+            console.log("[AlunoContext] App tornou-se visível. Revalidando a sessão do aluno... (cache expirado ou primeira validação)");
+            checkAlunoSession();
+          } else if (!tokenAluno) {
+            // Se não há token, tenta renovar com refresh token (caso tenha sido removido por algum motivo)
+            console.log("[AlunoContext] App tornou-se visível, mas sem token de acesso. Tentando renovar com refresh token...");
+            refreshAlunoToken();
+          } else {
+            console.log("[AlunoContext] App tornou-se visível. Cache ainda válido, pulando revalidação.");
+          }
+        }, DEBOUNCE_VALIDATION_TIME);
       }
     };
 
@@ -352,9 +421,12 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // Isso evita vazamentos de memória.
     return () => {
       console.log("[AlunoContext] useEffect (visibility change): Removendo listener.");
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken]); // Adicionado tokenAluno e refreshAlunoToken como dependências
+  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken, isValidating]); // Adicionado isValidating como dependência
   // --- FIM DA ETAPA 3 ---
 
   return (
