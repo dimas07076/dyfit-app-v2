@@ -36,7 +36,7 @@ const calculateBackoffDelay = (attempt: number): number => {
 // Função para aguardar um determinado tempo
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-// Função para validar se localStorage está corrompido
+// Função para validar se localStorage está corrompido - agora token-type aware
 const validateAndCleanStorage = (tokenType: TokenType): boolean => {
   try {
     const tokenKey = tokenType === 'aluno' ? 'alunoAuthToken' : 'authToken';
@@ -45,20 +45,40 @@ const validateAndCleanStorage = (tokenType: TokenType): boolean => {
     const token = localStorage.getItem(tokenKey);
     const refreshToken = localStorage.getItem(refreshTokenKey);
     
-    // Se há token mas está vazio ou inválido, limpa
+    // CORREÇÃO: Só limpa tokens do tipo específico solicitado
+    // Não remove tokens de outros tipos durante a validação
+    console.log(`[validateAndCleanStorage] Validando storage para ${tokenType}...`);
+    
+    // Se há token mas está vazio ou inválido, limpa APENAS o token do tipo solicitado
     if (token === '' || token === 'null' || token === 'undefined') {
-      console.warn(`[validateAndCleanStorage] Token ${tokenType} corrompido, limpando...`);
+      console.warn(`[validateAndCleanStorage] Token ${tokenType} corrompido, limpando apenas este tipo...`);
+      localStorage.removeItem(tokenKey);
+      localStorage.removeItem(refreshTokenKey);
+      
+      // IMPORTANTE: Não remove dados de outros tipos de usuário
+      if (tokenType === 'aluno') {
+        localStorage.removeItem('alunoData');
+      } else {
+        localStorage.removeItem('userData');
+      }
+      return false;
+    }
+    
+    // Se há refresh token mas está vazio ou inválido, limpa apenas este refresh token
+    if (refreshToken === '' || refreshToken === 'null' || refreshToken === 'undefined') {
+      console.warn(`[validateAndCleanStorage] Refresh token ${tokenType} corrompido, limpando apenas este tipo...`);
+      localStorage.removeItem(refreshTokenKey);
+    }
+    
+    // Verifica se o token é válido estruturalmente (tem formato JWT)
+    if (token && !token.includes('.')) {
+      console.warn(`[validateAndCleanStorage] Token ${tokenType} não tem formato JWT válido, limpando...`);
       localStorage.removeItem(tokenKey);
       localStorage.removeItem(refreshTokenKey);
       return false;
     }
     
-    // Se há refresh token mas está vazio ou inválido, limpa
-    if (refreshToken === '' || refreshToken === 'null' || refreshToken === 'undefined') {
-      console.warn(`[validateAndCleanStorage] Refresh token ${tokenType} corrompido, limpando...`);
-      localStorage.removeItem(refreshTokenKey);
-    }
-    
+    console.log(`[validateAndCleanStorage] Storage para ${tokenType} validado com sucesso.`);
     return true;
   } catch (error) {
     console.error(`[validateAndCleanStorage] Erro ao validar storage para ${tokenType}:`, error);
