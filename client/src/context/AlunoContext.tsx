@@ -49,9 +49,24 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const REFRESH_COOLDOWN = 60 * 1000; // 1 minuto de cooldown após falhas
   const DEBOUNCE_VALIDATION_TIME = 1000; // 1 segundo de debounce para validações
 
+  // NOVA FUNÇÃO: Verificar se é uma rota pública de convite
+  const isPublicInviteRoute = useCallback((pathname?: string) => {
+    const currentPath = pathname || window.location.pathname;
+    return currentPath.includes('/convite/aluno/') || 
+           currentPath.includes('/cadastrar-aluno/convite/') ||
+           currentPath.includes('/cadastrar-personal/convite/');
+  }, []);
+
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
     console.log("[AlunoContext] Iniciando logout do aluno...");
+
+    // CORREÇÃO: Não fazer logout em rotas de convite
+    if (isPublicInviteRoute()) {
+      console.log("[AlunoContext] Logout cancelado - rota de convite detectada:", window.location.pathname);
+      return;
+    }
+
     setAluno(null);
     setTokenAluno(null);
     setRefreshAttempts(0); // Reset contador de tentativas
@@ -59,34 +74,25 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.removeItem(ALUNO_DATA_KEY);
     localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY); // Remover refresh token também
     console.log("[AlunoContext] Dados de sessão do aluno removidos do localStorage.");
+    
     if (shouldRedirect) {
         // Check if route restoration is in progress
         const restaurandoRota = localStorage.getItem("restaurandoRota");
         if (restaurandoRota) {
-          console.log("[AlunoContext] Route restoration in progress, delaying logout redirect");
-          // Wait longer for route restoration to complete before redirecting
-          setTimeout(() => {
-            if (!localStorage.getItem("restaurandoRota")) {
-              console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
-              setLocationWouter("/login");
-            } else {
-              console.log("[AlunoContext] Route restoration still active, skipping logout redirect");
-            }
-          }, 2000); // Increased delay to 2 seconds
-        } else {
-          console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
-          setLocationWouter("/login");
+            console.log("[AlunoContext] Restauração de rota em progresso, não redirecionando após logout do aluno.");
+            return;
         }
+        console.log("[AlunoContext] Redirecionando para /login (hub) após logout do Aluno.");
+        setLocationWouter("/login");
     }
-  }, [setLocationWouter]);
+  }, [setLocationWouter, isPublicInviteRoute]);
 
   const setAlunoFromToken = useCallback((token: string): AlunoLogado | null => {
     try {
-      console.log("[AlunoContext] Tentando decodificar token de aluno...");
       const decodedToken = jwtDecode<AlunoLogado>(token);
       
-      // CORREÇÃO: Verificação mais robusta de expiração
-      if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
+      // CORREÇÃO: Verificar se o token está expirado antes de processar
+      if (decodedToken.exp && decodedToken.exp * 1000 <= Date.now()) {
         console.warn("Contexto Aluno: Token de aluno expirado ao tentar decodificar. Expirou em:", new Date(decodedToken.exp * 1000));
         // CORREÇÃO: Não fazer logout imediatamente, tentar refresh primeiro
         return null;
@@ -107,7 +113,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setTokenAluno(token);
         localStorage.setItem(ALUNO_TOKEN_KEY, token);
         localStorage.setItem(ALUNO_DATA_KEY, JSON.stringify(alunoData));
-        console.log("[AlunoContext] Aluno logado com sucesso:", alunoData.nome, "(ID:", alunoData.id, ")");
+        console.log("Contexto Aluno: Aluno logado com sucesso:", alunoData.nome, "(ID:", alunoData.id, ")");
         return alunoData;
       } else {
         console.error("Contexto Aluno: Payload do token de aluno inválido ou faltando campos obrigatórios. Payload:", decodedToken);
@@ -125,30 +131,19 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const refreshAlunoToken = useCallback(async (): Promise<boolean> => {
     // CORREÇÃO: Verificar se já está validando para evitar execuções simultâneas
     if (isValidating) {
-      console.warn("[AlunoContext] refreshAlunoToken: Validação já em andamento, aguardando...");
+      console.log("[AlunoContext] refreshAlunoToken: Validação já em andamento, pulando refresh...");
       return false;
     }
 
-    // Verifica se já tentamos renovar muitas vezes recentemente
-    if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
-      const lastAttemptKey = 'alunoLastRefreshAttempt';
-      const lastAttempt = localStorage.getItem(lastAttemptKey);
-      const lastAttemptTime = lastAttempt ? parseInt(lastAttempt) : 0;
-      const now = Date.now();
-      
-      if (now - lastAttemptTime < REFRESH_COOLDOWN) {
-        console.warn(`[AlunoContext] Muitas tentativas de refresh (${refreshAttempts}). Aguardando cooldown.`);
-        return false;
-      } else {
-        // Reset do contador após cooldown
-        setRefreshAttempts(0);
-        localStorage.removeItem(lastAttemptKey);
-      }
+    // CORREÇÃO: Não tentar refresh em rotas de convite
+    if (isPublicInviteRoute()) {
+      console.log("[AlunoContext] Refresh cancelado - rota de convite detectada:", window.location.pathname);
+      return false;
     }
 
+    console.log("[AlunoContext] refreshAlunoToken: Verificando refresh token. Existe:", !!localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY));
     const refreshToken = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
-    console.log("[AlunoContext] refreshAlunoToken: Verificando refresh token. Existe:", !!refreshToken);
-
+    
     if (!refreshToken) {
       console.log("[AlunoContext] Nenhum refresh token de aluno encontrado. Realizando logout.");
       logoutAluno();
@@ -171,24 +166,29 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           console.log("[AlunoContext] Token de aluno renovado com sucesso! Novo token gerado.");
           return true;
         } else {
-          console.warn("[AlunoContext] Falha ao processar token renovado.");
+          console.error("[AlunoContext] Falha ao processar o novo token recebido durante refresh.");
+          logoutAluno();
           return false;
         }
+      } else {
+        console.error("[AlunoContext] Resposta inválida do servidor durante refresh de aluno:", response);
+        logoutAluno();
+        return false;
       }
-      console.warn("[AlunoContext] Resposta de refresh token inválida:", response);
-      return false;
-    } catch (error: any) { // Capturar erro como 'any' para acessar 'message'
-      console.error("[AlunoContext] Falha ao renovar token do aluno. Erro:", error.message || error);
+    } catch (error) {
+      console.error("[AlunoContext] Erro ao renovar token do aluno:", error);
       
-      // Se atingiu o limite de tentativas, força logout
-      if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
-        console.error("[AlunoContext] Limite de tentativas de refresh atingido. Forçando logout.");
+      // CORREÇÃO: Controle de tentativas com cooldown
+      const lastAttempt = localStorage.getItem('alunoLastRefreshAttempt');
+      const timeSinceLastAttempt = lastAttempt ? Date.now() - parseInt(lastAttempt) : Infinity;
+      
+      if (refreshAttempts >= MAX_REFRESH_ATTEMPTS || timeSinceLastAttempt < REFRESH_COOLDOWN) {
+        console.warn("[AlunoContext] Muitas tentativas de refresh ou muito cedo para nova tentativa. Fazendo logout.");
         logoutAluno();
       }
-      
       return false;
     }
-  }, [logoutAluno, setAlunoFromToken, refreshAttempts, isValidating, MAX_REFRESH_ATTEMPTS, REFRESH_COOLDOWN]);
+  }, [setAlunoFromToken, logoutAluno, refreshAttempts, MAX_REFRESH_ATTEMPTS, REFRESH_COOLDOWN, isValidating, isPublicInviteRoute]);
 
   const loginAluno = useCallback((token: string, refreshToken: string) => {
     console.log("[AlunoContext] Iniciando login do aluno...");
@@ -208,10 +208,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return;
     }
 
+    // CORREÇÃO: Não verificar sessão em rotas de convite
+    if (isPublicInviteRoute()) {
+      console.log("[AlunoContext] Verificação de sessão cancelada - rota de convite detectada:", window.location.pathname);
+      setIsLoadingAluno(false);
+      return;
+    }
+
     console.log("[AlunoContext] checkAlunoSession: Verificando sessão do aluno...");
     setIsValidating(true);
     setIsLoadingAluno(true);
-    
+
     try {
       const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
       console.log("[AlunoContext] checkAlunoSession: Token de acesso armazenado:", !!storedToken);
@@ -249,76 +256,78 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setIsValidating(false);
       console.log("[AlunoContext] checkAlunoSession: Verificação de sessão concluída. isLoadingAluno:", false);
     }
-  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno, isValidating]);
+  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno, isValidating, isPublicInviteRoute]);
 
   useEffect(() => {
     console.log("[AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().");
     checkAlunoSession();
-    // Initial check on mount
-  }, [checkAlunoSession]); // Adicionado checkAlunoSession como dependência
+  }, [checkAlunoSession]);
 
-  // Checa a cada 5 minutos se o token está próximo de expirar e tenta renovar
+  // --- INÍCIO DA ETAPA 2: REFRESH AUTOMÁTICO ---
   useEffect(() => {
     console.log("[AlunoContext] useEffect (intervalo de refresh): Configurando intervalo.");
-    const interval = setInterval(() => {
-      // CORREÇÃO: Só executa se não está validando no momento
+    const refreshInterval = setInterval(() => {
+      // CORREÇÃO: Não executar refresh automático em rotas de convite
+      if (isPublicInviteRoute()) {
+        console.log("[AlunoContext] Refresh automático cancelado - rota de convite detectada");
+        return;
+      }
+
+      // CORREÇÃO: Só executa se há token e não está validando
       if (tokenAluno && !isValidating) {
         try {
           const decodedToken = jwtDecode<AlunoLogado>(tokenAluno);
           const expiresIn = decodedToken.exp ? decodedToken.exp * 1000 - Date.now() : 0;
           console.log("[AlunoContext] Intervalo de refresh: Token expira em (ms):", expiresIn);
           
-          // Se o token expirar em menos de 10 minutos (600000 ms), tenta renovar
-          if (expiresIn > 0 && expiresIn < 10 * 60 * 1000) {
-            console.log("[AlunoContext] Token de aluno próximo de expirar (intervalo). Tentando renovar...");
-            // CORREÇÃO: Só tenta renovar se não há muitas tentativas recentes
-            if (refreshAttempts < MAX_REFRESH_ATTEMPTS) {
-              refreshAlunoToken();
-            } else {
-              console.warn("[AlunoContext] Muitas tentativas de refresh no intervalo, aguardando cooldown.");
-            }
-          } else if (expiresIn <= 0) {
-            console.warn("[AlunoContext] Token de aluno já expirado (intervalo). Forçando logout.");
-            logoutAluno();
-          } else {
-            console.log("[AlunoContext] Token de aluno ainda válido (intervalo). Próxima verificação em 5min.");
+          // Renovar quando restam menos de 2 minutos
+          if (expiresIn <= 2 * 60 * 1000 && expiresIn > 0) {
+            console.log("[AlunoContext] Intervalo de refresh: Renovando token proativamente...");
+            refreshAlunoToken();
           }
         } catch (error) {
-          console.error("[AlunoContext] Erro ao verificar expiração do token no intervalo:", error);
-          logoutAluno();
+          console.error("[AlunoContext] Erro ao verificar expiração durante intervalo de refresh:", error);
         }
-      } else if (!tokenAluno) {
-        console.log("[AlunoContext] Intervalo de refresh: Nenhum token de aluno ativo. Pulando verificação.");
-      } else {
-        console.log("[AlunoContext] Intervalo de refresh: Validação em andamento, pulando verificação.");
       }
-    }, 5 * 60 * 1000); // Roda a cada 5 minutos
+    }, 60 * 1000); // Verificar a cada minuto
 
     return () => {
       console.log("[AlunoContext] useEffect (intervalo de refresh): Limpando intervalo.");
-      clearInterval(interval);
+      clearInterval(refreshInterval);
     };
-  }, [tokenAluno, refreshAlunoToken, logoutAluno, isValidating, refreshAttempts, MAX_REFRESH_ATTEMPTS]);
+  }, [tokenAluno, refreshAlunoToken, isValidating, isPublicInviteRoute]);
 
+  // --- INÍCIO DA ETAPA 2.5: ARMAZENAMENTO LOCAL ---
   useEffect(() => {
     console.log("[AlunoContext] useEffect (storage change): Configurando listener.");
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === ALUNO_TOKEN_KEY && event.newValue === null) {
-        console.log("[AlunoContext] StorageEvent: Token de acesso removido. Forçando logout.");
-        logoutAluno();
+      // CORREÇÃO: Não processar mudanças de storage em rotas de convite
+      if (isPublicInviteRoute()) {
+        console.log("[AlunoContext] Storage change ignorado - rota de convite detectada");
+        return;
       }
-      if (event.key === ALUNO_REFRESH_TOKEN_KEY && event.newValue === null) {
-        console.log("[AlunoContext] StorageEvent: Refresh token removido. Forçando logout.");
-        logoutAluno();
+
+      // Se o token do aluno foi removido em outra aba
+      if (event.key === ALUNO_TOKEN_KEY && !event.newValue && aluno) {
+        console.log("[AlunoContext] Token de aluno removido em outra aba. Fazendo logout local.");
+        setAluno(null);
+        setTokenAluno(null);
+      }
+      // Se um novo token foi definido em outra aba
+      else if (event.key === ALUNO_TOKEN_KEY && event.newValue && !aluno) {
+        console.log("[AlunoContext] Novo token de aluno detectado em outra aba. Atualizando sessão.");
+        setAlunoFromToken(event.newValue);
       }
     };
+
     window.addEventListener('storage', handleStorageChange);
     return () => {
       console.log("[AlunoContext] useEffect (storage change): Removendo listener.");
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [logoutAluno]);
-  
+  }, [aluno, setAlunoFromToken, isPublicInviteRoute]);
+
+  // --- INÍCIO DA ETAPA 2.6: EVENT LISTENER PARA AUTH-FAILED ---
   useEffect(() => {
     console.log("[AlunoContext] useEffect (auth-failed event): Configurando listener.");
     const handleAuthFailed = (event: Event) => {
@@ -374,27 +383,23 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           // Check if route restoration is in progress - if so, delay validation significantly
           const restaurandoRota = localStorage.getItem("restaurandoRota");
           if (restaurandoRota) {
-            console.log("[AlunoContext] Route restoration in progress, delaying session validation");
-            // Wait longer for route restoration to complete before validating
-            setTimeout(() => {
-              if (!localStorage.getItem("restaurandoRota") && !isValidating) {
-                console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
-                handleVisibilityChange(); // Retry after route restoration completes
-              } else {
-                console.log("[AlunoContext] Route restoration still in progress or validation in progress, skipping validation");
-              }
-            }, 2000); // Increased delay to 2 seconds
+            console.log("[AlunoContext] App tornou-se visível, mas restauração de rota em progresso. Adiando validação...");
             return;
           }
 
-          // CORREÇÃO: Verificar se já está validando antes de prosseguir
+          // CORREÇÃO: Não validar em rotas de convite
+          if (isPublicInviteRoute()) {
+            console.log("[AlunoContext] App tornou-se visível, mas em rota de convite. Pulando validação.");
+            return;
+          }
+
+          // CORREÇÃO: Verificar se não está validando para evitar execuções simultâneas
           if (isValidating) {
-            console.log("[AlunoContext] Validação já em andamento, pulando verificação de visibilidade.");
+            console.log("[AlunoContext] App tornou-se visível, mas validação já em andamento. Pulando...");
             return;
           }
-
-          const now = Date.now();
-          const timeSinceLastValidation = now - lastValidationTime;
+          
+          const timeSinceLastValidation = Date.now() - lastValidationTime;
           console.log("[AlunoContext] App tornou-se visível. Tempo desde última validação (ms):", timeSinceLastValidation);
           console.log("[AlunoContext] App tornou-se visível. Token atual:", !!tokenAluno);
           
@@ -426,7 +431,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken, isValidating]); // Adicionado isValidating como dependência
+  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken, isValidating, isPublicInviteRoute]); // Adicionado isValidating como dependência
   // --- FIM DA ETAPA 3 ---
 
   return (
