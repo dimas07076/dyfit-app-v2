@@ -334,6 +334,47 @@
   .btn-gradient:active {
     transform: translateY(0);
   }
+
+  /* 🔧 CORREÇÃO: Toast Animations - Animações SUAVES */
+  [data-radix-toast-viewport] {
+    position: fixed !important;
+    top: 1rem !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100vw - 2rem) !important;
+    max-width: 420px !important;
+    z-index: 2147483647 !important;
+    pointer-events: none !important;
+  }
+
+  [data-radix-toast-viewport] > * {
+    pointer-events: auto !important;
+  }
+
+  /* Toast individual - animação suave */
+  [data-state="open"][data-radix-toast] {
+    animation: toast-slide-in-top 200ms ease-out !important;
+  }
+
+  [data-state="closed"][data-radix-toast] {
+    animation: toast-slide-out-top 150ms ease-in !important;
+  }
+
+  /* Remove animações agressivas */
+  [data-radix-toast] {
+    transform: none !important;
+    animation-duration: 200ms !important;
+    animation-timing-function: ease-out !important;
+    animation-fill-mode: forwards !important;
+  }
+
+  /* Mobile responsivo para toast */
+  @media (max-width: 640px) {
+    [data-radix-toast-viewport] {
+      width: calc(100vw - 1rem) !important;
+      top: 0.5rem !important;
+    }
+  }
 }
 
 /* Keyframe Animations */
@@ -365,5 +406,28 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* 🚀 Toast Animations - TOP CENTER */
+@keyframes toast-slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-slide-out-top {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
   }
 }
