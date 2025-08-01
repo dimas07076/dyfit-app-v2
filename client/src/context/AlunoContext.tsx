@@ -1,8 +1,8 @@
 // client/src/context/AlunoContext.tsx
-import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useLocation } from 'wouter';
-import { apiRequest } from '@/lib/queryClient'; // Importar apiRequest para chamadas ao backend
+import { apiRequest } from '@/lib/queryClient'; // ← CORREÇÃO: Import correto
 
 export interface AlunoLogado {
   id: string;
@@ -30,15 +30,24 @@ interface AlunoContextType {
   checkAlunoSession: () => void;
 }
 
-export const AlunoContext = createContext<AlunoContextType | undefined>(undefined);
+const AlunoContext = createContext<AlunoContextType | undefined>(undefined);
+
+export const useAluno = () => {
+  const context = useContext(AlunoContext);
+  if (context === undefined) {
+    throw new Error('useAluno must be used within an AlunoProvider');
+  }
+  return context;
+};
 
 export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [aluno, setAluno] = useState<AlunoLogado | null>(null);
   const [tokenAluno, setTokenAluno] = useState<string | null>(null);
-  const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(true);
+  const [isLoadingAluno, setIsLoadingAluno] = useState<boolean>(false);
   const [lastValidationTime, setLastValidationTime] = useState<number>(0);
   const [refreshAttempts, setRefreshAttempts] = useState<number>(0); // Contador de tentativas de refresh
   const [, setLocationWouter] = useLocation();
+  const [location] = useLocation();
 
   const ALUNO_TOKEN_KEY = 'alunoAuthToken';
   const ALUNO_DATA_KEY = 'alunoData';
@@ -46,6 +55,34 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const VALIDATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
   const MAX_REFRESH_ATTEMPTS = 3; // Máximo de tentativas de refresh consecutivas
   const REFRESH_COOLDOWN = 60 * 1000; // 1 minuto de cooldown após falhas
+
+  // 🔥 NOVA FUNÇÃO: Verifica se a rota atual é pública
+  const isPublicRoute = useCallback((path: string) => {
+    const publicRoutes = [
+      '/convite/aluno/',
+      '/convite/personal/',
+      '/login',
+      '/aluno/login',
+      '/cadastrar-',
+      '/',
+      '/demo'
+    ];
+    
+    return publicRoutes.some(route => path.includes(route) || path === '/');
+  }, []);
+
+  // 🔥 NOVA FUNÇÃO: Verifica se deve executar verificações de autenticação
+  const shouldSkipAuthCheck = useCallback(() => {
+    const currentPath = location;
+    const isPublic = isPublicRoute(currentPath);
+    
+    if (isPublic) {
+      console.log(`[AlunoContext] Pulando verificações de auth - rota pública: ${currentPath}`);
+      return true;
+    }
+    
+    return false;
+  }, [location, isPublicRoute]);
 
   const logoutAluno = useCallback((options?: { redirect?: boolean }) => {
     const shouldRedirect = options?.redirect ?? true;
@@ -57,7 +94,8 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.removeItem(ALUNO_DATA_KEY);
     localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY); // Remover refresh token também
     console.log("[AlunoContext] Dados de sessão do aluno removidos do localStorage.");
-    if (shouldRedirect) {
+    
+    if (shouldRedirect && !shouldSkipAuthCheck()) {
         // Check if route restoration is in progress
         const restaurandoRota = localStorage.getItem("restaurandoRota");
         if (restaurandoRota) {
@@ -76,7 +114,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setLocationWouter("/login");
         }
     }
-  }, [setLocationWouter]);
+  }, [setLocationWouter, shouldSkipAuthCheck]);
 
   const setAlunoFromToken = useCallback((token: string): AlunoLogado | null => {
     try {
@@ -115,9 +153,15 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return null;
     }
   }, [logoutAluno]);
-  
+
   // Função para renovar o token do aluno com controle de tentativas
   const refreshAlunoToken = useCallback(async (): Promise<boolean> => {
+    // 🔥 OTIMIZAÇÃO: Não executa refresh em rotas públicas
+    if (shouldSkipAuthCheck()) {
+      console.log("[AlunoContext] Pulando refresh token - rota pública");
+      return false;
+    }
+
     // Verifica se já tentamos renovar muitas vezes recentemente
     if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
       const lastAttemptKey = 'alunoLastRefreshAttempt';
@@ -171,7 +215,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       return false;
     }
-  }, [logoutAluno, setAlunoFromToken, refreshAttempts]);
+  }, [logoutAluno, setAlunoFromToken, refreshAttempts, shouldSkipAuthCheck]);
 
   const loginAluno = useCallback((token: string, refreshToken: string) => {
     console.log("[AlunoContext] Iniciando login do aluno...");
@@ -185,6 +229,13 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [setAlunoFromToken]);
 
   const checkAlunoSession = useCallback(async () => { // Tornar assíncrona
+    // 🔥 OTIMIZAÇÃO: Não executa verificação em rotas públicas
+    if (shouldSkipAuthCheck()) {
+      console.log("[AlunoContext] Pulando checkAlunoSession - rota pública");
+      setIsLoadingAluno(false);
+      return;
+    }
+
     console.log("[AlunoContext] checkAlunoSession: Verificando sessão do aluno...");
     setIsLoadingAluno(true);
     const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
@@ -221,19 +272,30 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setLastValidationTime(Date.now());
     setIsLoadingAluno(false);
     console.log("[AlunoContext] checkAlunoSession: Verificação de sessão concluída. isLoadingAluno:", false);
-  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno]);
+  }, [setAlunoFromToken, refreshAlunoToken, logoutAluno, shouldSkipAuthCheck]);
 
+  // 🔥 OTIMIZAÇÃO: useEffect inicial agora verifica se deve executar
   useEffect(() => {
-    console.log("[AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().");
-    checkAlunoSession();
+    if (!shouldSkipAuthCheck()) {
+      console.log("[AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().");
+      checkAlunoSession();
+    } else {
+      console.log("[AlunoContext] useEffect (montagem inicial): Pulando checkAlunoSession - rota pública.");
+    }
     // Initial check on mount
-  }, [checkAlunoSession]); // Adicionado checkAlunoSession como dependência
+  }, [checkAlunoSession, shouldSkipAuthCheck]); // Adicionado shouldSkipAuthCheck como dependência
 
   // Checa a cada 5 minutos se o token está próximo de expirar e tenta renovar
   useEffect(() => {
+    // 🔥 OTIMIZAÇÃO: Não configura intervalo em rotas públicas
+    if (shouldSkipAuthCheck()) {
+      console.log("[AlunoContext] useEffect (intervalo de refresh): Pulando configuração - rota pública.");
+      return;
+    }
+
     console.log("[AlunoContext] useEffect (intervalo de refresh): Configurando intervalo.");
     const interval = setInterval(() => {
-      if (tokenAluno) {
+      if (tokenAluno && !shouldSkipAuthCheck()) {
         try {
           const decodedToken = jwtDecode<AlunoLogado>(tokenAluno);
           const expiresIn = decodedToken.exp ? decodedToken.exp * 1000 - Date.now() : 0;
@@ -253,7 +315,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           logoutAluno();
         }
       } else {
-        console.log("[AlunoContext] Intervalo de refresh: Nenhum token de aluno ativo. Pulando verificação.");
+        console.log("[AlunoContext] Intervalo de refresh: Nenhum token de aluno ativo ou rota pública. Pulando verificação.");
       }
     }, 5 * 60 * 1000); // Roda a cada 5 minutos
 
@@ -261,7 +323,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log("[AlunoContext] useEffect (intervalo de refresh): Limpando intervalo.");
       clearInterval(interval);
     };
-  }, [tokenAluno, refreshAlunoToken, logoutAluno]);
+  }, [tokenAluno, refreshAlunoToken, logoutAluno, shouldSkipAuthCheck]);
 
   useEffect(() => {
     console.log("[AlunoContext] useEffect (storage change): Configurando listener.");
@@ -303,30 +365,19 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // --- INÍCIO DA ETAPA 3: VALIDAÇÃO PROATIVA COM CACHE INTELIGENTE ---
   useEffect(() => {
+    // 🔥 OTIMIZAÇÃO: Não configura listener de visibilidade em rotas públicas
+    if (shouldSkipAuthCheck()) {
+      console.log("[AlunoContext] useEffect (visibility change): Pulando configuração - rota pública.");
+      return;
+    }
+
     console.log("[AlunoContext] useEffect (visibility change): Configurando listener.");
     // Esta função será chamada sempre que o estado de visibilidade da página mudar.
     const handleVisibilityChange = () => {
       // Verificamos o estado apenas quando a página se torna visível.
-      if (document.visibilityState === 'visible') {
-        // Check if route restoration is in progress - if so, delay validation significantly
-        const restaurandoRota = localStorage.getItem("restaurandoRota");
-        if (restaurandoRota) {
-          console.log("[AlunoContext] Route restoration in progress, delaying session validation");
-          // Wait longer for route restoration to complete before validating
-          setTimeout(() => {
-            if (!localStorage.getItem("restaurandoRota")) {
-              console.log("[AlunoContext] Route restoration completed, proceeding with delayed validation");
-              handleVisibilityChange(); // Retry after route restoration completes
-            } else {
-              console.log("[AlunoContext] Route restoration still in progress, skipping validation");
-            }
-          }, 2000); // Increased delay to 2 seconds
-          return;
-        }
-
+      if (!document.hidden && !shouldSkipAuthCheck()) {
         const now = Date.now();
         const timeSinceLastValidation = now - lastValidationTime;
-        console.log("[AlunoContext] App tornou-se visível. Tempo desde última validação (ms):", timeSinceLastValidation);
         console.log("[AlunoContext] App tornou-se visível. Token atual:", !!tokenAluno);
         
         // Só revalida se passou do tempo de cache ou se nunca foi validado
@@ -354,7 +405,7 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log("[AlunoContext] useEffect (visibility change): Removendo listener.");
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken]); // Adicionado tokenAluno e refreshAlunoToken como dependências
+  }, [checkAlunoSession, lastValidationTime, tokenAluno, refreshAlunoToken, shouldSkipAuthCheck]); // Adicionado shouldSkipAuthCheck
   // --- FIM DA ETAPA 3 ---
 
   return (
@@ -362,12 +413,4 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       {children}
     </AlunoContext.Provider>
   );
-};
-
-export const useAluno = (): AlunoContextType => {
-  const context = useContext(AlunoContext);
-  if (context === undefined) {
-    throw new Error('useAluno deve ser usado dentro de um AlunoProvider');
-  }
-  return context;
 };
