@@ -20,8 +20,39 @@
       "destination": "/server/index.ts"
     },
     {
-      "source": "/((?!api/|images/|favicon.ico|manifest.json|pwa-.*\\.png).*)",
+      "source": "/convite/aluno/(.*)",
       "destination": "/index.html"
+    },
+    {
+      "source": "/cadastrar-personal/convite/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/aluno/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!api/|images/|favicon.ico|manifest.json|pwa-.*\\.png|_next/|static/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/convite/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     }
   ]
 }

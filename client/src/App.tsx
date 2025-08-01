@@ -85,10 +85,18 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
+  // Debug logging for production troubleshooting
+  React.useEffect(() => {
+    console.log('[AppContent] Location changed:', location);
+    console.log('[AppContent] User:', user ? 'authenticated' : 'not authenticated');
+    console.log('[AppContent] Aluno:', aluno ? 'authenticated' : 'not authenticated');
+  }, [location, user, aluno]);
+
   // Route persistence implementation - Enhanced version with immediate coordination
   useEffect(() => {
     // Save current route whenever location changes (for authenticated users only)
-    if ((user || aluno) && !location.startsWith("/login")) {
+    // Skip saving invitation routes as they are temporary
+    if ((user || aluno) && !location.startsWith("/login") && !location.startsWith("/convite/") && !location.startsWith("/cadastrar-personal/convite/")) {
       localStorage.setItem("rotaAtual", location);
     }
   }, [user, aluno, location]);
@@ -269,6 +277,12 @@ function AppContent() {
     return <Redirect to="/aluno/dashboard" />;
   } 
   
+  // For public routes, ensure invitation routes don't get redirected
+  if (location.startsWith("/convite/") || location.startsWith("/cadastrar-personal/convite/")) {
+    console.log('[AppContent] Accessing invitation route:', location);
+    return <PublicRoutes />;
+  }
+  
   return <PublicRoutes />;
 }
 
@@ -332,6 +346,13 @@ function AlunoApp() {
 }
 
 function PublicRoutes() {
+  // Debug logging for production troubleshooting
+  React.useEffect(() => {
+    console.log('[PublicRoutes] Rotas públicas carregadas');
+    console.log('[PublicRoutes] URL atual:', window.location.href);
+    console.log('[PublicRoutes] Pathname:', window.location.pathname);
+  }, []);
+
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
       <Switch>
