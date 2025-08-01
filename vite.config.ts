@@ -10,7 +10,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // <<< INÍCIO DA ALTERAÇÃO >>>
+      // Alterado para 'prompt' para permitir que a aplicação mostre um pop-up de atualização
+      registerType: 'prompt', 
+      // <<< FIM DA ALTERAÇÃO >>>
       injectRegister: 'auto',
       
       devOptions: {
@@ -25,7 +28,6 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
 
         runtimeCaching: [
-          // Regra para que as chamadas de API NUNCA sejam cacheadas.
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
             handler: 'NetworkOnly', 
@@ -39,7 +41,6 @@ export default defineConfig({
               },
             },
           },
-          // Regra para os assets da aplicação.
           {
             urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
             handler: 'NetworkFirst',

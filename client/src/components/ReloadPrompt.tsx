@@ -1,83 +1,65 @@
+// client/src/components/ReloadPrompt.tsx
 import React from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { Button } from '@/components/ui/button'; // Usando alias de caminho
-import { useToast } from '@/hooks/use-toast';   // Usando alias de caminho
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { RefreshCw } from 'lucide-react';
 
 export function ReloadPrompt() {
+  const [isUpdating, setIsUpdating] = React.useState(false);
+
   const {
-    offlineReady: [offlineReady],
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('SW Registered:', r);
-      // Opcional: Iniciar verificação periódica após o registro
-      // setInterval(() => {
-      //   r && r.update(); // Força uma verificação de atualização a cada X milissegundos
-      // }, 5 * 60 * 1000); // Exemplo: a cada 5 minutos
+      console.log('PWA Service Worker registered:', r);
+      if (r) {
+        setInterval(() => {
+          console.log('PWA: Checking for updates...');
+          r.update();
+        }, 60 * 60 * 1000); // 1 hora
+      }
     },
     onRegisterError(error) {
-      console.error('SW registration error:', error);
+      console.error('PWA Service Worker registration error:', error);
     },
   });
 
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
 
-  // Efeito para exibir o toast quando uma nova versão estiver disponível
   React.useEffect(() => {
+    let toastId: string | undefined;
+
     if (needRefresh) {
-      toast({
-        title: 'Atualização Disponível',
-        description: 'Uma nova versão do aplicativo está disponível. Recarregue para obter as últimas funcionalidades!',
+      const { id } = toast({
+        title: 'Atualização Disponível!',
+        description: 'Uma nova versão do DyFit está pronta para ser instalada.',
         action: (
           <Button
-            onClick={() => updateServiceWorker(true)} // Botão para recarregar a página
-            className="bg-primary hover:bg-primary-dark text-white"
+            onClick={() => {
+              setIsUpdating(true);
+              updateServiceWorker(true);
+            }}
+            disabled={isUpdating}
+            size="sm"
           >
-            Recarregar Agora
+            {isUpdating ? <RefreshCw className="animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Atualizar Agora
           </Button>
         ),
-        duration: 0, // Duração 0 para que o toast permaneça até o usuário interagir
+        duration: Infinity, // Mantém o toast visível até ser dispensado
+        // <<< CORREÇÃO: Propriedade 'onDismiss' removida >>>
       });
-    } else if (offlineReady) {
-      // Opcional: Notificar quando o aplicativo está pronto para uso offline
-      // toast({
-      //   title: 'Aplicativo Pronto',
-      //   description: 'O aplicativo está pronto para ser usado offline.',
-      //   duration: 3000,
-      // });
+      toastId = id;
     }
-  }, [needRefresh, offlineReady, updateServiceWorker, toast]);
 
-  // Adiciona uma verificação periódica de atualização
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      // Tenta atualizar o Service Worker
-      // `updateServiceWorker()` sem parâmetro apenas verifica por uma nova versão
-      // `updateServiceWorker(true)` força a atualização e recarrega a página se uma nova for encontrada
-      updateServiceWorker(); 
-    }, 5 * 60 * 1000); // Verifica a cada 5 minutos (300000 ms)
+    return () => {
+      if (toastId) {
+        dismiss(toastId);
+      }
+    };
+  }, [needRefresh, updateServiceWorker, toast, dismiss]);
 
-    return () => clearInterval(interval); // Limpa o intervalo ao desmontar o componente
-  }, [updateServiceWorker]);
-
-  // Opcional: Botão manual para verificar atualizações (pode ser útil para depuração)
-  // Remova ou comente esta seção em produção se não quiser um botão visível
-  // const handleManualCheck = async () => {
-  //   toast({
-  //     title: "Verificando Atualizações...",
-  //     description: "Buscando por novas versões do aplicativo.",
-  //     duration: 2000,
-  //   });
-  //   await updateServiceWorker();
-  // };
-
-  return (
-    // <div className="fixed bottom-4 right-4 z-50">
-    //   <Button onClick={handleManualCheck} variant="secondary">
-    //     Verificar Atualizações (Manual)
-    //   </Button>
-    // </div>
-    null // Não renderiza nada diretamente, a notificação é feita via toast
-  );
+  return null;
 }
