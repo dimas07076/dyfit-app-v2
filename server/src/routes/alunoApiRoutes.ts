@@ -2,11 +2,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
 import Treino from '../../models/Treino.js';
-import Sessao from '../../models/Sessao.js';
+import Sessao, { OPCOES_PSE } from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import WorkoutLog from '../../models/WorkoutLog.js';
-import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO } from 'date-fns';
+import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
@@ -37,7 +37,6 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
 
             const convitePendente = await ConviteAluno.findOne({ emailConvidado, status: 'pendente', criadoPor: trainerId });
             if (convitePendente) {
-                // CORREÇÃO: Link corrigido para corresponder à rota do frontend
                 const linkConvite = `${process.env.FRONTEND_URL}/convite/aluno/${convitePendente.token}`;
                 return res.status(200).json({ mensagem: "Já existe um convite pendente para este email.", linkConvite });
             }
@@ -49,7 +48,6 @@ router.post("/convite", authenticateToken, async (req: Request, res: Response, n
         });
 
         await novoConvite.save();
-        // CORREÇÃO: Link corrigido para corresponder à rota do frontend
         const linkConvite = `${process.env.FRONTEND_URL}/convite/aluno/${novoConvite.token}`;
         res.status(201).json({ mensagem: "Link de convite gerado com sucesso!", linkConvite });
 
@@ -112,14 +110,209 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
 
-        res.status(201).json({ 
-            mensagem: "Aluno criado com sucesso!", 
-            aluno: alunoResponse 
+        res.status(201).json({
+            mensagem: "Aluno criado com sucesso!",
+            aluno: alunoResponse
         });
 
     } catch (error) {
         next(error);
     }
 });
+
+
+// =======================================================
+// ROTAS DO ALUNO (DASHBOARD, FICHAS, HISTÓRICO)
+// =======================================================
+
+// GET /api/aluno/meus-treinos - Lista as rotinas do aluno logado
+router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+
+    try {
+        const rotinas = await Treino.find({ alunoId: new mongoose.Types.ObjectId(alunoId), tipo: 'individual' })
+            .populate('criadorId', 'nome email')
+            .populate({
+                path: 'diasDeTreino.exerciciosDoDia.exercicioId',
+                model: 'Exercicio',
+                select: 'nome grupoMuscular urlVideo descricao categoria tipo'
+            })
+            .sort({ atualizadoEm: -1 })
+            .lean();
+
+        res.status(200).json(rotinas);
+    } catch (error) {
+        console.error("Erro ao buscar treinos do aluno:", error);
+        next(error);
+    }
+});
+
+// <<< NOVA ROTA >>>
+// GET /api/aluno/meus-treinos/:id - Retorna uma rotina específica do aluno
+router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    const rotinaId = req.params.id;
+
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+    if (!mongoose.Types.ObjectId.isValid(rotinaId)) {
+        return res.status(400).json({ erro: 'ID da rotina inválido.' });
+    }
+
+    try {
+        const rotina = await Treino.findOne({
+                _id: new mongoose.Types.ObjectId(rotinaId),
+                alunoId: new mongoose.Types.ObjectId(alunoId)
+            })
+            .populate({
+                path: 'diasDeTreino.exerciciosDoDia.exercicioId',
+                model: 'Exercicio',
+                select: 'nome urlVideo'
+            })
+            .lean();
+
+        if (!rotina) {
+            return res.status(404).json({ erro: 'Rotina de treino não encontrada ou não pertence a este aluno.' });
+        }
+
+        res.status(200).json(rotina);
+    } catch (error) {
+        console.error(`Erro ao buscar detalhes da rotina ${rotinaId} para o aluno ${alunoId}:`, error);
+        next(error);
+    }
+});
+
+
+// GET /api/aluno/minhas-sessoes-concluidas-na-semana - Retorna sessões da semana para o gráfico de frequência
+router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+
+    try {
+        const hoje = new Date();
+        const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 });
+        const fimSemana = endOfWeek(hoje, { weekStartsOn: 0 });
+
+        const sessoes = await Sessao.find({
+            alunoId: new mongoose.Types.ObjectId(alunoId),
+            status: 'completed',
+            concluidaEm: {
+                $gte: inicioSemana,
+                $lte: fimSemana,
+            },
+        }).select('_id sessionDate tipoCompromisso concluidaEm').lean();
+
+        res.status(200).json(sessoes);
+    } catch (error) {
+        console.error("Erro ao buscar sessões da semana do aluno:", error);
+        next(error);
+    }
+});
+
+// GET /api/aluno/stats-progresso - Retorna estatísticas de progresso do aluno
+router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+
+    try {
+        const sessoesConcluidas = await Sessao.find({
+            alunoId: new mongoose.Types.ObjectId(alunoId),
+            status: 'completed'
+        }).select('concluidaEm pseAluno').lean();
+
+        const totalTreinosConcluidos = sessoesConcluidas.length;
+
+        const pseMap: { [key: string]: number } = OPCOES_PSE.reduce((acc, val, i) => ({ ...acc, [val]: i + 1 }), {});
+        const sessoesComPSE = sessoesConcluidas.filter(s => s.pseAluno && pseMap[s.pseAluno]);
+        let mediaPSE = 'N/D';
+        if (sessoesComPSE.length > 0) {
+            const somaPSE = sessoesComPSE.reduce((acc, s) => acc + pseMap[s.pseAluno!], 0);
+            const mediaNumerica = Math.round(somaPSE / sessoesComPSE.length);
+            mediaPSE = OPCOES_PSE[mediaNumerica - 1] || 'N/D';
+        }
+
+        let diasConsecutivos = 0;
+        if (sessoesConcluidas.length > 0) {
+            const datasDeTreinoUnicas = [...new Set(sessoesConcluidas.map(s => startOfDay(s.concluidaEm!).toISOString()))]
+                                          .map(d => parseISO(d))
+                                          .sort((a, b) => a.getTime() - b.getTime());
+            
+            if (datasDeTreinoUnicas.length > 0) {
+                let streakAtual = 0;
+                // Verifique se a data de hoje está na lista ou se a de ontem está para contar o streak atual.
+                const hoje = startOfDay(new Date());
+                const ontem = startOfDay(new Date(hoje.setDate(hoje.getDate() - 1)));
+                hoje.setDate(hoje.getDate() + 1); // Reset 'hoje'
+                
+                let ultimaData = startOfDay(new Date(2000, 0, 1));
+                for(const data of datasDeTreinoUnicas) {
+                    if (differenceInCalendarDays(data, ultimaData) === 1) {
+                        streakAtual++;
+                    } else {
+                        streakAtual = 1;
+                    }
+                    diasConsecutivos = Math.max(diasConsecutivos, streakAtual);
+                    ultimaData = data;
+                }
+            }
+        }
+
+        res.status(200).json({
+            totalTreinosConcluidos,
+            mediaPSE,
+            diasConsecutivos
+        });
+
+    } catch (error) {
+        console.error("Erro ao calcular stats de progresso do aluno:", error);
+        next(error);
+    }
+});
+
+// <<< NOVA ROTA >>>
+// GET /api/aluno/meu-historico-sessoes - Retorna o histórico paginado de sessões do aluno
+router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+    
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 5;
+        const skip = (page - 1) * limit;
+
+        const query = {
+            alunoId: new mongoose.Types.ObjectId(alunoId),
+            status: 'completed'
+        };
+
+        const totalSessoes = await Sessao.countDocuments(query);
+        const totalPages = Math.ceil(totalSessoes / limit);
+
+        const sessoes = await Sessao.find(query)
+            .sort({ concluidaEm: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('rotinaId', 'titulo')
+            .populate('personalId', 'nome')
+            .lean();
+
+        res.status(200).json({
+            sessoes,
+            currentPage: page,
+            totalPages,
+            totalSessoes
+        });
+
+    } catch (error) {
+        console.error("Erro ao buscar histórico de sessões do aluno:", error);
+        next(error);
+    }
+});
+
 
 export default router;
