@@ -6,7 +6,7 @@ import { StudentForm, StudentFormDataProcessed } from '@/forms/student-form';
 import { ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { fetchWithAuth } from '@/lib/apiClient';
+import { apiRequest } from '@/lib/queryClient'; // Usando apiRequest que criamos
 import { Aluno } from '@/types/aluno';
 import ErrorMessage from '@/components/ErrorMessage';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -18,23 +18,21 @@ const EditStudentPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API e a queryKey >>>
+    // Busca os dados do aluno. A rota agora existe no backend.
     const { data: studentData, isLoading, isError, error } = useQuery<Aluno, Error>({
-        queryKey: ['aluno', studentId], // Chave mais específica
-        queryFn: () => fetchWithAuth<Aluno>(`/api/aluno/gerenciar/${studentId}`),
+        queryKey: ['aluno', studentId],
+        queryFn: () => apiRequest<Aluno>('GET', `/api/aluno/gerenciar/${studentId}`),
         enabled: !!studentId,
+        retry: false, // Previne loops em caso de erro
     });
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
+    // Envia os dados atualizados para a rota PUT que criamos.
     const mutation = useMutation<Aluno, Error, StudentFormDataProcessed>({
-        mutationFn: (updatedData) => fetchWithAuth<Aluno>(`/api/aluno/gerenciar/${studentId}`, {
-            method: 'PUT',
-            body: JSON.stringify(updatedData),
-        }),
-        onSuccess: (updatedStudent) => {
-            toast({ title: "Sucesso!", description: `${updatedStudent.nome} atualizado com sucesso.` });
-            queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
-            queryClient.invalidateQueries({ queryKey: ['aluno', studentId] });
+        mutationFn: (updatedData) => apiRequest<Aluno>('PUT', `/api/aluno/gerenciar/${studentId}`, updatedData),
+        onSuccess: (data: any) => { // A API retorna um objeto { mensagem, aluno }
+            toast({ title: "Sucesso!", description: data.mensagem || `${data.aluno.nome} atualizado com sucesso.` });
+            queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] }); // Atualiza a lista de alunos
+            queryClient.invalidateQueries({ queryKey: ['aluno', studentId] }); // Atualiza os dados deste aluno
             setLocation('/alunos');
         },
         onError: (error) => {
@@ -42,7 +40,7 @@ const EditStudentPage: React.FC = () => {
         },
     });
 
-    if (isLoading) return <LoadingSpinner text="Carregando dados do aluno..." />;
+    if (isLoading) return <LoadingSpinner />;
     if (isError) return <ErrorMessage title="Erro ao carregar" message={error?.message || "Não foi possível encontrar o aluno."} />;
 
     return (
@@ -62,6 +60,7 @@ const EditStudentPage: React.FC = () => {
                         isEditing={true}
                         onSubmit={(formData) => mutation.mutate(formData)}
                         isLoading={mutation.isPending}
+                        onCancel={() => setLocation('/alunos')} // Passa a função de cancelamento
                     />
                 </CardContent>
             </Card>
