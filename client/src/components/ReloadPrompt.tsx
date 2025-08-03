@@ -1,3 +1,4 @@
+// client/src/components/ReloadPrompt.tsx
 import React from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,7 @@ export function ReloadPrompt() {
 
   const { toast, dismiss } = useToast();
 
-  // Toast para notificação de atualização - NO TOPO
+  // Toast para notificação de atualização - agora centralizado pelo Toaster
   React.useEffect(() => {
     let toastId: string | undefined;
 
@@ -61,7 +62,8 @@ export function ReloadPrompt() {
           </Button>
         ),
         duration: 0, // Não fechar automaticamente
-        className: "top-4 border-blue-200 bg-blue-50 text-blue-900 shadow-lg",
+        // AJUSTE AQUI: Removida a classe 'top-4' e adicionado um destaque mais forte
+        className: "border-2 border-blue-500 bg-blue-50 text-blue-900 shadow-lg",
       });
       toastId = id;
     }
@@ -73,7 +75,7 @@ export function ReloadPrompt() {
     };
   }, [needRefresh, updateServiceWorker, toast, dismiss, isUpdating]);
 
-  // Toast para app offline ready - NO TOPO
+  // Toast para app offline ready - agora centralizado pelo Toaster
   React.useEffect(() => {
     let toastId: string | undefined;
 
@@ -93,7 +95,8 @@ export function ReloadPrompt() {
           </Button>
         ),
         duration: 5000,
-        className: "top-4 border-green-200 bg-green-50 text-green-900 shadow-lg",
+        // AJUSTE AQUI: Removida a classe 'top-4'
+        className: "border-green-200 bg-green-50 text-green-900 shadow-lg",
       });
       toastId = id;
     }
