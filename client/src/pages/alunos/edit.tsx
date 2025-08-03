@@ -18,14 +18,13 @@ const EditStudentPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API e a queryKey >>>
     const { data: studentData, isLoading, isError, error } = useQuery<Aluno, Error>({
-        queryKey: ['aluno', studentId], // Chave mais específica
-        queryFn: () => fetchWithAuth<Aluno>(`/api/aluno/gerenciar/${studentId}`),
+        queryKey: ['aluno', studentId],
+        // CORREÇÃO: A URL para buscar dados foi corrigida para o endpoint correto.
+        queryFn: () => fetchWithAuth<Aluno>(`/api/aluno/${studentId}`),
         enabled: !!studentId,
     });
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
     const mutation = useMutation<Aluno, Error, StudentFormDataProcessed>({
         mutationFn: (updatedData) => fetchWithAuth<Aluno>(`/api/aluno/gerenciar/${studentId}`, {
             method: 'PUT',
