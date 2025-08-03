@@ -11,6 +11,7 @@ import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanActivateStudent } from '../../middlewares/checkLimiteAlunos.js';
+import { check, validationResult } from 'express-validator'; // Importação adicionada
 
 const router = express.Router();
 
@@ -120,6 +121,85 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
     }
 });
 
+// Rota para buscar um único aluno pelo ID.
+router.get('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const personalId = req.user?.id;
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'ID de aluno inválido.' });
+    }
+
+    const aluno = await Aluno.findOne({ _id: id, trainerId: personalId });
+
+    if (!aluno) {
+      return res.status(404).json({ message: 'Aluno não encontrado.' });
+    }
+
+    res.json(aluno);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Rota para atualizar um aluno
+router.put(
+  '/gerenciar/:id',
+  authenticateToken,
+  [
+    check('nome', 'O nome é obrigatório').not().isEmpty(),
+    check('email', 'Por favor, inclua um email válido').isEmail(),
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const { nome, email, goal, status } = req.body;
+      const personalId = req.user?.id;
+      const { id } = req.params;
+
+      const aluno = await Aluno.findOneAndUpdate(
+        { _id: id, trainerId: personalId },
+        { nome, email, goal, status },
+        { new: true }
+      );
+
+      if (!aluno) {
+        return res.status(404).json({ message: 'Aluno não encontrado.' });
+      }
+
+      res.json(aluno);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Rota para desativar (ou reativar) um aluno
+router.delete('/gerenciar/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const personalId = req.user?.id;
+    const { id } = req.params;
+
+    const aluno = await Aluno.findOne({ _id: id, trainerId: personalId });
+
+    if (!aluno) {
+      return res.status(404).json({ message: 'Aluno não encontrado.' });
+    }
+
+    aluno.status = aluno.status === 'active' ? 'inactive' : 'active';
+    await aluno.save();
+
+    res.json({ message: `Aluno ${aluno.status === 'active' ? 'reativado' : 'desativado'} com sucesso.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 // =======================================================
 // ROTAS DO ALUNO (DASHBOARD, FICHAS, HISTÓRICO)
@@ -149,7 +229,6 @@ router.get('/meus-treinos', authenticateAlunoToken, async (req: Request, res: Re
     }
 });
 
-// <<< NOVA ROTA >>>
 // GET /api/aluno/meus-treinos/:id - Retorna uma rotina específica do aluno
 router.get('/meus-treinos/:id', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
@@ -243,10 +322,9 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
             
             if (datasDeTreinoUnicas.length > 0) {
                 let streakAtual = 0;
-                // Verifique se a data de hoje está na lista ou se a de ontem está para contar o streak atual.
                 const hoje = startOfDay(new Date());
                 const ontem = startOfDay(new Date(hoje.setDate(hoje.getDate() - 1)));
-                hoje.setDate(hoje.getDate() + 1); // Reset 'hoje'
+                hoje.setDate(hoje.getDate() + 1); 
                 
                 let ultimaData = startOfDay(new Date(2000, 0, 1));
                 for(const data of datasDeTreinoUnicas) {
@@ -273,7 +351,6 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
     }
 });
 
-// <<< NOVA ROTA >>>
 // GET /api/aluno/meu-historico-sessoes - Retorna o histórico paginado de sessões do aluno
 router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
