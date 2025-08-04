@@ -17,31 +17,66 @@ const extractDateOnly = (dateValue: string | undefined | null): string => {
     return "";
   }
   
+  // Convert to string in case it's not
+  const dateStr = String(dateValue).trim();
+  console.log('extractDateOnly - Trimmed string:', dateStr);
+  
+  if (!dateStr) {
+    console.log('extractDateOnly - Empty after trim, returning empty string');
+    return "";
+  }
+  
   // If already in YYYY-MM-DD format, validate it first
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     console.log('extractDateOnly - Already in YYYY-MM-DD format');
     // Validate that it's actually a valid date
-    const date = new Date(dateValue);
+    const date = new Date(dateStr + 'T00:00:00.000Z'); // Add time to avoid timezone issues
     if (!isNaN(date.getTime())) {
-      console.log('extractDateOnly - Valid YYYY-MM-DD date, returning:', dateValue);
-      return dateValue;
+      console.log('extractDateOnly - Valid YYYY-MM-DD date, returning:', dateStr);
+      return dateStr;
     }
     console.log('extractDateOnly - Invalid YYYY-MM-DD date, returning empty string');
     return "";
   }
   
   // If contains 'T', extract just the date part
-  if (dateValue.includes('T')) {
+  if (dateStr.includes('T')) {
     console.log('extractDateOnly - Contains T, extracting date part');
-    const result = dateValue.split('T')[0];
+    const result = dateStr.split('T')[0];
     console.log('extractDateOnly - Extracted from T format:', result);
-    return result;
+    // Validate the extracted part
+    if (/^\d{4}-\d{2}-\d{2}$/.test(result)) {
+      const date = new Date(result + 'T00:00:00.000Z');
+      if (!isNaN(date.getTime())) {
+        return result;
+      }
+    }
+    console.log('extractDateOnly - Invalid date extracted from T format');
+    return "";
   }
   
-  // Try to parse as Date and format as YYYY-MM-DD
+  // Try Brazilian/European format: DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateStr);
+  if (ddmmyyyy) {
+    const [, day, month, year] = ddmmyyyy;
+    const paddedDay = day.padStart(2, '0');
+    const paddedMonth = month.padStart(2, '0');
+    const result = `${year}-${paddedMonth}-${paddedDay}`;
+    console.log('extractDateOnly - Parsed DD/MM/YYYY format as:', result);
+    // Validate the constructed date
+    const date = new Date(result + 'T00:00:00.000Z');
+    if (!isNaN(date.getTime()) && 
+        parseInt(month) >= 1 && parseInt(month) <= 12 && 
+        parseInt(day) >= 1 && parseInt(day) <= 31) {
+      return result;
+    }
+    console.log('extractDateOnly - Invalid DD/MM/YYYY date');
+  }
+  
+  // Try to parse as Date and format as YYYY-MM-DD (this will handle MM/DD/YYYY and other formats)
   try {
     console.log('extractDateOnly - Trying to parse as Date');
-    const date = new Date(dateValue);
+    const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       const result = date.toISOString().split('T')[0];
       console.log('extractDateOnly - Parsed and formatted as:', result);
@@ -49,7 +84,6 @@ const extractDateOnly = (dateValue: string | undefined | null): string => {
     }
   } catch (error) {
     console.log('extractDateOnly - Error parsing date:', error);
-    // If parsing fails, continue to return empty string
   }
   
   console.log('extractDateOnly - All parsing failed, returning empty string');
@@ -139,7 +173,13 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
   // handleChange agora está consistente com o tipo AlunoFormDataState (que permite string)
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    console.log('handleChange - Field changed:', name, 'New value:', value);
+    console.log('handleChange - Current formData before change:', formData);
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: value };
+      console.log('handleChange - New formData after change:', newData);
+      return newData;
+    });
   };
 
    // handleSelectChange também está consistente
@@ -288,7 +328,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
           {/* Linha 4: Data Nasc e Gênero */}
           <div className="grid grid-cols-2 gap-4">
              <div>
-                <Label htmlFor="birthDate">Data de Nascimento*</Label>
+                <Label htmlFor="birthDate">Data de Nascimento* (Value: {formData.birthDate || 'EMPTY'})</Label>
                 <Input id="birthDate" name="birthDate" type="date" value={formData.birthDate || ""} onChange={handleChange} />
              </div>
               <div>
@@ -352,7 +392,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
           {/* Linha 7: Data Início e Status */}
            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="startDate">Data de Início*</Label>
+                <Label htmlFor="startDate">Data de Início* (Value: {formData.startDate || 'EMPTY'})</Label>
                 <Input id="startDate" name="startDate" type="date" value={formData.startDate || ""} onChange={handleChange} />
               </div>
               <div>
