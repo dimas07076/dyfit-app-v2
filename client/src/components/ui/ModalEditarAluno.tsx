@@ -10,33 +10,49 @@ import { Loader2 } from "lucide-react"; // Import Loader2
 
 // Utility function to extract date in YYYY-MM-DD format from various date formats
 const extractDateOnly = (dateValue: string | undefined | null): string => {
-  if (!dateValue) return "";
+  console.log('extractDateOnly - Input:', dateValue, 'Type:', typeof dateValue);
+  
+  if (!dateValue) {
+    console.log('extractDateOnly - Empty input, returning empty string');
+    return "";
+  }
   
   // If already in YYYY-MM-DD format, validate it first
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    console.log('extractDateOnly - Already in YYYY-MM-DD format');
     // Validate that it's actually a valid date
     const date = new Date(dateValue);
     if (!isNaN(date.getTime())) {
+      console.log('extractDateOnly - Valid YYYY-MM-DD date, returning:', dateValue);
       return dateValue;
     }
+    console.log('extractDateOnly - Invalid YYYY-MM-DD date, returning empty string');
     return "";
   }
   
   // If contains 'T', extract just the date part
   if (dateValue.includes('T')) {
-    return dateValue.split('T')[0];
+    console.log('extractDateOnly - Contains T, extracting date part');
+    const result = dateValue.split('T')[0];
+    console.log('extractDateOnly - Extracted from T format:', result);
+    return result;
   }
   
   // Try to parse as Date and format as YYYY-MM-DD
   try {
+    console.log('extractDateOnly - Trying to parse as Date');
     const date = new Date(dateValue);
     if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
+      const result = date.toISOString().split('T')[0];
+      console.log('extractDateOnly - Parsed and formatted as:', result);
+      return result;
     }
   } catch (error) {
+    console.log('extractDateOnly - Error parsing date:', error);
     // If parsing fails, continue to return empty string
   }
   
+  console.log('extractDateOnly - All parsing failed, returning empty string');
   return "";
 };
 
@@ -90,16 +106,29 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
   useEffect(() => {
     if (aluno && isOpen) {
+        console.log('ModalEditarAluno - Original aluno data:', aluno);
+        console.log('ModalEditarAluno - Original birthDate:', aluno.birthDate);
+        console.log('ModalEditarAluno - Original startDate:', aluno.startDate);
+        
+        const extractedBirthDate = extractDateOnly(aluno.birthDate);
+        const extractedStartDate = extractDateOnly(aluno.startDate);
+        
+        console.log('ModalEditarAluno - Extracted birthDate:', extractedBirthDate);
+        console.log('ModalEditarAluno - Extracted startDate:', extractedStartDate);
+        
         // Ao popular o estado, converte números para string para os inputs text
-      setFormData({
+      const newFormData = {
         ...aluno,
-        birthDate: extractDateOnly(aluno.birthDate),
-        startDate: extractDateOnly(aluno.startDate),
+        birthDate: extractedBirthDate,
+        startDate: extractedStartDate,
         // Converte para string ao carregar no estado, ou usa '' se for null/undefined
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
         trainerId: aluno.trainerId || '', // trainerId is already a string
-      });
+      };
+      
+      console.log('ModalEditarAluno - New formData:', newFormData);
+      setFormData(newFormData);
     }
     // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
     // else if (!isOpen) {
@@ -125,6 +154,10 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
     }
 
     // Basic validation for required fields
+    console.log('Validation - Current formData:', formData);
+    console.log('Validation - birthDate value:', formData.birthDate, 'Type:', typeof formData.birthDate);
+    console.log('Validation - startDate value:', formData.startDate, 'Type:', typeof formData.startDate);
+    
     if (!formData.nome?.trim()) {
         toast({ title: "Nome é obrigatório", variant: "destructive" });
         return;
@@ -134,6 +167,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         return;
     }
     if (!formData.birthDate) {
+        console.log('Validation FAILED - birthDate is falsy:', formData.birthDate);
         toast({ title: "Data de nascimento é obrigatória", variant: "destructive" });
         return;
     }
@@ -146,6 +180,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         return;
     }
     if (!formData.startDate) {
+        console.log('Validation FAILED - startDate is falsy:', formData.startDate);
         toast({ title: "Data de início é obrigatória", variant: "destructive" });
         return;
     }
