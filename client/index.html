@@ -5,9 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DyFit</title>
     <base href="/" />
+    
+    <!-- Content Security Policy optimized for React/Vite development and production -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob: https:;
+      connect-src 'self' https: wss: ws:;
+      frame-src 'self' https:;
+      object-src 'none';
+      base-uri 'self';
+    " />
+    
     <meta name="theme-color" content="#4f46e5" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    
+    <!-- Preconnect to improve performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
     <div id="root"></div>
