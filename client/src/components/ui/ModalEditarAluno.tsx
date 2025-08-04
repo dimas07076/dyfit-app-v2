@@ -8,6 +8,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react"; // Import Loader2
 
+// Utility function to extract date in YYYY-MM-DD format from various date formats
+const extractDateOnly = (dateValue: string | undefined | null): string => {
+  if (!dateValue) return "";
+  
+  // If already in YYYY-MM-DD format, validate it first
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    // Validate that it's actually a valid date
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+      return dateValue;
+    }
+    return "";
+  }
+  
+  // If contains 'T', extract just the date part
+  if (dateValue.includes('T')) {
+    return dateValue.split('T')[0];
+  }
+  
+  // Try to parse as Date and format as YYYY-MM-DD
+  try {
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch (error) {
+    // If parsing fails, continue to return empty string
+  }
+  
+  return "";
+};
+
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
 interface AlunoEditData {
     _id?: string;
@@ -61,8 +93,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         // Ao popular o estado, converte números para string para os inputs text
       setFormData({
         ...aluno,
-        birthDate: aluno.birthDate ? aluno.birthDate.split('T')[0] : "",
-        startDate: aluno.startDate ? aluno.startDate.split('T')[0] : "",
+        birthDate: extractDateOnly(aluno.birthDate),
+        startDate: extractDateOnly(aluno.startDate),
         // Converte para string ao carregar no estado, ou usa '' se for null/undefined
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
