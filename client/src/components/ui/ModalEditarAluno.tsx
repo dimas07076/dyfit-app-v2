@@ -158,6 +158,31 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
   return "";
 };
 
+// Test function to validate extractDateOnly with known values
+const testExtractDateOnly = () => {
+  console.log('🧪 ============ TESTING extractDateOnly ============');
+  const testCases = [
+    'Mon Jul 21 2025 00:00:00 GM',           // Truncated GMT format
+    'Mon Jul 21 2025 00:00:00 GMT',          // Full GMT format
+    '2025-07-21',                            // YYYY-MM-DD format
+    '2025-07-21T00:00:00.000Z',              // ISO format
+    '21/07/2025',                            // DD/MM/YYYY format
+    '21-07-2025',                            // DD-MM-YYYY format
+    new Date('2025-07-21'),                  // Date object
+    null,                                    // null value
+    undefined,                               // undefined value
+    '',                                      // empty string
+  ];
+  
+  testCases.forEach((testCase, index) => {
+    console.log(`🧪 Test ${index + 1}: Input:`, testCase);
+    const result = extractDateOnly(testCase);
+    console.log(`🧪 Test ${index + 1}: Result:`, `"${result}"`);
+    console.log('🧪 ---');
+  });
+  console.log('🧪 ================ TESTS COMPLETE ================');
+};
+
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
 interface AlunoEditData {
     _id?: string;
@@ -209,6 +234,10 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
   useEffect(() => {
     if (aluno && isOpen) {
       console.log('🔍 =================== MODAL OPENED ===================');
+      
+      // Run test cases first to validate the function
+      testExtractDateOnly();
+      
       console.log('🔍 Raw aluno object:', aluno);
       console.log('🔍 Original birthDate:', aluno.birthDate, 'Type:', typeof aluno.birthDate);
       console.log('🔍 Original startDate:', aluno.startDate, 'Type:', typeof aluno.startDate);
@@ -245,6 +274,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         console.log('🔍 ========== INPUT VALUES AFTER SETTING ==========');
         console.log('🔍 Birth date input value:', `"${birthDateInput?.value || 'NOT_FOUND'}"`);
         console.log('🔍 Start date input value:', `"${startDateInput?.value || 'NOT_FOUND'}"`);
+        console.log('🔍 Birth date input validity:', birthDateInput?.validity);
+        console.log('🔍 Start date input validity:', startDateInput?.validity);
         console.log('🔍 ===============================================');
       }, 100);
     }
@@ -412,7 +443,24 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <Label htmlFor="birthDate">Data de Nascimento*</Label>
-                <Input id="birthDate" name="birthDate" type="date" value={formData.birthDate || ""} onChange={handleChange} />
+                <Input 
+                  id="birthDate" 
+                  name="birthDate" 
+                  type="date" 
+                  value={formData.birthDate || ""} 
+                  onChange={handleChange}
+                  onInvalid={(e) => {
+                    console.log('🔍 ❌ Birth date input is invalid:', e.currentTarget.value);
+                    console.log('🔍 ❌ Input validity:', e.currentTarget.validity);
+                  }}
+                  onLoad={() => {
+                    console.log('🔍 Birth date input loaded with value:', formData.birthDate);
+                  }}
+                />
+                {/* Debug info */}
+                <div style={{fontSize: '10px', color: 'gray', marginTop: '2px'}}>
+                  Debug: "{formData.birthDate || 'EMPTY'}"
+                </div>
              </div>
               <div>
                  <Label htmlFor="gender">Gênero*</Label>
@@ -476,7 +524,21 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="startDate">Data de Início*</Label>
-                <Input id="startDate" name="startDate" type="date" value={formData.startDate || ""} onChange={handleChange} />
+                <Input 
+                  id="startDate" 
+                  name="startDate" 
+                  type="date" 
+                  value={formData.startDate || ""} 
+                  onChange={handleChange}
+                  onInvalid={(e) => {
+                    console.log('🔍 ❌ Start date input is invalid:', e.currentTarget.value);
+                    console.log('🔍 ❌ Input validity:', e.currentTarget.validity);
+                  }}
+                />
+                {/* Debug info */}
+                <div style={{fontSize: '10px', color: 'gray', marginTop: '2px'}}>
+                  Debug: "{formData.startDate || 'EMPTY'}"
+                </div>
               </div>
               <div>
                  <Label htmlFor="status">Status*</Label>
