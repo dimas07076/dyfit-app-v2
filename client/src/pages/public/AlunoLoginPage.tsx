@@ -44,8 +44,7 @@ export default function AlunoLoginPage() {
                 '/api/auth/aluno/login', 
                 { email: email.toLowerCase().trim(), password }
             );
-            localStorage.setItem('alunoRefreshToken', response.refreshToken);
-            loginAluno?.(response.token);
+            loginAluno?.(response.token, response.refreshToken);
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
         } catch (err: any) {
             const errorMessage = err.message || 'Credenciais inválidas ou erro no servidor.';
