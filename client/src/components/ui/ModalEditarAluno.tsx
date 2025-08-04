@@ -20,9 +20,9 @@ interface AlunoEditData {
     height?: number | null;
     startDate?: string;
     phone?: string;
-    status?: string;
+    status?: 'active' | 'inactive';
     notes?: string;
-    trainerId?: number;
+    trainerId?: string; // Fixed: should be string, not number
 }
 
 // NOVA Interface para o ESTADO do formulário (permite string para campos numéricos durante digitação)
@@ -37,9 +37,9 @@ interface AlunoFormDataState {
     height?: string | number | null; // Permite string
     startDate?: string;
     phone?: string;
-    status?: string;
+    status?: 'active' | 'inactive';
     notes?: string;
-    trainerId?: string | number | null; // Permite string (se editável)
+    trainerId?: string | null; // Fixed: should be string, not number
 }
 
 
@@ -66,7 +66,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         // Converte para string ao carregar no estado, ou usa '' se for null/undefined
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
-        trainerId: aluno.trainerId !== null && aluno.trainerId !== undefined ? String(aluno.trainerId) : '', // Se trainerId for editável
+        trainerId: aluno.trainerId || '', // trainerId is already a string
       });
     }
     // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
@@ -91,11 +91,40 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         toast({ title: "ID do aluno não encontrado", variant: "destructive" });
         return;
     }
+
+    // Basic validation for required fields
+    if (!formData.nome?.trim()) {
+        toast({ title: "Nome é obrigatório", variant: "destructive" });
+        return;
+    }
+    if (!formData.email?.trim()) {
+        toast({ title: "Email é obrigatório", variant: "destructive" });
+        return;
+    }
+    if (!formData.birthDate) {
+        toast({ title: "Data de nascimento é obrigatória", variant: "destructive" });
+        return;
+    }
+    if (!formData.gender) {
+        toast({ title: "Gênero é obrigatório", variant: "destructive" });
+        return;
+    }
+    if (!formData.goal) {
+        toast({ title: "Objetivo é obrigatório", variant: "destructive" });
+        return;
+    }
+    if (!formData.startDate) {
+        toast({ title: "Data de início é obrigatória", variant: "destructive" });
+        return;
+    }
+    if (!formData.status) {
+        toast({ title: "Status é obrigatório", variant: "destructive" });
+        return;
+    }
+
     setIsLoading(true);
 
     // Prepara os dados para enviar, convertendo de volta para número onde necessário
-    // A lógica aqui já estava correta, pois lia do formData (que podia ser string)
-    // e tentava converter para número.
     const dataToSend: AlunoEditData = { // Envia o tipo esperado pela API
         _id: formData._id, // Mantém o ID se necessário na API
         nome: formData.nome,
@@ -115,15 +144,16 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
                 : null,
         startDate: formData.startDate, // Garanta que esteja no formato correto se necessário
 
-        trainerId: formData.trainerId !== null && formData.trainerId !== undefined && String(formData.trainerId).trim() !== ''
-                 ? parseInt(String(formData.trainerId), 10)
-                 : undefined, // Ou null
+        trainerId: formData.trainerId && String(formData.trainerId).trim() !== ''
+                 ? String(formData.trainerId).trim()
+                 : undefined, // trainerId is string, not number
     };
 
     // Validação simples antes de enviar
     // Verifica se, após a conversão, o resultado é NaN (Not a Number)
-    if (isNaN(dataToSend.weight ?? NaN) || isNaN(dataToSend.height ?? NaN) || (dataToSend.trainerId !== undefined && isNaN(dataToSend.trainerId))) {
-       toast({ title: "Peso, Altura ou ID do Personal contém valor inválido.", variant: "destructive" });
+    if ((dataToSend.weight !== null && isNaN(dataToSend.weight)) || 
+        (dataToSend.height !== null && isNaN(dataToSend.height))) {
+       toast({ title: "Peso ou Altura contém valor inválido.", variant: "destructive" });
        setIsLoading(false);
        return;
      }
@@ -132,8 +162,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
     // delete dataToSend._id; // Exemplo: remover _id do corpo
 
     try {
-      // Use a URL correta da sua API
-      const response = await fetch(`/api/students/${aluno._id}`, {
+      // Use the correct API endpoint
+      const response = await fetch(`/api/alunos/gerenciar/${aluno._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -149,7 +179,7 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
          const errorData = await response.json().catch(() => null);
         toast({
             title: "Erro ao atualizar aluno",
-            description: errorData?.message || `Status: ${response.status}`,
+            description: errorData?.message || errorData?.erro || `Status: ${response.status}`,
             variant: "destructive"
         });
       }

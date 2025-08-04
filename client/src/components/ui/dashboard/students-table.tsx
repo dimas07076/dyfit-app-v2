@@ -40,12 +40,12 @@ export function StudentsTable({ trainerId }: StudentsTableProps) {
   } = useConfirmDialog();
 
   const { data: students = [], isLoading, error, refetch: refetchStudents } = useQuery<Aluno[], Error>({ 
-    queryKey: ["/api/alunos", { trainerId, forComponent: "StudentsTableDashboard" }], // Chave mais específica
+    queryKey: ["/api/alunos/gerenciar", { trainerId, forComponent: "StudentsTableDashboard" }], // Chave mais específica
     queryFn: async (): Promise<Aluno[]> => { 
       if (!trainerId) throw new Error("Trainer ID não fornecido para buscar alunos.");
       // Usando apiRequest para chamadas autenticadas
-      // A rota /api/alunos já deve filtrar pelo trainerId do usuário autenticado no backend
-      return apiRequest<Aluno[]>("GET", `/api/alunos`); 
+      // A rota /api/alunos/gerenciar já deve filtrar pelo trainerId do usuário autenticado no backend
+      return apiRequest<Aluno[]>("GET", `/api/alunos/gerenciar`); 
     },
     enabled: !!trainerId,
     staleTime: 1000 * 60 * 2, // Cache de 2 minutos para a tabela no dashboard
@@ -54,12 +54,12 @@ export function StudentsTable({ trainerId }: StudentsTableProps) {
   // Mutação para excluir aluno
   const deleteStudentMutation = useMutation<any, Error, string>({
     mutationFn: (alunoId: string) => {
-        return apiRequest("DELETE", `/api/alunos/${alunoId}`);
+        return apiRequest("DELETE", `/api/alunos/gerenciar/${alunoId}`);
     },
     onSuccess: (data, alunoId) => {
         toast({ title: "Aluno Removido", description: `${alunoParaExcluir?.nome || 'O aluno'} foi removido.` });
-        queryClientHook.invalidateQueries({ queryKey: ["/api/alunos"] }); // Invalida a lista principal de alunos
-        queryClientHook.invalidateQueries({ queryKey: ["/api/alunos", { trainerId, forComponent: "StudentsTableDashboard" }] }); // Invalida esta query específica
+        queryClientHook.invalidateQueries({ queryKey: ["/api/alunos/gerenciar"] }); // Invalida a lista principal de alunos
+        queryClientHook.invalidateQueries({ queryKey: ["/api/alunos/gerenciar", { trainerId, forComponent: "StudentsTableDashboard" }] }); // Invalida esta query específica
         // Invalidar também a query de estatísticas do dashboard se ela contar alunos
         queryClientHook.invalidateQueries({ queryKey: ["/api/dashboard/geral", trainerId] });
         setAlunoParaExcluir(null);

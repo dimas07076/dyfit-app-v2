@@ -120,6 +120,156 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
     }
 });
 
+// GET /api/aluno/gerenciar/:id - Buscar um aluno específico
+router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const alunoId = req.params.id;
+
+    if (!trainerId) {
+        return res.status(401).json({ erro: "Usuário não autenticado." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ erro: "ID do aluno inválido." });
+    }
+
+    try {
+        // Verificar se o aluno pertence ao personal trainer autenticado
+        const aluno = await Aluno.findOne({ 
+            _id: new mongoose.Types.ObjectId(alunoId),
+            trainerId: new mongoose.Types.ObjectId(trainerId)
+        }).select('-passwordHash');
+
+        if (!aluno) {
+            return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
+        }
+
+        res.status(200).json(aluno);
+
+    } catch (error) {
+        next(error);
+    }
+});
+
+// PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
+router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const alunoId = req.params.id;
+
+    if (!trainerId) {
+        return res.status(401).json({ erro: "Usuário não autenticado." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ erro: "ID do aluno inválido." });
+    }
+
+    try {
+        const { nome, email, phone, birthDate, gender, goal, weight, height, startDate, status, notes } = req.body;
+
+        // Validação de campos obrigatórios
+        if (!nome || !email || !birthDate || !gender || !goal || !startDate || !status) {
+            return res.status(400).json({ erro: "Nome, email, data de nascimento, gênero, objetivo, data de início e status são obrigatórios." });
+        }
+
+        // Verificar se o aluno pertence ao personal trainer autenticado
+        const alunoExistente = await Aluno.findOne({ 
+            _id: new mongoose.Types.ObjectId(alunoId),
+            trainerId: new mongoose.Types.ObjectId(trainerId)
+        });
+
+        if (!alunoExistente) {
+            return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
+        }
+
+        // Verificar se email já existe (exceto para este aluno)
+        if (email.toLowerCase() !== alunoExistente.email) {
+            const emailExistente = await Aluno.findOne({ 
+                email: email.toLowerCase(),
+                _id: { $ne: new mongoose.Types.ObjectId(alunoId) }
+            });
+            if (emailExistente) {
+                return res.status(409).json({ erro: "Já existe outro aluno com este email." });
+            }
+        }
+
+        // Preparar dados para atualização
+        const updateData: any = {
+            nome,
+            email: email.toLowerCase(),
+            phone,
+            birthDate: new Date(birthDate),
+            gender,
+            goal,
+            startDate: new Date(startDate),
+            status,
+            notes
+        };
+
+        // Adicionar peso e altura se fornecidos
+        if (weight !== null && weight !== undefined && weight !== '') {
+            updateData.weight = parseFloat(weight);
+        }
+        if (height !== null && height !== undefined && height !== '') {
+            updateData.height = parseInt(height);
+        }
+
+        // Atualizar o aluno
+        const alunoAtualizado = await Aluno.findByIdAndUpdate(
+            new mongoose.Types.ObjectId(alunoId),
+            updateData,
+            { new: true, runValidators: true }
+        ).select('-passwordHash');
+
+        res.status(200).json({
+            mensagem: "Aluno atualizado com sucesso!",
+            aluno: alunoAtualizado
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
+// DELETE /api/aluno/gerenciar/:id - Excluir um aluno
+router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const alunoId = req.params.id;
+
+    if (!trainerId) {
+        return res.status(401).json({ erro: "Usuário não autenticado." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ erro: "ID do aluno inválido." });
+    }
+
+    try {
+        // Verificar se o aluno pertence ao personal trainer autenticado
+        const alunoExistente = await Aluno.findOne({ 
+            _id: new mongoose.Types.ObjectId(alunoId),
+            trainerId: new mongoose.Types.ObjectId(trainerId)
+        });
+
+        if (!alunoExistente) {
+            return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
+        }
+
+        // Excluir o aluno
+        await Aluno.findByIdAndDelete(new mongoose.Types.ObjectId(alunoId));
+
+        res.status(200).json({
+            mensagem: "Aluno excluído com sucesso!"
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 
 // =======================================================
 // ROTAS DO ALUNO (DASHBOARD, FICHAS, HISTÓRICO)

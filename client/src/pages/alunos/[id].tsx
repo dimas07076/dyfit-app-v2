@@ -43,7 +43,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
     queryFn: async (): Promise<Aluno | null> => {
       if (!studentId) return null;
       try {
-        const data = await apiRequest<Aluno>("GET", `/api/alunos/${studentId}`);
+        const data = await apiRequest<Aluno>("GET", `/api/alunos/gerenciar/${studentId}`);
         return data;
       } catch (err: any) {
         if (err.response?.status === 404 || err.message?.includes("404")) return null;
