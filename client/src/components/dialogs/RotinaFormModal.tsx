@@ -137,6 +137,18 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
     enabled: open && !isEditing
   });
 
+  // For editing mode, use separate state to manage form data
+  const [editingFormData, setEditingFormData] = useState<Step1Data>({
+    titulo: '',
+    descricao: null,
+    tipo: 'modelo',
+    alunoId: null
+  });
+
+  const [editingStep2Data, setEditingStep2Data] = useState<{ tipoOrganizacaoRotina: TipoOrganizacaoRotinaBackend }>({
+    tipoOrganizacaoRotina: 'numerico'
+  });
+
   const [diasDeTreino, setDiasDeTreino] = useState<DiaDeTreinoState[]>([]);
   const [showDiaForm, setShowDiaForm] = useState(false);
   const [editingDiaTempId, setEditingDiaTempId] = useState<string | null>(null);
@@ -168,17 +180,8 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
   };
 
   // Get current form values
-  const step1Data = isEditing ? { 
-    titulo: rotinaParaEditar?.titulo || '', 
-    descricao: rotinaParaEditar?.descricao || null, 
-    tipo: rotinaParaEditar?.tipo || 'modelo', 
-    alunoId: typeof rotinaParaEditar?.alunoId === 'object' && rotinaParaEditar?.alunoId !== null ? 
-      rotinaParaEditar.alunoId._id : rotinaParaEditar?.alunoId as string | null 
-  } : step1Form.values;
-  
-  const step2Data = isEditing ? { 
-    tipoOrganizacaoRotina: rotinaParaEditar?.tipoOrganizacaoRotina || 'numerico' 
-  } : step2Form.values;
+  const step1Data = isEditing ? editingFormData : step1Form.values;
+  const step2Data = isEditing ? editingStep2Data : step2Form.values;
 
   const diaFormValues = diaForm.values;
 
@@ -186,6 +189,18 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
     if (open) {
       if (isEditing && rotinaParaEditar) {
         // When editing, load data from props and don't use persistence
+        setEditingFormData({
+          titulo: rotinaParaEditar?.titulo || '', 
+          descricao: rotinaParaEditar?.descricao || null, 
+          tipo: rotinaParaEditar?.tipo || 'modelo', 
+          alunoId: typeof rotinaParaEditar?.alunoId === 'object' && rotinaParaEditar?.alunoId !== null ? 
+            rotinaParaEditar.alunoId._id : rotinaParaEditar?.alunoId as string | null 
+        });
+
+        setEditingStep2Data({
+          tipoOrganizacaoRotina: rotinaParaEditar?.tipoOrganizacaoRotina || 'numerico' 
+        });
+
         const diasEdit = (rotinaParaEditar.diasDeTreino || []).map((dia, i) => ({ 
             ...dia, 
             tempId: dia._id || `edit-dia-${i}-${Date.now()}`, 
@@ -256,6 +271,31 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
     enabled: open && step1Data.tipo === 'individual', 
     initialData: alunosProp 
   });
+
+  // Helper functions for updating editing form data
+  const updateEditingStep1Field = (field: keyof Step1Data, value: any) => {
+    if (isEditing) {
+      setEditingFormData(prev => ({ ...prev, [field]: value }));
+    } else {
+      step1Form.updateField(field, value);
+    }
+  };
+
+  const updateEditingStep1Fields = (fields: Partial<Step1Data>) => {
+    if (isEditing) {
+      setEditingFormData(prev => ({ ...prev, ...fields }));
+    } else {
+      step1Form.updateFields(fields);
+    }
+  };
+
+  const updateEditingStep2Field = (field: keyof typeof editingStep2Data, value: any) => {
+    if (isEditing) {
+      setEditingStep2Data(prev => ({ ...prev, [field]: value }));
+    } else {
+      step2Form.updateField(field, value);
+    }
+  };
 
 
   const nextStep = () => {
@@ -434,13 +474,13 @@ export default function RotinaFormModal({ open, onClose, onSuccess, alunos: alun
         <div className="flex-grow overflow-y-auto p-6">
           <Stepper currentStep={step} />
           {step === 1 && <div className="space-y-4 animate-in fade-in-50">
-              <div><Label className="font-semibold">Título da Rotina*</Label><Input value={step1Data.titulo} onChange={e => isEditing ? {} : step1Form.updateField('titulo', e.target.value)} /></div>
-              <div><Label className="font-semibold">Descrição (Opcional)</Label><Textarea value={step1Data.descricao || ''} onChange={e => isEditing ? {} : step1Form.updateField('descricao', e.target.value)} /></div>
-              <div><Label className="font-semibold">Tipo de Rotina</Label><Select value={step1Data.tipo} onValueChange={(v: any) => isEditing ? {} : step1Form.updateFields({tipo: v, alunoId: null})} disabled={isEditing}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="modelo">Modelo</SelectItem><SelectItem value="individual">Individual</SelectItem></SelectContent></Select></div>
-              {step1Data.tipo === 'individual' && (<div><Label className="font-semibold">Aluno*</Label><Select value={step1Data.alunoId || ''} onValueChange={(v) => isEditing ? {} : step1Form.updateField('alunoId', v)} disabled={isEditing}><SelectTrigger>{isLoadingAlunos ? <span className="text-muted-foreground">Carregando alunos...</span> : <SelectValue placeholder="Selecione um aluno..."/>}</SelectTrigger><SelectContent>{alunosFetched.map(aluno => <SelectItem key={aluno._id} value={aluno._id}>{aluno.nome}</SelectItem>)}</SelectContent></Select></div>)}
+              <div><Label className="font-semibold">Título da Rotina*</Label><Input value={step1Data.titulo} onChange={e => updateEditingStep1Field('titulo', e.target.value)} /></div>
+              <div><Label className="font-semibold">Descrição (Opcional)</Label><Textarea value={step1Data.descricao || ''} onChange={e => updateEditingStep1Field('descricao', e.target.value)} /></div>
+              <div><Label className="font-semibold">Tipo de Rotina</Label><Select value={step1Data.tipo} onValueChange={(v: any) => updateEditingStep1Fields({tipo: v, alunoId: null})} disabled={isEditing}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="modelo">Modelo</SelectItem><SelectItem value="individual">Individual</SelectItem></SelectContent></Select></div>
+              {step1Data.tipo === 'individual' && (<div><Label className="font-semibold">Aluno*</Label><Select value={step1Data.alunoId || ''} onValueChange={(v) => updateEditingStep1Field('alunoId', v)} disabled={isEditing}><SelectTrigger>{isLoadingAlunos ? <span className="text-muted-foreground">Carregando alunos...</span> : <SelectValue placeholder="Selecione um aluno..."/>}</SelectTrigger><SelectContent>{alunosFetched.map(aluno => <SelectItem key={aluno._id} value={aluno._id}>{aluno.nome}</SelectItem>)}</SelectContent></Select></div>)}
           </div>}
           {step === 2 && <div className="space-y-6 animate-in fade-in-50">
-             <div><Label className="font-semibold">Organização dos Dias*</Label><Select value={step2Data.tipoOrganizacaoRotina} onValueChange={(v:any) => isEditing ? {} : step2Form.updateField('tipoOrganizacaoRotina', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{OPCOES_TIPO_DOS_TREINOS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
+             <div><Label className="font-semibold">Organização dos Dias*</Label><Select value={step2Data.tipoOrganizacaoRotina} onValueChange={(v:any) => updateEditingStep2Field('tipoOrganizacaoRotina', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{OPCOES_TIPO_DOS_TREINOS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
              <div className="space-y-2">{diasDeTreino.map(dia => (<Card key={dia.tempId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border-l-4 border-l-primary"><div><p className="font-medium">{dia.identificadorDia}</p>{dia.nomeSubFicha && <p className="text-xs text-muted-foreground">{dia.nomeSubFicha}</p>}</div><div className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditDia(dia)}><Edit className="h-4 w-4 text-slate-500"/></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleRemoveDia(dia.tempId)}><Trash2 className="h-4 w-4"/></Button></div></Card>))}</div>
              {showDiaForm && (<Card className="p-4 border-dashed"><CardContent className="p-0 space-y-4"><h4 className="font-medium text-sm">{editingDiaTempId ? 'Editando Dia' : 'Novo Dia de Treino'}</h4><div><Label>Identificador do Dia*</Label>{step2Data.tipoOrganizacaoRotina === 'diasDaSemana' ? (<Select value={diaFormValues.identificadorDia} onValueChange={(v) => diaForm.updateField('identificadorDia', v)}><SelectTrigger><SelectValue placeholder="Selecione um dia..." /></SelectTrigger><SelectContent>{diasDaSemanaOptions.map(opt => <SelectItem key={opt} value={opt} disabled={diasDaSemanaUtilizados.includes(opt)}>{opt}</SelectItem>)}</SelectContent></Select>) : (<Input value={diaFormValues.identificadorDia} onChange={e => diaForm.updateField('identificadorDia', e.target.value)} placeholder={step2Data.tipoOrganizacaoRotina === 'numerico' ? `Ex: Treino ${diasDeTreino.length + 1}` : 'Ex: Peito & Tríceps'} />)}</div><div><Label>Nome Específico (Opcional)</Label><Input value={diaFormValues.nomeSubFicha || ''} onChange={e => diaForm.updateField('nomeSubFicha', e.target.value)} placeholder="Ex: Foco em Força" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => {setShowDiaForm(false); setEditingDiaTempId(null); diaForm.resetForm();}}>Cancelar</Button><Button onClick={handleAddOrUpdateDia}>{editingDiaTempId ? 'Atualizar' : 'Adicionar'}</Button></div></CardContent></Card>)}
              {!showDiaForm && (<Button variant="outline" className="w-full border-dashed border-primary text-primary hover:text-primary hover:bg-primary/5" onClick={handleShowDiaForm}><PlusCircle className="mr-2 h-4 w-4"/> Adicionar Dia de Treino</Button>)}
