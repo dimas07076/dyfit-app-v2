@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react"; // Import Loader2
 
 // Utility function to extract date in YYYY-MM-DD format from various date formats
-const extractDateOnly = (dateValue: string | undefined | null): string => {
+const extractDateOnly = (dateValue: string | Date | undefined | null): string => {
   console.log("🔍 extractDateOnly called with:", dateValue, "Type:", typeof dateValue);
   
   if (!dateValue) {
@@ -17,8 +17,21 @@ const extractDateOnly = (dateValue: string | undefined | null): string => {
     return "";
   }
   
+  // Handle Date objects first (before converting to string)
+  if (dateValue instanceof Date) {
+    console.log("🔍 extractDateOnly: Input is a Date object");
+    if (!isNaN(dateValue.getTime())) {
+      const result = dateValue.toISOString().split('T')[0];
+      console.log("🔍 extractDateOnly: Valid Date object, returning:", result);
+      return result;
+    } else {
+      console.log("🔍 extractDateOnly: Invalid Date object");
+      return "";
+    }
+  }
+  
   // Convert to string in case it's not
-  const dateStr = String(dateValue).trim();
+  let dateStr = String(dateValue).trim();
   
   if (!dateStr) {
     console.log("🔍 extractDateOnly: Empty string after conversion, returning empty string");
@@ -26,6 +39,21 @@ const extractDateOnly = (dateValue: string | undefined | null): string => {
   }
   
   console.log("🔍 extractDateOnly: Processing dateStr:", dateStr);
+  
+  // Check if the string looks like a Date.toString() output (contains GMT, UTC, or is very long)
+  if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.length > 50) {
+    console.log("🔍 extractDateOnly: Looks like Date.toString() output, parsing as Date");
+    try {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        const result = date.toISOString().split('T')[0];
+        console.log("🔍 extractDateOnly: Successfully parsed Date.toString(), returning:", result);
+        return result;
+      }
+    } catch (error) {
+      console.log("🔍 extractDateOnly: Failed to parse Date.toString():", error);
+    }
+  }
   
   // If already in YYYY-MM-DD format, validate it first
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
