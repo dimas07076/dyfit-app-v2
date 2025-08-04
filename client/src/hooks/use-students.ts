@@ -5,23 +5,19 @@ export function useStudents(trainerId: number) {
   // Get all students for a trainer
   const getStudents = () => {
     return useQuery<any[]>({
-      queryKey: ["/api/alunos", { trainerId }],
+      queryKey: ["/api/alunos/gerenciar", { trainerId }],
       queryFn: async () => {
-        const res = await fetch(`/api/alunos?trainerId=${trainerId}`);
-        if (!res.ok) throw new Error("Failed to fetch students");
-        return res.json();
+        return apiRequest("GET", "/api/alunos/gerenciar");
       }
     });
   };
 
   // Get a single student by ID
-  const getStudent = (id: number) => {
+  const getStudent = (id: string) => {
     return useQuery<any>({
-      queryKey: [`/api/alunos/${id}`],
+      queryKey: [`/api/alunos/gerenciar/${id}`],
       queryFn: async () => {
-        const res = await fetch(`/api/alunos/${id}`);
-        if (!res.ok) throw new Error("Failed to fetch student");
-        return res.json();
+        return apiRequest("GET", `/api/alunos/gerenciar/${id}`);
       }
     });
   };
@@ -30,11 +26,10 @@ export function useStudents(trainerId: number) {
   const addStudent = () => {
     return useMutation({
       mutationFn: async (student: any) => {
-        const res = await apiRequest("POST", "/api/alunos", student);
-        return res.json();
+        return apiRequest("POST", "/api/alunos/gerenciar", student);
       },
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/alunos"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/alunos/gerenciar"] });
       }
     });
   };
@@ -42,13 +37,12 @@ export function useStudents(trainerId: number) {
   // Update a student
   const updateStudent = () => {
     return useMutation({
-      mutationFn: async ({ id, data }: { id: number; data: Partial<any> }) => {
-        const res = await apiRequest("PUT", `/api/alunos/${id}`, data);
-        return res.json();
+      mutationFn: async ({ id, data }: { id: string; data: Partial<any> }) => {
+        return apiRequest("PUT", `/api/alunos/gerenciar/${id}`, data);
       },
       onSuccess: (_, variables) => {
-        queryClient.invalidateQueries({ queryKey: ["/api/alunos"] });
-        queryClient.invalidateQueries({ queryKey: [`/api/alunos/${variables.id}`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/alunos/gerenciar"] });
+        queryClient.invalidateQueries({ queryKey: [`/api/alunos/gerenciar/${variables.id}`] });
       }
     });
   };
@@ -56,12 +50,12 @@ export function useStudents(trainerId: number) {
   // Delete a student
   const deleteStudent = () => {
     return useMutation({
-      mutationFn: async (id: number) => {
-        await apiRequest("DELETE", `/api/alunos/${id}`, undefined);
+      mutationFn: async (id: string) => {
+        await apiRequest("DELETE", `/api/alunos/gerenciar/${id}`, undefined);
         return id;
       },
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/alunos"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/alunos/gerenciar"] });
       }
     });
   };

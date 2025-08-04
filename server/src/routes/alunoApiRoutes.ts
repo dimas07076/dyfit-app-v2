@@ -120,6 +120,38 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
     }
 });
 
+// GET /api/aluno/gerenciar/:id - Buscar um aluno específico
+router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const alunoId = req.params.id;
+
+    if (!trainerId) {
+        return res.status(401).json({ erro: "Usuário não autenticado." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ erro: "ID do aluno inválido." });
+    }
+
+    try {
+        // Verificar se o aluno pertence ao personal trainer autenticado
+        const aluno = await Aluno.findOne({ 
+            _id: new mongoose.Types.ObjectId(alunoId),
+            trainerId: new mongoose.Types.ObjectId(trainerId)
+        }).select('-passwordHash');
+
+        if (!aluno) {
+            return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
+        }
+
+        res.status(200).json(aluno);
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
 router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
