@@ -35,18 +35,42 @@ export default function AlunoLoginPage() {
     }, [alunoLogado, isLoadingAluno, navigate]);
 
     const handleLoginAluno = async (e: React.FormEvent) => {
+        console.log("[AlunoLoginPage] Login form submitted");
         e.preventDefault();
         setError("");
         setIsLoading(true);
+        
         try {
+            console.log("[AlunoLoginPage] Making API request to /api/auth/aluno/login");
+            console.log("[AlunoLoginPage] Email:", email.toLowerCase().trim());
+            
             const response = await apiRequest<AlunoLoginApiResponse>(
                 'POST',
                 '/api/auth/aluno/login', 
                 { email: email.toLowerCase().trim(), password }
             );
+            
+            console.log("[AlunoLoginPage] API response received:", {
+                hasToken: !!response.token,
+                tokenLength: response.token?.length,
+                hasRefreshToken: !!response.refreshToken,
+                refreshTokenLength: response.refreshToken?.length,
+                alunoName: response.aluno?.nome,
+                alunoId: response.aluno?.id
+            });
+            
+            if (!response.token || !response.refreshToken) {
+                throw new Error("Token ou refresh token não recebido do servidor");
+            }
+            
+            console.log("[AlunoLoginPage] Calling loginAluno with tokens");
             loginAluno?.(response.token, response.refreshToken);
+            
+            console.log("[AlunoLoginPage] Login successful, showing toast");
             toast({ title: "Login bem-sucedido!", description: `Bem-vindo(a) de volta, ${response.aluno.nome || 'Aluno'}!` });
+            
         } catch (err: any) {
+            console.error("[AlunoLoginPage] Login error:", err);
             const errorMessage = err.message || 'Credenciais inválidas ou erro no servidor.';
             const errorCode = err.code;
 
@@ -57,6 +81,7 @@ export default function AlunoLoginPage() {
             }
             toast({ title: "Erro no Login", description: errorMessage, variant: "destructive" });
         } finally {
+            console.log("[AlunoLoginPage] Login process finished, setting loading to false");
             setIsLoading(false);
         }
     };
@@ -140,6 +165,7 @@ export default function AlunoLoginPage() {
                                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" 
                                     disabled={isLoading}
                                     loading={isLoading}
+                                    onClick={() => console.log("[AlunoLoginPage] Login button clicked")}
                                 >
                                     Entrar
                                 </Button>
