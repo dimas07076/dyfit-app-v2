@@ -21,6 +21,12 @@ export const validateAndCleanStorage = (tokenType: TokenType): StorageValidation
   };
 
   try {
+    // Skip validation if login is in progress to prevent interference
+    if (localStorage.getItem('alunoLoginInProgress') === 'true' && tokenType === 'aluno') {
+      console.log(`[validateAndCleanStorage] Skipping validation for ${tokenType} - login in progress`);
+      return result;
+    }
+    
     const tokenKey = tokenType === 'aluno' ? 'alunoAuthToken' : 'authToken';
     const refreshTokenKey = tokenType === 'aluno' ? 'alunoRefreshToken' : 'refreshToken';
     const dataKey = tokenType === 'aluno' ? 'alunoData' : 'userData';

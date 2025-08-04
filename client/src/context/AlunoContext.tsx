@@ -201,12 +201,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const loginAluno = useCallback((token: string, refreshToken: string) => {
     console.log("[AlunoContext] Iniciando login do aluno...");
+    console.log("[AlunoContext] DEBUG - Token length:", token?.length, "RefreshToken length:", refreshToken?.length);
     setIsLoadingAluno(true);
     setRefreshAttempts(0); // Reset contador ao fazer novo login
+    
+    // CORREÇÃO: Set a flag to prevent validation from interfering with login
+    localStorage.setItem('alunoLoginInProgress', 'true');
     
     // CORREÇÃO: Primeiro salvar o refresh token, depois processar o access token
     if (!refreshToken || refreshToken.trim() === '') {
       console.error("[AlunoContext] Refresh token inválido fornecido para login");
+      localStorage.removeItem('alunoLoginInProgress');
       setIsLoadingAluno(false);
       return;
     }
@@ -215,24 +220,46 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       localStorage.setItem(ALUNO_REFRESH_TOKEN_KEY, refreshToken);
       console.log("[AlunoContext] Refresh token de aluno salvo com sucesso");
+      console.log("[AlunoContext] DEBUG - Refresh token stored, length:", localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY)?.length);
     } catch (error) {
       console.error("[AlunoContext] Erro ao salvar refresh token:", error);
+      localStorage.removeItem('alunoLoginInProgress');
       setIsLoadingAluno(false);
       return;
     }
     
     // Processar o access token
+    console.log("[AlunoContext] DEBUG - About to call setAlunoFromToken with token length:", token?.length);
     const alunoData = setAlunoFromToken(token);
+    console.log("[AlunoContext] DEBUG - setAlunoFromToken returned:", alunoData ? "success" : "failure");
+    
     if (!alunoData) {
       console.error("[AlunoContext] Falha ao processar token de acesso durante login");
       // Limpar refresh token se access token é inválido
       localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY);
+      localStorage.removeItem('alunoLoginInProgress');
       setIsLoadingAluno(false);
       return;
     }
     
+    // Verificar se os tokens foram realmente salvos
+    const savedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+    const savedRefreshToken = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
+    const savedData = localStorage.getItem(ALUNO_DATA_KEY);
+    
+    console.log("[AlunoContext] DEBUG - Post-login storage check:");
+    console.log("  - Access token saved:", !!savedToken, "length:", savedToken?.length);
+    console.log("  - Refresh token saved:", !!savedRefreshToken, "length:", savedRefreshToken?.length);
+    console.log("  - User data saved:", !!savedData);
+    
     // Limpar tentativas anteriores de refresh
     localStorage.removeItem('alunoLastRefreshAttempt');
+    
+    // Clear the login flag after a short delay to ensure everything is saved
+    setTimeout(() => {
+      localStorage.removeItem('alunoLoginInProgress');
+      console.log("[AlunoContext] Login flag cleared - login process complete");
+    }, 500);
     
     console.log("[AlunoContext] Login do aluno concluído com sucesso");
     setIsLoadingAluno(false);
@@ -253,6 +280,17 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     console.log("[AlunoContext] checkAlunoSession: Verificando sessão do aluno...");
+    
+    // CORREÇÃO: Add debug logging before setting validation state
+    const preCheckToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+    const preCheckRefresh = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
+    const preCheckData = localStorage.getItem(ALUNO_DATA_KEY);
+    
+    console.log("[AlunoContext] DEBUG - Pre-validation storage state:");
+    console.log("  - Access token exists:", !!preCheckToken, "length:", preCheckToken?.length);
+    console.log("  - Refresh token exists:", !!preCheckRefresh, "length:", preCheckRefresh?.length);
+    console.log("  - User data exists:", !!preCheckData);
+    
     setIsValidating(true);
     setIsLoadingAluno(true);
 
@@ -261,10 +299,21 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const validationResult = validateAndCleanStorage('aluno');
       if (!validationResult.isValid && validationResult.tokensRemoved.length > 0) {
         console.warn("[AlunoContext] Storage corrompido detectado durante checkAlunoSession, limpeza realizada");
+        console.log("[AlunoContext] DEBUG - Tokens removed during validation:", validationResult.tokensRemoved);
       }
 
       const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
       console.log("[AlunoContext] checkAlunoSession: Token de acesso armazenado:", !!storedToken);
+      
+      // CORREÇÃO: Add debug logging after validation
+      const postValidationToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+      const postValidationRefresh = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
+      const postValidationData = localStorage.getItem(ALUNO_DATA_KEY);
+      
+      console.log("[AlunoContext] DEBUG - Post-validation storage state:");
+      console.log("  - Access token exists:", !!postValidationToken, "length:", postValidationToken?.length);
+      console.log("  - Refresh token exists:", !!postValidationRefresh, "length:", postValidationRefresh?.length);
+      console.log("  - User data exists:", !!postValidationData);
 
       if (storedToken) {
         try {
@@ -300,10 +349,82 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [setAlunoFromToken, refreshAlunoToken, logoutAluno, isValidating, isPublicInviteRoute]);
 
+  // Create a stable version of checkAlunoSession for the initial mount effect
+  const initialCheckAlunoSession = useCallback(async () => {
+    // CORREÇÃO: Skip if login is in progress
+    if (localStorage.getItem('alunoLoginInProgress') === 'true') {
+      console.log("[AlunoContext] Skipping initial session check - login in progress");
+      setIsLoadingAluno(false);
+      return;
+    }
+    
+    // CORREÇÃO: Não verificar sessão em rotas de convite
+    if (isPublicInviteRoute()) {
+      console.log("[AlunoContext] Verificação inicial de sessão cancelada - rota de convite detectada:", window.location.pathname);
+      setIsLoadingAluno(false);
+      return;
+    }
+
+    // Add a small delay to ensure any login process has completed
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Check again after delay
+    if (localStorage.getItem('alunoLoginInProgress') === 'true') {
+      console.log("[AlunoContext] Skipping initial session check after delay - login still in progress");
+      setIsLoadingAluno(false);
+      return;
+    }
+
+    console.log("[AlunoContext] initialCheckAlunoSession: Verificando sessão inicial do aluno...");
+    setIsLoadingAluno(true);
+
+    try {
+      // Check storage state before validation
+      const preValidationToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+      const preValidationRefresh = localStorage.getItem(ALUNO_REFRESH_TOKEN_KEY);
+      const preValidationData = localStorage.getItem(ALUNO_DATA_KEY);
+      
+      console.log("[AlunoContext] DEBUG - Pre-validation storage in initialCheck:");
+      console.log("  - Access token exists:", !!preValidationToken);
+      console.log("  - Refresh token exists:", !!preValidationRefresh);
+      console.log("  - User data exists:", !!preValidationData);
+
+      // MELHORIA: Validar e limpar storage antes de verificar sessão
+      const validationResult = validateAndCleanStorage('aluno');
+      if (!validationResult.isValid && validationResult.tokensRemoved.length > 0) {
+        console.warn("[AlunoContext] Storage corrompido detectado durante verificação inicial, limpeza realizada");
+        console.log("[AlunoContext] DEBUG - Tokens removed:", validationResult.tokensRemoved);
+      }
+
+      const storedToken = localStorage.getItem(ALUNO_TOKEN_KEY);
+      console.log("[AlunoContext] initialCheckAlunoSession: Token de acesso armazenado:", !!storedToken);
+
+      if (storedToken) {
+        // Try to set aluno from stored token
+        const alunoData = setAlunoFromToken(storedToken);
+        if (alunoData) {
+          console.log("[AlunoContext] Token de aluno válido encontrado no localStorage.");
+        } else {
+          console.log("[AlunoContext] Token inválido, tentando renovar com refresh token...");
+          // If stored token is invalid, try refresh
+          await refreshAlunoToken();
+        }
+      } else {
+        // Se não há token de acesso, tenta renovar com refresh token
+        console.log("[AlunoContext] Nenhum token de acesso encontrado. Tentando renovar com refresh token...");
+        await refreshAlunoToken();
+      }
+      setLastValidationTime(Date.now());
+    } finally {
+      setIsLoadingAluno(false);
+      console.log("[AlunoContext] initialCheckAlunoSession: Verificação inicial concluída.");
+    }
+  }, [setAlunoFromToken]); // Minimal dependencies
+
   useEffect(() => {
-    console.log("[AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().");
-    checkAlunoSession();
-  }, [checkAlunoSession]);
+    console.log("[AlunoContext] useEffect (montagem inicial): Chamando initialCheckAlunoSession().");
+    initialCheckAlunoSession();
+  }, [initialCheckAlunoSession]);
 
   // --- INÍCIO DA ETAPA 2: REFRESH AUTOMÁTICO ---
   useEffect(() => {
