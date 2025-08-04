@@ -10,22 +10,15 @@ import { Loader2 } from "lucide-react"; // Import Loader2
 
 // Utility function to extract date in YYYY-MM-DD format from various date formats
 const extractDateOnly = (dateValue: string | Date | undefined | null): string => {
-  console.log("🔍 extractDateOnly called with:", dateValue, "Type:", typeof dateValue);
-  
   if (!dateValue) {
-    console.log("🔍 extractDateOnly: No date value provided, returning empty string");
     return "";
   }
   
   // Handle Date objects first (before converting to string)
   if (dateValue instanceof Date) {
-    console.log("🔍 extractDateOnly: Input is a Date object");
     if (!isNaN(dateValue.getTime())) {
-      const result = dateValue.toISOString().split('T')[0];
-      console.log("🔍 extractDateOnly: Valid Date object, returning:", result);
-      return result;
+      return dateValue.toISOString().split('T')[0];
     } else {
-      console.log("🔍 extractDateOnly: Invalid Date object");
       return "";
     }
   }
@@ -34,91 +27,85 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
   let dateStr = String(dateValue).trim();
   
   if (!dateStr) {
-    console.log("🔍 extractDateOnly: Empty string after conversion, returning empty string");
     return "";
   }
   
-  console.log("🔍 extractDateOnly: Processing dateStr:", dateStr);
+  // Check if the string looks like a Date.toString() output
+  // This includes: GMT, UTC, GM (truncated GMT), or starts with day names
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const startsWithDayName = dayNames.some(day => dateStr.startsWith(day));
   
-  // Check if the string looks like a Date.toString() output (contains GMT, UTC, or is very long)
-  if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.length > 50) {
-    console.log("🔍 extractDateOnly: Looks like Date.toString() output, parsing as Date");
+  if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('GM') || 
+      startsWithDayName || dateStr.length > 50) {
     try {
+      // For truncated strings like "Mon Jul 21 2025 00:00:00 GM", try to parse directly
       const date = new Date(dateStr);
       if (!isNaN(date.getTime())) {
-        const result = date.toISOString().split('T')[0];
-        console.log("🔍 extractDateOnly: Successfully parsed Date.toString(), returning:", result);
-        return result;
+        return date.toISOString().split('T')[0];
+      }
+      
+      // If direct parsing fails and it's truncated GMT, try adding the 'T'
+      if (dateStr.includes('GM') && !dateStr.includes('GMT')) {
+        const fixedStr = dateStr.replace(' GM', ' GMT');
+        const fixedDate = new Date(fixedStr);
+        if (!isNaN(fixedDate.getTime())) {
+          return fixedDate.toISOString().split('T')[0];
+        }
       }
     } catch (error) {
-      console.log("🔍 extractDateOnly: Failed to parse Date.toString():", error);
+      // If parsing fails, continue to other methods
     }
   }
   
   // If already in YYYY-MM-DD format, validate it first
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    console.log("🔍 extractDateOnly: Matches YYYY-MM-DD format");
     // Validate that it's actually a valid date
     const date = new Date(dateStr + 'T00:00:00.000Z'); // Add time to avoid timezone issues
     if (!isNaN(date.getTime())) {
-      console.log("🔍 extractDateOnly: Valid YYYY-MM-DD date, returning:", dateStr);
       return dateStr;
     }
-    console.log("🔍 extractDateOnly: Invalid YYYY-MM-DD date");
     return "";
   }
   
   // If contains 'T', extract just the date part
   if (dateStr.includes('T')) {
-    console.log("🔍 extractDateOnly: Contains 'T', extracting date part");
     const result = dateStr.split('T')[0];
     // Validate the extracted part
     if (/^\d{4}-\d{2}-\d{2}$/.test(result)) {
       const date = new Date(result + 'T00:00:00.000Z');
       if (!isNaN(date.getTime())) {
-        console.log("🔍 extractDateOnly: Valid ISO date extracted:", result);
         return result;
       }
     }
-    console.log("🔍 extractDateOnly: Invalid ISO date format");
     return "";
   }
   
   // Try Brazilian/European format: DD/MM/YYYY or DD-MM-YYYY
   const ddmmyyyy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateStr);
   if (ddmmyyyy) {
-    console.log("🔍 extractDateOnly: Matches DD/MM/YYYY format");
     const [, day, month, year] = ddmmyyyy;
     const paddedDay = day.padStart(2, '0');
     const paddedMonth = month.padStart(2, '0');
     const result = `${year}-${paddedMonth}-${paddedDay}`;
-    console.log("🔍 extractDateOnly: Converted DD/MM/YYYY to:", result);
     // Validate the constructed date
     const date = new Date(result + 'T00:00:00.000Z');
     if (!isNaN(date.getTime()) && 
         parseInt(month) >= 1 && parseInt(month) <= 12 && 
         parseInt(day) >= 1 && parseInt(day) <= 31) {
-      console.log("🔍 extractDateOnly: Valid Brazilian date, returning:", result);
       return result;
     }
-    console.log("🔍 extractDateOnly: Invalid Brazilian date validation");
   }
   
   // Try to parse as Date and format as YYYY-MM-DD (this will handle MM/DD/YYYY and other formats)
   try {
-    console.log("🔍 extractDateOnly: Trying native Date parsing");
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-      const result = date.toISOString().split('T')[0];
-      console.log("🔍 extractDateOnly: Native parsing successful, returning:", result);
-      return result;
+      return date.toISOString().split('T')[0];
     }
   } catch (error) {
-    console.log("🔍 extractDateOnly: Native parsing failed:", error);
     // If parsing fails, continue to return empty string
   }
   
-  console.log("🔍 extractDateOnly: All parsing methods failed, returning empty string");
   return "";
 };
 
@@ -172,16 +159,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
   useEffect(() => {
     if (aluno && isOpen) {
-      // Debug logging to understand what data we're receiving
-      console.log("🔍 ModalEditarAluno - Raw aluno data:", aluno);
-      console.log("🔍 ModalEditarAluno - Raw birthDate:", aluno.birthDate, "Type:", typeof aluno.birthDate);
-      console.log("🔍 ModalEditarAluno - Raw startDate:", aluno.startDate, "Type:", typeof aluno.startDate);
-      
       const extractedBirthDate = extractDateOnly(aluno.birthDate);
       const extractedStartDate = extractDateOnly(aluno.startDate);
-      
-      console.log("🔍 ModalEditarAluno - Extracted birthDate:", extractedBirthDate);
-      console.log("🔍 ModalEditarAluno - Extracted startDate:", extractedStartDate);
       
         // Ao popular o estado, converte números para string para os inputs text
       const newFormData = {
@@ -194,7 +173,6 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         trainerId: aluno.trainerId || '', // trainerId is already a string
       };
       
-      console.log("🔍 ModalEditarAluno - Final formData:", newFormData);
       setFormData(newFormData);
     }
     // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
