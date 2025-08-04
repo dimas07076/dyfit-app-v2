@@ -31,74 +31,90 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
   
   // Convert to string in case it's not
   let dateStr = String(dateValue).trim();
-  console.log('🔍 Date string after trim:', dateStr);
+  console.log('🔍 Date string after trim:', `"${dateStr}"`);
   
   if (!dateStr) {
     console.log('🔍 Empty date string, returning empty string');
     return "";
   }
   
-  // Check if the string looks like a Date.toString() output
-  // This includes: GMT, UTC, GM (truncated GMT), or starts with day names
+  // SPECIAL HANDLING for truncated Date.toString() format like "Mon Jul 21 2025 00:00:00 GM"
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const startsWithDayName = dayNames.some(day => dateStr.startsWith(day));
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  console.log('🔍 Checking Date.toString() format...');
-  console.log('🔍 Contains GMT:', dateStr.includes('GMT'));
-  console.log('🔍 Contains UTC:', dateStr.includes('UTC'));
-  console.log('🔍 Contains GM:', dateStr.includes('GM'));
-  console.log('🔍 Starts with day name:', startsWithDayName);
+  // Check if string starts with day name (common Date.toString() pattern)
+  const startsWithDayName = dayNames.some(day => dateStr.startsWith(day + ' '));
   
-  if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('GM') || 
-      startsWithDayName || dateStr.length > 50) {
-    console.log('🔍 Detected as Date.toString() format, attempting to parse...');
+  if (startsWithDayName) {
+    console.log('🔍 Detected Date.toString() format starting with day name');
     try {
-      // For truncated strings like "Mon Jul 21 2025 00:00:00 GM", try to parse directly
-      const date = new Date(dateStr);
-      console.log('🔍 Direct parse result:', date, 'Valid:', !isNaN(date.getTime()));
+      // Try to parse manually if it's the truncated format
+      // Format: "Mon Jul 21 2025 00:00:00 GM"
+      const parts = dateStr.split(' ');
+      console.log('🔍 Date parts:', parts);
+      
+      if (parts.length >= 4) {
+        const monthStr = parts[1];
+        const dayStr = parts[2];
+        const yearStr = parts[3];
+        
+        const monthIndex = monthNames.indexOf(monthStr);
+        if (monthIndex !== -1) {
+          const year = parseInt(yearStr);
+          const month = monthIndex + 1; // Convert to 1-based month
+          const day = parseInt(dayStr);
+          
+          console.log('🔍 Parsed components - Year:', year, 'Month:', month, 'Day:', day);
+          
+          if (!isNaN(year) && !isNaN(day) && year > 1900 && year < 2100 && 
+              month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            const result = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            console.log('🔍 Manual parse successful:', result);
+            
+            // Validate the constructed date
+            const testDate = new Date(result + 'T00:00:00.000Z');
+            if (!isNaN(testDate.getTime())) {
+              return result;
+            }
+          }
+        }
+      }
+      
+      // If manual parsing fails, try fixing the truncated GMT and parsing normally
+      let fixedStr = dateStr;
+      if (dateStr.includes(' GM') && !dateStr.includes(' GMT')) {
+        fixedStr = dateStr.replace(' GM', ' GMT');
+        console.log('🔍 Fixed truncated GMT:', fixedStr);
+      }
+      
+      const date = new Date(fixedStr);
+      console.log('🔍 Date parsing result:', date, 'Valid:', !isNaN(date.getTime()));
       if (!isNaN(date.getTime())) {
         const result = date.toISOString().split('T')[0];
         console.log('🔍 Successfully parsed to:', result);
         return result;
       }
-      
-      // If direct parsing fails and it's truncated GMT, try adding the 'T'
-      if (dateStr.includes('GM') && !dateStr.includes('GMT')) {
-        console.log('🔍 Attempting to fix truncated GMT...');
-        const fixedStr = dateStr.replace(' GM', ' GMT');
-        console.log('🔍 Fixed string:', fixedStr);
-        const fixedDate = new Date(fixedStr);
-        console.log('🔍 Fixed parse result:', fixedDate, 'Valid:', !isNaN(fixedDate.getTime()));
-        if (!isNaN(fixedDate.getTime())) {
-          const result = fixedDate.toISOString().split('T')[0];
-          console.log('🔍 Successfully parsed fixed string to:', result);
-          return result;
-        }
-      }
     } catch (error) {
       console.log('🔍 Error parsing Date.toString() format:', error);
-      // If parsing fails, continue to other methods
     }
   }
   
   // If already in YYYY-MM-DD format, validate it first
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     console.log('🔍 Already in YYYY-MM-DD format, validating...');
-    // Validate that it's actually a valid date
-    const date = new Date(dateStr + 'T00:00:00.000Z'); // Add time to avoid timezone issues
+    const date = new Date(dateStr + 'T00:00:00.000Z');
     if (!isNaN(date.getTime())) {
       console.log('🔍 Valid YYYY-MM-DD format, returning:', dateStr);
       return dateStr;
     }
-    console.log('🔍 Invalid YYYY-MM-DD format, returning empty string');
-    return "";
+    console.log('🔍 Invalid YYYY-MM-DD format');
   }
   
   // If contains 'T', extract just the date part
   if (dateStr.includes('T')) {
     console.log('🔍 Contains T, extracting date part...');
     const result = dateStr.split('T')[0];
-    // Validate the extracted part
     if (/^\d{4}-\d{2}-\d{2}$/.test(result)) {
       const date = new Date(result + 'T00:00:00.000Z');
       if (!isNaN(date.getTime())) {
@@ -106,8 +122,6 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
         return result;
       }
     }
-    console.log('🔍 Invalid extracted date part, returning empty string');
-    return "";
   }
   
   // Try Brazilian/European format: DD/MM/YYYY or DD-MM-YYYY
@@ -118,7 +132,6 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
     const paddedDay = day.padStart(2, '0');
     const paddedMonth = month.padStart(2, '0');
     const result = `${year}-${paddedMonth}-${paddedDay}`;
-    // Validate the constructed date
     const date = new Date(result + 'T00:00:00.000Z');
     if (!isNaN(date.getTime()) && 
         parseInt(month) >= 1 && parseInt(month) <= 12 && 
@@ -126,10 +139,9 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
       console.log('🔍 Successfully converted DD/MM/YYYY to:', result);
       return result;
     }
-    console.log('🔍 Invalid DD/MM/YYYY conversion');
   }
   
-  // Try to parse as Date and format as YYYY-MM-DD (this will handle MM/DD/YYYY and other formats)
+  // Try generic Date parsing as last resort
   try {
     console.log('🔍 Attempting generic Date parsing...');
     const date = new Date(dateStr);
@@ -140,10 +152,9 @@ const extractDateOnly = (dateValue: string | Date | undefined | null): string =>
     }
   } catch (error) {
     console.log('🔍 Generic parse failed:', error);
-    // If parsing fails, continue to return empty string
   }
   
-  console.log('🔍 All parsing methods failed, returning empty string');
+  console.log('🔍 ❌ All parsing methods failed, returning empty string');
   return "";
 };
 
@@ -197,38 +208,46 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
   useEffect(() => {
     if (aluno && isOpen) {
-      console.log('🔍 MODAL OPENED - Processing dates:');
+      console.log('🔍 =================== MODAL OPENED ===================');
+      console.log('🔍 Raw aluno object:', aluno);
       console.log('🔍 Original birthDate:', aluno.birthDate, 'Type:', typeof aluno.birthDate);
       console.log('🔍 Original startDate:', aluno.startDate, 'Type:', typeof aluno.startDate);
       
       const extractedBirthDate = extractDateOnly(aluno.birthDate);
       const extractedStartDate = extractDateOnly(aluno.startDate);
       
-      console.log('🔍 Extracted birthDate:', extractedBirthDate);
-      console.log('🔍 Extracted startDate:', extractedStartDate);
+      console.log('🔍 ============ EXTRACTION RESULTS ============');
+      console.log('🔍 Extracted birthDate:', `"${extractedBirthDate}"`);
+      console.log('🔍 Extracted startDate:', `"${extractedStartDate}"`);
       
-        // Ao popular o estado, converte números para string para os inputs text
+      // Create the form data object
       const newFormData = {
         ...aluno,
         birthDate: extractedBirthDate,
         startDate: extractedStartDate,
-        // Converte para string ao carregar no estado, ou usa '' se for null/undefined
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
-        trainerId: aluno.trainerId || '', // trainerId is already a string
+        trainerId: aluno.trainerId || '',
       };
       
-      console.log('🔍 Setting form data:', {
-        birthDate: newFormData.birthDate,
-        startDate: newFormData.startDate
-      });
+      console.log('🔍 ============ FORM DATA BEING SET ============');
+      console.log('🔍 Complete form data:', newFormData);
+      console.log('🔍 Form birthDate value:', `"${newFormData.birthDate}"`);
+      console.log('🔍 Form startDate value:', `"${newFormData.startDate}"`);
+      console.log('🔍 ===============================================');
       
       setFormData(newFormData);
+      
+      // Add a small delay to check if the form inputs receive the values
+      setTimeout(() => {
+        const birthDateInput = document.getElementById('birthDate') as HTMLInputElement;
+        const startDateInput = document.getElementById('startDate') as HTMLInputElement;
+        console.log('🔍 ========== INPUT VALUES AFTER SETTING ==========');
+        console.log('🔍 Birth date input value:', `"${birthDateInput?.value || 'NOT_FOUND'}"`);
+        console.log('🔍 Start date input value:', `"${startDateInput?.value || 'NOT_FOUND'}"`);
+        console.log('🔍 ===============================================');
+      }, 100);
     }
-    // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
-    // else if (!isOpen) {
-    //    setFormData({});
-    // }
   }, [aluno, isOpen]);
 
   // handleChange agora está consistente com o tipo AlunoFormDataState (que permite string)
@@ -243,6 +262,11 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
   };
 
   const handleSubmit = async () => {
+    console.log('🔍 ============ FORM SUBMISSION STARTED ============');
+    console.log('🔍 Current formData:', formData);
+    console.log('🔍 Birth date value:', `"${formData.birthDate}"`);
+    console.log('🔍 Start date value:', `"${formData.startDate}"`);
+    
     if (!aluno?._id) {
         toast({ title: "ID do aluno não encontrado", variant: "destructive" });
         return;
@@ -250,34 +274,44 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
     // Basic validation for required fields
     if (!formData.nome?.trim()) {
+        console.log('🔍 ❌ Validation failed: Nome is required');
         toast({ title: "Nome é obrigatório", variant: "destructive" });
         return;
     }
     if (!formData.email?.trim()) {
+        console.log('🔍 ❌ Validation failed: Email is required');
         toast({ title: "Email é obrigatório", variant: "destructive" });
         return;
     }
     if (!formData.birthDate) {
+        console.log('🔍 ❌ Validation failed: Birth date is required');
+        console.log('🔍 Birth date value was:', `"${formData.birthDate}"`);
         toast({ title: "Data de nascimento é obrigatória", variant: "destructive" });
         return;
     }
     if (!formData.gender) {
+        console.log('🔍 ❌ Validation failed: Gender is required');
         toast({ title: "Gênero é obrigatório", variant: "destructive" });
         return;
     }
     if (!formData.goal) {
+        console.log('🔍 ❌ Validation failed: Goal is required');
         toast({ title: "Objetivo é obrigatório", variant: "destructive" });
         return;
     }
     if (!formData.startDate) {
+        console.log('🔍 ❌ Validation failed: Start date is required');
+        console.log('🔍 Start date value was:', `"${formData.startDate}"`);
         toast({ title: "Data de início é obrigatória", variant: "destructive" });
         return;
     }
     if (!formData.status) {
+        console.log('🔍 ❌ Validation failed: Status is required');
         toast({ title: "Status é obrigatório", variant: "destructive" });
         return;
     }
 
+    console.log('🔍 ✅ All validations passed!');
     setIsLoading(true);
 
     // Prepara os dados para enviar, convertendo de volta para número onde necessário
