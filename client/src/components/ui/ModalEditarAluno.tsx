@@ -8,176 +8,160 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react"; // Import Loader2
 
-// Utility function to extract date in YYYY-MM-DD format from various date formats
+// Enhanced utility function to extract date in YYYY-MM-DD format with multiple strategies
 const extractDateOnly = (dateValue: string | Date | undefined | null): string => {
-  console.log('🔍 extractDateOnly called with:', dateValue, 'Type:', typeof dateValue);
+  console.log('🔍 [EXTRACT_DATE] Input:', dateValue, 'Type:', typeof dateValue);
   
   if (!dateValue) {
-    console.log('🔍 No dateValue provided, returning empty string');
+    console.log('🔍 [EXTRACT_DATE] No input provided, returning empty string');
     return "";
   }
   
-  // Handle Date objects first (before converting to string)
+  // Handle Date objects first
   if (dateValue instanceof Date) {
     if (!isNaN(dateValue.getTime())) {
       const result = dateValue.toISOString().split('T')[0];
-      console.log('🔍 Date object converted to:', result);
+      console.log('🔍 [EXTRACT_DATE] Date object converted to:', result);
       return result;
     } else {
-      console.log('🔍 Invalid Date object, returning empty string');
+      console.log('🔍 [EXTRACT_DATE] Invalid Date object');
       return "";
     }
   }
   
-  // Convert to string in case it's not
+  // Convert to string and clean
   let dateStr = String(dateValue).trim();
-  console.log('🔍 Date string after trim:', `"${dateStr}"`);
+  console.log('🔍 [EXTRACT_DATE] String value:', `"${dateStr}"`);
   
-  if (!dateStr) {
-    console.log('🔍 Empty date string, returning empty string');
-    return "";
+  if (!dateStr) return "";
+  
+  // Strategy 1: Direct YYYY-MM-DD validation
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    console.log('🔍 [EXTRACT_DATE] Already YYYY-MM-DD format');
+    const testDate = new Date(dateStr + 'T00:00:00.000Z');
+    if (!isNaN(testDate.getTime())) {
+      console.log('🔍 [EXTRACT_DATE] ✅ Valid YYYY-MM-DD:', dateStr);
+      return dateStr;
+    }
   }
   
-  // SPECIAL HANDLING for truncated Date.toString() format like "Mon Jul 21 2025 00:00:00 GM"
+  // Strategy 2: Extract from ISO string (contains T)
+  if (dateStr.includes('T')) {
+    const extracted = dateStr.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(extracted)) {
+      const testDate = new Date(extracted + 'T00:00:00.000Z');
+      if (!isNaN(testDate.getTime())) {
+        console.log('🔍 [EXTRACT_DATE] ✅ Extracted from ISO:', extracted);
+        return extracted;
+      }
+    }
+  }
+  
+  // Strategy 3: Parse Brazilian DD/MM/YYYY format
+  const brazilianMatch = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateStr);
+  if (brazilianMatch) {
+    const [, day, month, year] = brazilianMatch;
+    const monthNum = parseInt(month);
+    const dayNum = parseInt(day);
+    
+    if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      const result = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const testDate = new Date(result + 'T00:00:00.000Z');
+      if (!isNaN(testDate.getTime())) {
+        console.log('🔍 [EXTRACT_DATE] ✅ Converted Brazilian format:', result);
+        return result;
+      }
+    }
+  }
+  
+  // Strategy 4: Parse Date.toString() format (e.g., "Mon Jul 21 2025 00:00:00 GM")
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  // Check if string starts with day name (common Date.toString() pattern)
-  const startsWithDayName = dayNames.some(day => dateStr.startsWith(day + ' '));
-  
-  if (startsWithDayName) {
-    console.log('🔍 Detected Date.toString() format starting with day name');
-    try {
-      // Try to parse manually if it's the truncated format
-      // Format: "Mon Jul 21 2025 00:00:00 GM"
-      const parts = dateStr.split(' ');
-      console.log('🔍 Date parts:', parts);
+  if (dayNames.some(day => dateStr.startsWith(day + ' '))) {
+    console.log('🔍 [EXTRACT_DATE] Detected Date.toString() format');
+    const parts = dateStr.split(' ');
+    
+    if (parts.length >= 4) {
+      const monthName = parts[1];
+      const dayStr = parts[2];
+      const yearStr = parts[3];
       
-      if (parts.length >= 4) {
-        const monthStr = parts[1];
-        const dayStr = parts[2];
-        const yearStr = parts[3];
+      const monthIndex = monthNames.indexOf(monthName);
+      if (monthIndex !== -1) {
+        const year = parseInt(yearStr);
+        const month = monthIndex + 1;
+        const day = parseInt(dayStr);
         
-        const monthIndex = monthNames.indexOf(monthStr);
-        if (monthIndex !== -1) {
-          const year = parseInt(yearStr);
-          const month = monthIndex + 1; // Convert to 1-based month
-          const day = parseInt(dayStr);
-          
-          console.log('🔍 Parsed components - Year:', year, 'Month:', month, 'Day:', day);
-          
-          if (!isNaN(year) && !isNaN(day) && year > 1900 && year < 2100 && 
-              month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-            const result = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            console.log('🔍 Manual parse successful:', result);
-            
-            // Validate the constructed date
-            const testDate = new Date(result + 'T00:00:00.000Z');
-            if (!isNaN(testDate.getTime())) {
-              return result;
-            }
-          }
+        if (!isNaN(year) && !isNaN(day) && year >= 1900 && year <= 2100 && 
+            month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          const result = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          console.log('🔍 [EXTRACT_DATE] ✅ Parsed Date.toString():', result);
+          return result;
         }
       }
-      
-      // If manual parsing fails, try fixing the truncated GMT and parsing normally
-      let fixedStr = dateStr;
-      if (dateStr.includes(' GM') && !dateStr.includes(' GMT')) {
-        fixedStr = dateStr.replace(' GM', ' GMT');
-        console.log('🔍 Fixed truncated GMT:', fixedStr);
-      }
-      
-      const date = new Date(fixedStr);
-      console.log('🔍 Date parsing result:', date, 'Valid:', !isNaN(date.getTime()));
-      if (!isNaN(date.getTime())) {
-        const result = date.toISOString().split('T')[0];
-        console.log('🔍 Successfully parsed to:', result);
+    }
+    
+    // Fallback: Fix truncated GMT and try parsing
+    let fixedDateStr = dateStr;
+    if (dateStr.includes(' GM') && !dateStr.includes(' GMT')) {
+      fixedDateStr = dateStr.replace(' GM', ' GMT');
+    }
+    
+    try {
+      const parsedDate = new Date(fixedDateStr);
+      if (!isNaN(parsedDate.getTime())) {
+        const result = parsedDate.toISOString().split('T')[0];
+        console.log('🔍 [EXTRACT_DATE] ✅ Fixed and parsed:', result);
         return result;
       }
     } catch (error) {
-      console.log('🔍 Error parsing Date.toString() format:', error);
+      console.log('🔍 [EXTRACT_DATE] Failed to parse fixed date string');
     }
   }
   
-  // If already in YYYY-MM-DD format, validate it first
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    console.log('🔍 Already in YYYY-MM-DD format, validating...');
-    const date = new Date(dateStr + 'T00:00:00.000Z');
-    if (!isNaN(date.getTime())) {
-      console.log('🔍 Valid YYYY-MM-DD format, returning:', dateStr);
-      return dateStr;
-    }
-    console.log('🔍 Invalid YYYY-MM-DD format');
-  }
-  
-  // If contains 'T', extract just the date part
-  if (dateStr.includes('T')) {
-    console.log('🔍 Contains T, extracting date part...');
-    const result = dateStr.split('T')[0];
-    if (/^\d{4}-\d{2}-\d{2}$/.test(result)) {
-      const date = new Date(result + 'T00:00:00.000Z');
-      if (!isNaN(date.getTime())) {
-        console.log('🔍 Extracted valid date part:', result);
-        return result;
-      }
-    }
-  }
-  
-  // Try Brazilian/European format: DD/MM/YYYY or DD-MM-YYYY
-  const ddmmyyyy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateStr);
-  if (ddmmyyyy) {
-    console.log('🔍 Detected DD/MM/YYYY format, converting...');
-    const [, day, month, year] = ddmmyyyy;
-    const paddedDay = day.padStart(2, '0');
-    const paddedMonth = month.padStart(2, '0');
-    const result = `${year}-${paddedMonth}-${paddedDay}`;
-    const date = new Date(result + 'T00:00:00.000Z');
-    if (!isNaN(date.getTime()) && 
-        parseInt(month) >= 1 && parseInt(month) <= 12 && 
-        parseInt(day) >= 1 && parseInt(day) <= 31) {
-      console.log('🔍 Successfully converted DD/MM/YYYY to:', result);
-      return result;
-    }
-  }
-  
-  // Try generic Date parsing as last resort
+  // Strategy 5: Generic Date constructor (last resort)
   try {
-    console.log('🔍 Attempting generic Date parsing...');
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      const result = date.toISOString().split('T')[0];
-      console.log('🔍 Generic parse successful, result:', result);
+    const genericDate = new Date(dateStr);
+    if (!isNaN(genericDate.getTime())) {
+      const result = genericDate.toISOString().split('T')[0];
+      console.log('🔍 [EXTRACT_DATE] ✅ Generic parse success:', result);
       return result;
     }
   } catch (error) {
-    console.log('🔍 Generic parse failed:', error);
+    console.log('🔍 [EXTRACT_DATE] Generic parse failed');
   }
   
-  console.log('🔍 ❌ All parsing methods failed, returning empty string');
+  console.log('🔍 [EXTRACT_DATE] ❌ All strategies failed');
   return "";
 };
 
-// Test function to validate extractDateOnly with known values
+// Enhanced test function to validate extractDateOnly with known values
 const testExtractDateOnly = () => {
   console.log('🧪 ============ TESTING extractDateOnly ============');
   const testCases = [
     'Mon Jul 21 2025 00:00:00 GM',           // Truncated GMT format
     'Mon Jul 21 2025 00:00:00 GMT',          // Full GMT format
+    'Tue Jan 15 2024 00:00:00 GM',           // Another truncated example
     '2025-07-21',                            // YYYY-MM-DD format
     '2025-07-21T00:00:00.000Z',              // ISO format
     '21/07/2025',                            // DD/MM/YYYY format
     '21-07-2025',                            // DD-MM-YYYY format
+    '15/01/2024',                            // Another Brazilian format
     new Date('2025-07-21'),                  // Date object
+    new Date('2024-01-15T10:30:00.000Z'),    // Date object with time
     null,                                    // null value
     undefined,                               // undefined value
     '',                                      // empty string
+    'invalid date string',                   // invalid string
+    '32/13/2025',                           // invalid Brazilian date
   ];
   
   testCases.forEach((testCase, index) => {
-    console.log(`🧪 Test ${index + 1}: Input:`, testCase);
+    console.log(`🧪 Test ${index + 1}: Input:`, testCase, `(Type: ${typeof testCase})`);
     const result = extractDateOnly(testCase);
-    console.log(`🧪 Test ${index + 1}: Result:`, `"${result}"`);
+    const isValid = /^\d{4}-\d{2}-\d{2}$/.test(result);
+    console.log(`🧪 Test ${index + 1}: Result: "${result}" | Valid: ${isValid ? '✅' : '❌'}`);
     console.log('🧪 ---');
   });
   console.log('🧪 ================ TESTS COMPLETE ================');
@@ -234,14 +218,14 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
   useEffect(() => {
     if (aluno && isOpen) {
       console.log('🔍 =================== MODAL OPENED ===================');
-      
-      // Run test cases first to validate the function
-      testExtractDateOnly();
-      
-      console.log('🔍 Raw aluno object:', aluno);
+      console.log('🔍 Raw aluno object:', JSON.stringify(aluno, null, 2));
       console.log('🔍 Original birthDate:', aluno.birthDate, 'Type:', typeof aluno.birthDate);
       console.log('🔍 Original startDate:', aluno.startDate, 'Type:', typeof aluno.startDate);
       
+      // Run test cases first
+      testExtractDateOnly();
+      
+      // Extract dates with enhanced error handling
       const extractedBirthDate = extractDateOnly(aluno.birthDate);
       const extractedStartDate = extractDateOnly(aluno.startDate);
       
@@ -249,35 +233,68 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
       console.log('🔍 Extracted birthDate:', `"${extractedBirthDate}"`);
       console.log('🔍 Extracted startDate:', `"${extractedStartDate}"`);
       
-      // Create the form data object
+      // Validate extracted dates
+      if (extractedBirthDate && !/^\d{4}-\d{2}-\d{2}$/.test(extractedBirthDate)) {
+        console.log('🔍 ❌ Birth date format invalid after extraction:', extractedBirthDate);
+      }
+      if (extractedStartDate && !/^\d{4}-\d{2}-\d{2}$/.test(extractedStartDate)) {
+        console.log('🔍 ❌ Start date format invalid after extraction:', extractedStartDate);
+      }
+      
+      // Create the form data object with fallback values
       const newFormData = {
         ...aluno,
-        birthDate: extractedBirthDate,
-        startDate: extractedStartDate,
+        birthDate: extractedBirthDate || '', // Ensure empty string if extraction failed
+        startDate: extractedStartDate || '', // Ensure empty string if extraction failed
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
         trainerId: aluno.trainerId || '',
       };
       
       console.log('🔍 ============ FORM DATA BEING SET ============');
-      console.log('🔍 Complete form data:', newFormData);
+      console.log('🔍 Complete form data:', JSON.stringify(newFormData, null, 2));
       console.log('🔍 Form birthDate value:', `"${newFormData.birthDate}"`);
       console.log('🔍 Form startDate value:', `"${newFormData.startDate}"`);
       console.log('🔍 ===============================================');
       
       setFormData(newFormData);
       
-      // Add a small delay to check if the form inputs receive the values
+      // Multiple checks to ensure DOM synchronization
       setTimeout(() => {
         const birthDateInput = document.getElementById('birthDate') as HTMLInputElement;
         const startDateInput = document.getElementById('startDate') as HTMLInputElement;
-        console.log('🔍 ========== INPUT VALUES AFTER SETTING ==========');
+        
+        console.log('🔍 ========== DOM STATE CHECK (100ms) ==========');
+        console.log('🔍 Birth date input found:', !!birthDateInput);
         console.log('🔍 Birth date input value:', `"${birthDateInput?.value || 'NOT_FOUND'}"`);
-        console.log('🔍 Start date input value:', `"${startDateInput?.value || 'NOT_FOUND'}"`);
         console.log('🔍 Birth date input validity:', birthDateInput?.validity);
+        console.log('🔍 Start date input found:', !!startDateInput);
+        console.log('🔍 Start date input value:', `"${startDateInput?.value || 'NOT_FOUND'}"`);
         console.log('🔍 Start date input validity:', startDateInput?.validity);
+        
+        // Force value if React state didn't sync properly
+        if (birthDateInput && extractedBirthDate && !birthDateInput.value) {
+          console.log('🔍 🔧 Force setting birth date value via DOM:', extractedBirthDate);
+          birthDateInput.value = extractedBirthDate;
+        }
+        if (startDateInput && extractedStartDate && !startDateInput.value) {
+          console.log('🔍 🔧 Force setting start date value via DOM:', extractedStartDate);
+          startDateInput.value = extractedStartDate;
+        }
+        
         console.log('🔍 ===============================================');
       }, 100);
+      
+      // Additional check after longer delay
+      setTimeout(() => {
+        const birthDateInput = document.getElementById('birthDate') as HTMLInputElement;
+        const startDateInput = document.getElementById('startDate') as HTMLInputElement;
+        
+        console.log('🔍 ========== DOM STATE CHECK (500ms) ==========');
+        console.log('🔍 Birth date final value:', `"${birthDateInput?.value || 'NOT_FOUND'}"`);
+        console.log('🔍 Start date final value:', `"${startDateInput?.value || 'NOT_FOUND'}"`);
+        console.log('🔍 ===============================================');
+      }, 500);
     }
   }, [aluno, isOpen]);
 
@@ -452,14 +469,23 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
                   onInvalid={(e) => {
                     console.log('🔍 ❌ Birth date input is invalid:', e.currentTarget.value);
                     console.log('🔍 ❌ Input validity:', e.currentTarget.validity);
+                    console.log('🔍 ❌ Validation message:', e.currentTarget.validationMessage);
                   }}
-                  onLoad={() => {
-                    console.log('🔍 Birth date input loaded with value:', formData.birthDate);
+                  onInput={(e) => {
+                    console.log('🔍 📝 Birth date input event:', e.currentTarget.value);
+                  }}
+                  onFocus={() => {
+                    console.log('🔍 👁️ Birth date focused, current value:', formData.birthDate);
+                  }}
+                  onBlur={(e) => {
+                    console.log('🔍 👁️ Birth date blurred, final value:', e.currentTarget.value);
                   }}
                 />
-                {/* Debug info */}
+                {/* Enhanced debug info */}
                 <div style={{fontSize: '10px', color: 'gray', marginTop: '2px'}}>
-                  Debug: "{formData.birthDate || 'EMPTY'}"
+                  Debug: value="{formData.birthDate || 'EMPTY'}" | 
+                  Valid={/^\d{4}-\d{2}-\d{2}$/.test(formData.birthDate || '') ? '✅' : '❌'} |
+                  Length={formData.birthDate?.length || 0}
                 </div>
              </div>
               <div>
@@ -533,11 +559,23 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
                   onInvalid={(e) => {
                     console.log('🔍 ❌ Start date input is invalid:', e.currentTarget.value);
                     console.log('🔍 ❌ Input validity:', e.currentTarget.validity);
+                    console.log('🔍 ❌ Validation message:', e.currentTarget.validationMessage);
+                  }}
+                  onInput={(e) => {
+                    console.log('🔍 📝 Start date input event:', e.currentTarget.value);
+                  }}
+                  onFocus={() => {
+                    console.log('🔍 👁️ Start date focused, current value:', formData.startDate);
+                  }}
+                  onBlur={(e) => {
+                    console.log('🔍 👁️ Start date blurred, final value:', e.currentTarget.value);
                   }}
                 />
-                {/* Debug info */}
+                {/* Enhanced debug info */}
                 <div style={{fontSize: '10px', color: 'gray', marginTop: '2px'}}>
-                  Debug: "{formData.startDate || 'EMPTY'}"
+                  Debug: value="{formData.startDate || 'EMPTY'}" | 
+                  Valid={/^\d{4}-\d{2}-\d{2}$/.test(formData.startDate || '') ? '✅' : '❌'} |
+                  Length={formData.startDate?.length || 0}
                 </div>
               </div>
               <div>
