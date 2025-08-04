@@ -75,6 +75,7 @@ apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
 apiRouter.use('/activity-logs', authenticateToken, activityLogsRoutes); // <-- 2. REGISTRO DA ROTA ADICIONADO
 
 apiRouter.use('/aluno', alunoApiRoutes);
+apiRouter.use('/alunos', alunoApiRoutes); // Add alias for consistency with client expectations
 apiRouter.use('/sessions', sessionsRoutes);
 
 // --- 3. Tratamento de Erros ---

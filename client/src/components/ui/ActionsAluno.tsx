@@ -18,6 +18,20 @@ interface ActionsAlunoProps {
 
 const ActionsAluno: React.FC<ActionsAlunoProps> = ({ onEdit, onDelete }) => {
   
+  const handleEdit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Edit button clicked'); // Debug log
+    onEdit();
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Delete button clicked'); // Debug log
+    onDelete();
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -32,13 +46,13 @@ const ActionsAluno: React.FC<ActionsAlunoProps> = ({ onEdit, onDelete }) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end"> 
         {/* Editar */}
-        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+        <DropdownMenuItem onClick={handleEdit}>
           <Pencil className="mr-2 h-4 w-4" /> 
           <span>Editar</span>
         </DropdownMenuItem>
         {/* Excluir */}
         <DropdownMenuItem 
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={handleDelete}
           className="text-red-600 focus:text-red-700 focus:bg-red-50" 
         >
           <Trash2 className="mr-2 h-4 w-4" /> 
