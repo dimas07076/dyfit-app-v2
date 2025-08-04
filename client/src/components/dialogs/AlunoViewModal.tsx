@@ -235,7 +235,10 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     const handleEditFromView = (rotina: RotinaListagemItem) => {
         setRotinaParaEditar(rotina);
         setIsRotinaViewModalOpen(false);
-        setIsRotinaFormModalOpen(true);
+        // Add a small delay to ensure the view modal closes properly before opening edit modal
+        setTimeout(() => {
+            setIsRotinaFormModalOpen(true);
+        }, 100);
     };
 
     const handlePlayVideo = (url: string) => {
@@ -338,6 +341,8 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         queryClient.invalidateQueries({ queryKey: ['rotinaDetalhes', rotinaAtualizada._id] });
         setRotinaParaEditar(null);
         setRotinaIdParaVer(null);
+        // Clear any cached data to ensure fresh data on next view
+        queryClient.removeQueries({ queryKey: ['rotinaDetalhes'] });
     };
 
     if (!aluno) {
@@ -424,10 +429,33 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
             </Dialog>
 
             {rotinaDetalhada && (
-                <RotinaViewModal isOpen={isRotinaViewModalOpen} onClose={() => { setIsRotinaViewModalOpen(false); setRotinaIdParaVer(null); }} rotina={rotinaDetalhada} onEdit={handleEditFromView} onAssign={() => {}} onPlayVideo={handlePlayVideo} onConvertToModel={handleConvertToModelFromRotinaView} />
+                <RotinaViewModal 
+                    isOpen={isRotinaViewModalOpen} 
+                    onClose={() => { 
+                        setIsRotinaViewModalOpen(false); 
+                        // Clear the routine data after a delay to prevent flicker
+                        setTimeout(() => {
+                            setRotinaIdParaVer(null);
+                        }, 150);
+                    }} 
+                    rotina={rotinaDetalhada} 
+                    onEdit={handleEditFromView} 
+                    onAssign={() => {}} 
+                    onPlayVideo={handlePlayVideo} 
+                    onConvertToModel={handleConvertToModelFromRotinaView} 
+                />
             )}
             {videoUrl && <VideoPlayerModal videoUrl={videoUrl} onClose={() => setVideoUrl(null)} />}
-            <RotinaFormModal open={isRotinaFormModalOpen} onClose={() => { setIsRotinaFormModalOpen(false); setRotinaParaEditar(null); }} rotinaParaEditar={rotinaParaEditar} onSuccess={handleEditSuccess} alunos={[aluno]} />
+            <RotinaFormModal 
+                open={isRotinaFormModalOpen} 
+                onClose={() => { 
+                    setIsRotinaFormModalOpen(false); 
+                    setRotinaParaEditar(null); 
+                }} 
+                rotinaParaEditar={rotinaParaEditar} 
+                onSuccess={handleEditSuccess} 
+                alunos={[aluno]} 
+            />
             <SelectModeloRotinaModal isOpen={isSelectModeloRotinaModalOpen} onClose={() => setIsSelectModeloRotinaModalOpen(false)} onSelect={handleSelectModelAndAssociate} />
             
             <ModalConfirmacao
