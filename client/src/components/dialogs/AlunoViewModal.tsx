@@ -61,7 +61,7 @@ interface AlunoViewModalProps {
 const RotinasTab = ({ alunoId, onVisualizarRotina, onAssociarRotina, onDeleteRotina }: { alunoId: string, onVisualizarRotina: (id: string) => void, onAssociarRotina: () => void, onDeleteRotina: (rotinaId: string, rotinaTitulo: string) => void }) => {
     const { data: rotinas, isLoading, isError, error } = useQuery<AlunoRotina[]>({
         queryKey: ['alunoRotinas', alunoId],
-        queryFn: () => fetchWithAuth(`/api/aluno/${alunoId}/rotinas`),
+        queryFn: () => apiRequest("GET", `/api/treinos/aluno/${alunoId}`),
         enabled: !!alunoId,
     });
 

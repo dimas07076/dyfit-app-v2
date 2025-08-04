@@ -298,4 +298,46 @@ router.delete("/:id", authenticateToken, async (req: Request, res: Response, nex
     }
 });
 
+// GET /api/treinos/aluno/:alunoId - Lista as rotinas de um aluno específico (para o personal)
+router.get("/aluno/:alunoId", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    try {
+        const { alunoId } = req.params;
+        const criadorId = req.user?.id;
+        
+        if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+            return res.status(400).json({ mensagem: "ID do aluno inválido." });
+        }
+        if (!criadorId) {
+            return res.status(401).json({ mensagem: "Usuário não autenticado." });
+        }
+
+        // Buscar rotinas do aluno específico criadas pelo personal logado
+        const rotinas = await Treino.find({ 
+            alunoId: new Types.ObjectId(alunoId), 
+            criadorId: new Types.ObjectId(criadorId),
+            tipo: 'individual'
+        })
+        .populate({ path: 'alunoId', select: 'nome' })
+        .populate({ path: 'pastaId', select: 'nome' })
+        .populate({
+            path: 'diasDeTreino',
+            populate: { path: 'exerciciosDoDia.exercicioId', model: 'Exercicio', select: 'nome urlVideo' }
+        })
+        .sort({ atualizadoEm: -1 });
+
+        // Transformar para o formato esperado pelo frontend
+        const rotinasFormatadas = rotinas.map(rotina => ({
+            _id: rotina._id,
+            titulo: rotina.titulo,
+            descricao: rotina.descricao,
+            atualizadoEm: rotina.atualizadoEm
+        }));
+
+        res.status(200).json(rotinasFormatadas);
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;
