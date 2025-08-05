@@ -36,7 +36,21 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
     try {
         const token = localStorage.getItem('token');
         if (!token) {
-            throw new Error('Token de autenticação não encontrado. Faça login novamente.');
+            console.warn('🔑 [StudentLimit] No token found, returning default status');
+            // Return a safe default instead of throwing
+            return {
+                canActivate: false,
+                currentLimit: 0,
+                activeStudents: 0,
+                availableSlots: 0,
+                planInfo: null,
+                limitExceeded: true,
+                blockedActions: {
+                    canActivateStudents: false,
+                    canSendInvites: false,
+                },
+                message: 'Token de autenticação não encontrado. Faça login novamente.',
+            };
         }
 
         console.log('🔍 [StudentLimit] Fetching student limit status...');
@@ -51,36 +65,64 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
         console.log('📡 [StudentLimit] Response status:', response.status);
 
         if (!response.ok) {
+            console.warn('📡 [StudentLimit] API error, status:', response.status);
+            
             if (response.status === 401) {
                 // Clear invalid token and force re-login
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 console.log('🔑 [StudentLimit] Token expired, clearing storage');
                 
-                // Don't redirect immediately - let the user handle it gracefully
-                throw new Error('Token de autenticação não encontrado. Faça login novamente.');
-            }
-            if (response.status === 403) {
-                throw new Error('Acesso negado. Verifique suas permissões.');
-            }
-            if (response.status >= 500) {
-                throw new Error('Erro interno do servidor. Tente novamente em alguns instantes.');
+                // Return safe default instead of throwing
+                return {
+                    canActivate: false,
+                    currentLimit: 0,
+                    activeStudents: 0,
+                    availableSlots: 0,
+                    planInfo: null,
+                    limitExceeded: true,
+                    blockedActions: {
+                        canActivateStudents: false,
+                        canSendInvites: false,
+                    },
+                    message: 'Token de autenticação não encontrado. Faça login novamente.',
+                };
             }
             
-            // Try to get error details from response
-            try {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Erro na requisição: ${response.status}`);
-            } catch {
-                throw new Error(`Erro na requisição: ${response.status} - ${response.statusText}`);
-            }
+            // For other errors, also return safe defaults
+            return {
+                canActivate: false,
+                currentLimit: 0,
+                activeStudents: 0,
+                availableSlots: 0,
+                planInfo: null,
+                limitExceeded: true,
+                blockedActions: {
+                    canActivateStudents: false,
+                    canSendInvites: false,
+                },
+                message: `Erro ao carregar dados do servidor (${response.status})`,
+            };
         }
 
         const data = await response.json();
         console.log('📋 [StudentLimit] Raw response data:', data);
         
         if (!data.success) {
-            throw new Error(data.message || 'Erro ao buscar status do limite de alunos');
+            console.warn('📋 [StudentLimit] API returned success=false:', data.message);
+            return {
+                canActivate: false,
+                currentLimit: 0,
+                activeStudents: 0,
+                availableSlots: 0,
+                planInfo: null,
+                limitExceeded: true,
+                blockedActions: {
+                    canActivateStudents: false,
+                    canSendInvites: false,
+                },
+                message: data.message || 'Erro ao buscar status do limite de alunos',
+            };
         }
 
         console.log('✅ [StudentLimit] Successfully fetched status:', {
@@ -97,12 +139,20 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
         // Log error for debugging
         console.error('❌ [StudentLimit] Error fetching status:', error);
         
-        // Re-throw with a user-friendly message
-        if (error instanceof Error) {
-            throw error;
-        }
-        
-        throw new Error('Erro de conexão. Verifique sua internet e tente novamente.');
+        // Return safe default instead of throwing
+        return {
+            canActivate: false,
+            currentLimit: 0,
+            activeStudents: 0,
+            availableSlots: 0,
+            planInfo: null,
+            limitExceeded: true,
+            blockedActions: {
+                canActivateStudents: false,
+                canSendInvites: false,
+            },
+            message: 'Erro de conexão. Verifique sua internet e tente novamente.',
+        };
     }
 };
 
@@ -169,27 +219,8 @@ export const useStudentLimit = () => {
         refetchOnReconnect: true, // Refetch when network reconnects
         staleTime: 15 * 1000, // Reduced to 15 seconds for even faster updates
         gcTime: 30 * 1000, // Reduce garbage collection time to 30 seconds
-        retry: (failureCount, error) => {
-            // Don't retry on authentication errors
-            if (error instanceof Error && (
-                error.message.includes('Token de autenticação') ||
-                error.message.includes('Acesso negado')
-            )) {
-                return false;
-            }
-            // Retry up to 3 times for other errors
-            return failureCount < 3;
-        },
-        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
-        refetchInterval: (data, query) => {
-            // Don't auto-refetch if there's an authentication error
-            if (query.state.error instanceof Error && (
-                query.state.error.message.includes('Token de autenticação')
-            )) {
-                return false;
-            }
-            return 30 * 1000; // Auto-refetch every 30 seconds (more aggressive)
-        },
+        retry: false, // Disable retry since we handle errors gracefully now
+        refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
         refetchIntervalInBackground: false, // Don't waste resources when page is hidden
     });
 

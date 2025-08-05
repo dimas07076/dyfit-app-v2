@@ -21,7 +21,30 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
     showRecommendations = false,
     className = '',
 }) => {
+    // Temporarily simplified version to prevent crashes
     try {
+        console.log('🔧 [StudentLimitIndicator] Rendering component, variant:', variant);
+        
+        // Try to use the hook, but with better error boundaries
+        let hookResult;
+        try {
+            hookResult = useStudentLimit();
+            console.log('🔧 [StudentLimitIndicator] Hook result:', {
+                hasStatus: !!hookResult.status,
+                isLoading: hookResult.isLoading,
+                isError: hookResult.isError,
+                errorMessage: hookResult.error?.message
+            });
+        } catch (hookError) {
+            console.error('🚨 [StudentLimitIndicator] Hook failed:', hookError);
+            // Return a simple fallback
+            return (
+                <div className={`p-2 text-sm text-gray-600 ${className}`}>
+                    <span>Status do limite: Carregando...</span>
+                </div>
+            );
+        }
+
         const { 
             status, 
             isLoading, 
@@ -30,7 +53,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
             isAtLimit, 
             isCloseToLimit, 
             refreshStatus 
-        } = useStudentLimit();
+        } = hookResult;
 
         // Loading state
         if (isLoading) {
