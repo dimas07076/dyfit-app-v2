@@ -469,6 +469,94 @@ export class PlanoService {
     }
 
     /**
+     * Remove current active plan from personal trainer
+     */
+    async removePersonalPlan(personalTrainerId: string, removedByAdminId: string): Promise<{ success: boolean; message: string }> {
+        try {
+            // Validate input
+            if (!personalTrainerId) {
+                throw new Error('Personal trainer ID é obrigatório');
+            }
+            
+            if (!removedByAdminId) {
+                throw new Error('Admin ID é obrigatório');
+            }
+
+            // Find current active plan
+            const currentPlan = await PersonalPlano.findOne({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            }).populate('planoId', 'nome');
+
+            if (!currentPlan) {
+                return {
+                    success: false,
+                    message: 'Nenhum plano ativo encontrado para este personal trainer'
+                };
+            }
+
+            // Deactivate the plan
+            currentPlan.ativo = false;
+            await currentPlan.save();
+
+            console.log(`✅ Plano removido: ${(currentPlan.planoId as any)?.nome} do personal ${personalTrainerId} por admin ${removedByAdminId}`);
+
+            return {
+                success: true,
+                message: `Plano ${(currentPlan.planoId as any)?.nome} removido com sucesso`
+            };
+        } catch (error) {
+            console.error('❌ Erro ao remover plano:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete specific token
+     */
+    async deletePersonalToken(personalTrainerId: string, tokenId: string, deletedByAdminId: string): Promise<{ success: boolean; message: string }> {
+        try {
+            // Validate input
+            if (!personalTrainerId || !tokenId) {
+                throw new Error('Personal trainer ID e Token ID são obrigatórios');
+            }
+            
+            if (!deletedByAdminId) {
+                throw new Error('Admin ID é obrigatório');
+            }
+
+            // Find the specific token
+            const token = await TokenAvulso.findOne({
+                _id: tokenId,
+                personalTrainerId,
+                ativo: true
+            });
+
+            if (!token) {
+                return {
+                    success: false,
+                    message: 'Token não encontrado ou já foi removido'
+                };
+            }
+
+            // Deactivate the token (soft delete to maintain history)
+            token.ativo = false;
+            await token.save();
+
+            console.log(`✅ Token removido: ${token.quantidade} token(s) do personal ${personalTrainerId} por admin ${deletedByAdminId}`);
+
+            return {
+                success: true,
+                message: `Token de ${token.quantidade} unidade(s) removido com sucesso`
+            };
+        } catch (error) {
+            console.error('❌ Erro ao remover token:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Cleanup expired plans and tokens
      */
     async cleanupExpired(): Promise<{ plansDeactivated: number; tokensDeactivated: number }> {

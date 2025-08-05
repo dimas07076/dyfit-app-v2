@@ -309,6 +309,80 @@ router.get('/personal-trainers', async (req, res) => {
 });
 
 /**
+ * DELETE /api/admin/personal/:personalId/plan - Remove current plan from personal trainer
+ */
+router.delete('/personal/:personalId/plan', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const { personalId } = req.params;
+        const adminId = (req as any).user.id;
+        
+        if (!personalId) {
+            return res.status(400).json({ message: 'Personal trainer ID é obrigatório' });
+        }
+
+        console.log(`🗑️  Admin ${adminId} removendo plano do personal ${personalId}`);
+
+        const result = await PlanoService.removePersonalPlan(personalId, adminId);
+        
+        if (!result.success) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        console.log(`✅ Plano removido com sucesso: ${result.message}`);
+        
+        res.json({
+            message: result.message,
+            success: true
+        });
+    } catch (error) {
+        console.error('❌ Erro ao remover plano:', error);
+        res.status(500).json({ 
+            message: 'Erro ao remover plano',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
+});
+
+/**
+ * DELETE /api/admin/personal/:personalId/tokens/:tokenId - Delete specific token
+ */
+router.delete('/personal/:personalId/tokens/:tokenId', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const { personalId, tokenId } = req.params;
+        const adminId = (req as any).user.id;
+        
+        if (!personalId || !tokenId) {
+            return res.status(400).json({ message: 'Personal trainer ID e Token ID são obrigatórios' });
+        }
+
+        console.log(`🗑️  Admin ${adminId} removendo token ${tokenId} do personal ${personalId}`);
+
+        const result = await PlanoService.deletePersonalToken(personalId, tokenId, adminId);
+        
+        if (!result.success) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        console.log(`✅ Token removido com sucesso: ${result.message}`);
+        
+        res.json({
+            message: result.message,
+            success: true
+        });
+    } catch (error) {
+        console.error('❌ Erro ao remover token:', error);
+        res.status(500).json({ 
+            message: 'Erro ao remover token',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
+});
+
+/**
  * POST /api/admin/cleanup-expired - Cleanup expired plans and tokens
  */
 router.post('/cleanup-expired', async (req, res) => {

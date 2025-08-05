@@ -21,6 +21,8 @@ export function GerenciarPlanosPersonalPage() {
         fetchData,
         assignPlan,
         addTokens,
+        removePlan,
+        deleteToken,
         clearError,
         getPlanNameById,
         getPlanById,
@@ -461,6 +463,8 @@ export function GerenciarPlanosPersonalPage() {
                 planos={planos}
                 onAssignPlan={handleAssignPlan}
                 onAddTokens={handleAddTokens}
+                onRemovePlan={removePlan}
+                onDeleteToken={deleteToken}
                 getPlanNameById={getPlanNameById}
                 getPlanById={getPlanById}
             />
