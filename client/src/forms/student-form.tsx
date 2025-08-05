@@ -10,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Aluno } from '@/types/aluno';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { useStudentLimit } from '@/hooks/useStudentLimit';
 import { useEffect } from 'react';
 import { formatDateForInput } from '@/utils/dateUtils';
 
@@ -75,6 +76,8 @@ export interface StudentFormDataProcessed {
 interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; }
 
 export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel }: StudentFormProps) {
+    const { canActivateStudents, getLimitMessage, getRecommendations } = useStudentLimit();
+    
     // Form persistence for new students only
     const persistedForm = useFormPersistence({
         formKey: 'novo_aluno',
@@ -138,6 +141,24 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
     }, [watchedValues, isEditing, persistedForm]);
 
     function handleFormSubmit(data: StudentFormValues) {
+        // Check limits for new student creation or status change to active
+        const isActivatingStudent = data.status === 'active';
+        const wasInactive = isEditing && initialData?.status === 'inactive';
+        
+        if (!isEditing && isActivatingStudent) {
+            // New student being created as active
+            if (!canActivateStudents(1)) {
+                alert(`${getLimitMessage()}\n\n${getRecommendations().join('\n')}`);
+                return;
+            }
+        } else if (isEditing && wasInactive && isActivatingStudent) {
+            // Existing student being activated
+            if (!canActivateStudents(1)) {
+                alert(`${getLimitMessage()}\n\n${getRecommendations().join('\n')}`);
+                return;
+            }
+        }
+        
         const { confirmPassword, ...restOfData } = data;
         const processedData: StudentFormDataProcessed = {
             ...restOfData,
@@ -172,6 +193,29 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+                {/* Show limit warning for new students */}
+                {!isEditing && !canActivateStudents(1) && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                    <div className="flex">
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-orange-800">
+                          Limite de alunos atingido
+                        </h3>
+                        <div className="mt-2 text-sm text-orange-700">
+                          <p>{getLimitMessage()}</p>
+                          {getRecommendations().length > 0 && (
+                            <ul className="mt-1 list-disc list-inside">
+                              {getRecommendations().map((rec, index) => (
+                                <li key={index}>{rec}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Dados Pessoais */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold border-b pb-2">Dados Pessoais</h3>
@@ -212,6 +256,29 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
                         <FormField control={form.control} name="goal" render={({ field }) => ( <FormItem><FormLabel>Objetivo*</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione o objetivo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Hipertrofia">Hipertrofia</SelectItem><SelectItem value="Emagrecimento">Emagrecimento</SelectItem><SelectItem value="Outros">Outros</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="startDate" render={({ field }) => ( <FormItem><FormLabel>Data de início*</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status*</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione o status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">Ativo</SelectItem><SelectItem value="inactive">Inativo</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
+                        
+                        {/* Show limit warning for status changes */}
+                        {isEditing && initialData?.status === 'inactive' && form.watch('status') === 'active' && !canActivateStudents(1) && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                            <div className="flex">
+                              <div className="ml-3">
+                                <h3 className="text-sm font-medium text-orange-800">
+                                  Limite de alunos atingido
+                                </h3>
+                                <div className="mt-2 text-sm text-orange-700">
+                                  <p>{getLimitMessage()}</p>
+                                  {getRecommendations().length > 0 && (
+                                    <ul className="mt-1 list-disc list-inside">
+                                      {getRecommendations().map((rec, index) => (
+                                        <li key={index}>{rec}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem><FormLabel>Observações</FormLabel><FormControl><Textarea placeholder="Observações adicionais..." {...field} value={field.value ?? ''} rows={4} /></FormControl><FormMessage /></FormItem> )} />
                     </div>
                 </div>

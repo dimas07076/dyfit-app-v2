@@ -5,17 +5,18 @@ import Treino from '../../models/Treino.js';
 import Sessao, { OPCOES_PSE } from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
+import StudentLimitService from '../../services/StudentLimitService.js';
 import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
-import { checkLimiteAlunos } from '../../middlewares/checkLimiteAlunos.js';
+import { checkLimiteAlunos, checkCanSendInvite, checkStudentStatusChange } from '../../middlewares/checkLimiteAlunos.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
 // =======================================================
 // POST /api/aluno/convite - Gera um link de convite para aluno
-router.post("/convite", authenticateToken, async (req, res, next) => {
+router.post("/convite", authenticateToken, checkCanSendInvite, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -69,7 +70,7 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         return res.status(401).json({ erro: "Usuário não autenticado." });
     }
     try {
-        const { nome, email, password, phone, birthDate, goal, weight, height, startDate } = req.body;
+        const { nome, email, password, phone, birthDate, gender, goal, weight, height, startDate, status, notes } = req.body;
         if (!nome || !email || !password) {
             return res.status(400).json({ erro: "Nome, email e senha são obrigatórios." });
         }
@@ -83,13 +84,17 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             passwordHash: password,
             trainerId: new mongoose.Types.ObjectId(trainerId),
             phone,
-            birthDate: birthDate ? new Date(birthDate) : undefined,
+            birthDate,
+            gender,
             goal,
             weight: weight ? parseFloat(weight) : undefined,
             height: height ? parseInt(height) : undefined,
-            startDate: startDate ? new Date(startDate) : new Date(),
-            status: 'active'
+            startDate,
+            status: status || 'active',
+            notes
         });
+        // Consume tokens if necessary before saving
+        await StudentLimitService.consumeTokensForActivation(trainerId, 1);
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
@@ -129,7 +134,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     }
 });
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;
@@ -181,6 +186,10 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         }
         if (height !== null && height !== undefined && height !== '') {
             updateData.height = parseInt(height);
+        }
+        // Consume tokens if activating an inactive student
+        if (alunoExistente.status === 'inactive' && status === 'active') {
+            await StudentLimitService.consumeTokensForActivation(trainerId, 1);
         }
         // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
