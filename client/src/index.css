@@ -335,7 +335,7 @@
     transform: translateY(0);
   }
 
-  /* 🔧 CORREÇÃO: Toast Animations - Animações SUAVES */
+  /* 🔧 ENHANCED: Toast Animations - SMOOTH & STABLE */
   [data-radix-toast-viewport] {
     position: fixed !important;
     top: 1rem !important;
@@ -345,27 +345,42 @@
     max-width: 420px !important;
     z-index: 2147483647 !important;
     pointer-events: none !important;
+    /* Prevent layout shifts */
+    will-change: auto !important;
   }
 
   [data-radix-toast-viewport] > * {
     pointer-events: auto !important;
   }
 
-  /* Toast individual - animação suave */
+  /* Toast individual - STABLE animations to prevent loops */
   [data-state="open"][data-radix-toast] {
-    animation: toast-slide-in-top 200ms ease-out !important;
+    animation: toast-slide-in-top 300ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+    animation-fill-mode: forwards !important;
   }
 
   [data-state="closed"][data-radix-toast] {
-    animation: toast-slide-out-top 150ms ease-in !important;
+    animation: toast-slide-out-top 200ms cubic-bezier(0.4, 0, 1, 1) !important;
+    animation-fill-mode: forwards !important;
   }
 
-  /* Remove animações agressivas */
+  /* PREVENT tremor and loop behavior */
   [data-radix-toast] {
-    transform: none !important;
-    animation-duration: 200ms !important;
-    animation-timing-function: ease-out !important;
+    /* Force stable positioning */
+    transform: translateY(0) !important;
+    animation-duration: 300ms !important;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
     animation-fill-mode: forwards !important;
+    /* Prevent unwanted hardware acceleration issues */
+    backface-visibility: hidden !important;
+    perspective: 1000px !important;
+    /* Ensure proper layering */
+    contain: layout style paint !important;
+  }
+
+  /* Prevent multiple toasts from interfering */
+  [data-radix-toast] + [data-radix-toast] {
+    margin-top: 0.5rem !important;
   }
 
   /* Mobile responsivo para toast */
@@ -409,25 +424,25 @@
   }
 }
 
-/* 🚀 Toast Animations - TOP CENTER */
+/* 🚀 ENHANCED Toast Animations - STABLE & SMOOTH */
 @keyframes toast-slide-in-top {
   from {
     opacity: 0;
-    transform: translateY(-100%);
+    transform: translateY(-100%) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes toast-slide-out-top {
   from {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(-100%);
+    transform: translateY(-100%) scale(0.95);
   }
 }

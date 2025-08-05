@@ -17,8 +17,8 @@ import { PWAInstallProvider } from '@/context/PWAInstallContext';
 // CORREÇÃO: Removendo importação de Button, pois não é usado diretamente em App.tsx
 import { useToast } from '@/hooks/use-toast';
 
-// <<< ADIÇÃO 1 de 2: Importar o componente de prompt de atualização >>>
-import { ReloadPrompt } from '@/components/ReloadPrompt'; // Importação nomeada
+// Unified PWA updates manager
+import { AppUpdatesManager } from '@/components/AppUpdatesManager';
 
 // --- Páginas ---
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -411,8 +411,8 @@ function App() {
               <AlunoProvider>
                 <WorkoutPlayerProvider>
                   <Toaster />
-                  {/* <<< ADIÇÃO 2 de 2: Inserir o componente para ouvir por atualizações >>> */}
-                  <ReloadPrompt />
+                  {/* Unified PWA updates manager - replaces conflicting ReloadPrompt and UpdateNotification */}
+                  <AppUpdatesManager />
                   <AppContent />
                 </WorkoutPlayerProvider>
               </AlunoProvider>
