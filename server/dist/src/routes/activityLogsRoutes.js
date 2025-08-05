@@ -33,12 +33,12 @@ router.get('/aluno/:alunoId', authenticateToken, async (req, res, next) => {
             _id: sessao._id,
             treinoId: sessao.rotinaId?._id || null,
             treinoTitulo: sessao.rotinaId?.titulo || sessao.diaDeTreinoIdentificador || 'Treino Concluído',
-            dataInicio: sessao.sessionDate, // <-- ADICIONADO: Inclui a data de início
+            dataInicio: sessao.sessionDate,
             dataFim: sessao.concluidaEm,
             duracaoTotalMinutos: sessao.duracaoSegundos ? Math.round(sessao.duracaoSegundos / 60) : 0,
-            nivelTreino: sessao.pseAluno, // O frontend já sabe como traduzir isso
+            nivelTreino: sessao.pseAluno,
             comentarioAluno: sessao.comentarioAluno,
-            aumentoCarga: false, // O modelo Sessao não tem este campo, então definimos um padrão
+            aumentoCarga: sessao.aumentouCarga || false,
         }));
         res.json(historicoMapeado);
     }

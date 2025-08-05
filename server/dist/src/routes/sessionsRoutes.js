@@ -64,12 +64,58 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req, res, next
                 dia.ordemNaRotina = index;
             });
         }
+        // Buscar sessão anterior do mesmo aluno/rotina/dia para comparar cargas
+        let aumentouCarga = false;
+        let detalhesAumentoCarga = [];
+        if (cargas && Object.keys(cargas).length > 0) {
+            try {
+                const sessaoAnterior = await Sessao.findOne({
+                    alunoId: new Types.ObjectId(alunoId),
+                    rotinaId: rotina._id,
+                    diaDeTreinoId: diaDeTreino._id,
+                    status: 'completed'
+                })
+                    .sort({ concluidaEm: -1 })
+                    .session(mongoTransactionSession);
+                if (sessaoAnterior && sessaoAnterior.cargasExecutadas) {
+                    const cargasAnteriores = sessaoAnterior.cargasExecutadas;
+                    // Comparar cargas exercício por exercício
+                    for (const [exercicioId, cargaAtual] of Object.entries(cargas)) {
+                        // Lidar com Map ou objeto plano
+                        let cargaAnterior;
+                        if (cargasAnteriores instanceof Map) {
+                            cargaAnterior = cargasAnteriores.get(exercicioId);
+                        }
+                        else {
+                            cargaAnterior = cargasAnteriores[exercicioId];
+                        }
+                        // Considerar aumento apenas se havia carga anterior e a atual é maior
+                        if (cargaAnterior && typeof cargaAnterior === 'string' && cargaAnterior.trim() &&
+                            cargaAtual && typeof cargaAtual === 'string' && cargaAtual.trim()) {
+                            const cargaAnteriorNum = parseFloat(cargaAnterior.replace(/[^\d.,]/g, '').replace(',', '.'));
+                            const cargaAtualNum = parseFloat(cargaAtual.replace(/[^\d.,]/g, '').replace(',', '.'));
+                            if (!isNaN(cargaAnteriorNum) && !isNaN(cargaAtualNum) && cargaAtualNum > cargaAnteriorNum) {
+                                aumentouCarga = true;
+                                detalhesAumentoCarga.push({
+                                    exercicioId,
+                                    cargaAnterior: cargaAnterior,
+                                    cargaAtual: cargaAtual
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (comparisonError) {
+                console.warn('Erro ao comparar cargas:', comparisonError);
+                // Continua sem interromper o fluxo principal
+            }
+        }
         const novaSessao = new Sessao({
             personalId: rotina.criadorId,
             alunoId: new Types.ObjectId(alunoId),
-            // <-- 3. MUDANÇA: Usa a data de início recebida do frontend -->
             sessionDate: dataInicioValida,
-            concluidaEm: new Date(), // A data de conclusão é sempre o momento atual
+            concluidaEm: new Date(),
             status: 'completed',
             tipoCompromisso: 'treino',
             rotinaId: rotina._id,
@@ -79,6 +125,8 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req, res, next
             comentarioAluno: comentarioAluno || null,
             duracaoSegundos: duracaoSegundos || 0,
             cargasExecutadas: cargas || {},
+            aumentouCarga,
+            detalhesAumentoCarga
         });
         await novaSessao.save({ session: mongoTransactionSession });
         rotina.sessoesRotinaConcluidas = (rotina.sessoesRotinaConcluidas || 0) + 1;

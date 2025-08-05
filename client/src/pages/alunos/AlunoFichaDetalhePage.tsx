@@ -20,7 +20,7 @@ import { CombinedExerciseCard } from '@/components/alunos/CombinedExerciseCard';
 
 // --- Interfaces ---
 interface ExercicioDetalhePopulado { _id: string; nome: string; urlVideo?: string; }
-interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; descanso?: string; ordemNoDia: number; grupoCombinado?: string; }
+interface ExercicioEmDiaDeTreinoPopulado { _id: string; exercicioId: ExercicioDetalhePopulado | string | null; series?: string; repeticoes?: string; carga?: string; descanso?: string; ordemNoDia: number; grupoCombinado?: string; }
 interface DiaDeTreinoPopulado { _id: string; identificadorDia: string; nomeSubFicha?: string; ordemNaRotina: number; exerciciosDoDia: ExercicioEmDiaDeTreinoPopulado[]; }
 interface RotinaDeTreinoAluno { _id: string; titulo: string; descricao?: string; diasDeTreino: DiaDeTreinoPopulado[]; dataValidade?: string | null; sessoesRotinaConcluidas: number; }
 type ExercicioRenderizavel = Omit<ExercicioEmDiaDeTreinoPopulado, 'exercicioId'> & { _id: string; exercicioDetalhes: ExercicioDetalhePopulado | null; };

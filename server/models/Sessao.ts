@@ -12,12 +12,18 @@ export type OpcaoPSE = typeof OPCOES_PSE[number];
 interface IPopulatedAlunoLean { _id: string; nome: string; }
 interface IPopulatedRotinaLean { _id: string; titulo: string; }
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
 // Interface para o mapa de cargas executadas
 interface CargasExecutadasMap {
   [exercicioDoDiaId: string]: string;
 }
-// <<< FIM DA ALTERAÇÃO >>>
+
+// Interface para detalhes de aumento de carga
+interface DetalheAumentoCarga {
+  exercicioId: string;
+  nomeExercicio?: string;
+  cargaAnterior: string;
+  cargaAtual: string;
+}
 
 
 export interface ISessaoLean {
@@ -35,10 +41,10 @@ export interface ISessaoLean {
   concluidaEm?: string | null; 
   pseAluno?: OpcaoPSE | null;
   comentarioAluno?: string | null;
-  // <<< INÍCIO DA ALTERAÇÃO >>>
   duracaoSegundos?: number;
   cargasExecutadas?: CargasExecutadasMap;
-  // <<< FIM DA ALTERAÇÃO >>>
+  aumentouCarga?: boolean;
+  detalhesAumentoCarga?: DetalheAumentoCarga[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -57,10 +63,10 @@ export interface ISessaoDocument extends Document {
   concluidaEm?: Date | null;
   pseAluno?: OpcaoPSE | null;
   comentarioAluno?: string | null;
-  // <<< INÍCIO DA ALTERAÇÃO >>>
   duracaoSegundos?: number;
   cargasExecutadas?: CargasExecutadasMap;
-  // <<< FIM DA ALTERAÇÃO >>>
+  aumentouCarga?: boolean;
+  detalhesAumentoCarga?: DetalheAumentoCarga[];
 }
 
 const SessaoSchema = new Schema<ISessaoDocument>(
@@ -97,7 +103,6 @@ const SessaoSchema = new Schema<ISessaoDocument>(
         required: false,
         default: null,
     },
-    // <<< INÍCIO DA ALTERAÇÃO >>>
     duracaoSegundos: {
         type: Number,
         required: false,
@@ -108,8 +113,22 @@ const SessaoSchema = new Schema<ISessaoDocument>(
         of: String,
         required: false,
         default: {}
+    },
+    aumentouCarga: {
+        type: Boolean,
+        required: false,
+        default: false
+    },
+    detalhesAumentoCarga: {
+        type: [{
+            exercicioId: { type: String, required: true },
+            nomeExercicio: { type: String, required: false },
+            cargaAnterior: { type: String, required: true },
+            cargaAtual: { type: String, required: true }
+        }],
+        required: false,
+        default: []
     }
-    // <<< FIM DA ALTERAÇÃO >>>
   },
   {
     timestamps: true, 
@@ -122,4 +141,5 @@ SessaoSchema.index({ personalId: 1, sessionDate: 1 });
 SessaoSchema.index({ alunoId: 1, status: 1, sessionDate: 1 });
 SessaoSchema.index({ rotinaId: 1, diaDeTreinoId: 1 });
 
+export { DetalheAumentoCarga, CargasExecutadasMap };
 export default mongoose.model<ISessaoDocument>('Sessao', SessaoSchema);

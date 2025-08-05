@@ -37,7 +37,6 @@ const SessaoSchema = new Schema({
         required: false,
         default: null,
     },
-    // <<< INÍCIO DA ALTERAÇÃO >>>
     duracaoSegundos: {
         type: Number,
         required: false,
@@ -48,8 +47,22 @@ const SessaoSchema = new Schema({
         of: String,
         required: false,
         default: {}
+    },
+    aumentouCarga: {
+        type: Boolean,
+        required: false,
+        default: false
+    },
+    detalhesAumentoCarga: {
+        type: [{
+                exercicioId: { type: String, required: true },
+                nomeExercicio: { type: String, required: false },
+                cargaAnterior: { type: String, required: true },
+                cargaAtual: { type: String, required: true }
+            }],
+        required: false,
+        default: []
     }
-    // <<< FIM DA ALTERAÇÃO >>>
 }, {
     timestamps: true,
     toJSON: { virtuals: true, getters: true },

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, ArrowLeft, History, MessageSquareText, Star, AlertTriangle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Loader2, ArrowLeft, History, MessageSquareText, Star, AlertTriangle, ChevronLeft, ChevronRight, Eye, TrendingUp } from 'lucide-react';
 import { Link as WouterLink } from 'wouter';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -15,7 +15,7 @@ import SessaoDetalheModal from '@/components/dialogs/SessaoDetalheModal';
 // --- Interfaces e Helpers (sem alterações) ---
 const OPCOES_PSE_FRONTEND = ['Muito Leve', 'Leve', 'Moderado', 'Intenso', 'Muito Intenso', 'Máximo Esforço'] as const;
 type OpcaoPSEFrontend = typeof OPCOES_PSE_FRONTEND[number];
-interface SessaoHistorico { _id: string; sessionDate: string; concluidaEm: string; tipoCompromisso: string; status: string; rotinaId?: { _id: string; titulo: string; } | null; diaDeTreinoId?: string | null; diaDeTreinoIdentificador?: string | null; nomeSubFichaDia?: string | null; personalId?: { _id: string; nome: string; } | null; pseAluno?: OpcaoPSEFrontend | null; comentarioAluno?: string | null; }
+interface SessaoHistorico { _id: string; sessionDate: string; concluidaEm: string; tipoCompromisso: string; status: string; rotinaId?: { _id: string; titulo: string; } | null; diaDeTreinoId?: string | null; diaDeTreinoIdentificador?: string | null; nomeSubFichaDia?: string | null; personalId?: { _id: string; nome: string; } | null; pseAluno?: OpcaoPSEFrontend | null; comentarioAluno?: string | null; aumentouCarga?: boolean; }
 interface HistoricoSessoesResponse { sessoes: SessaoHistorico[]; currentPage: number; totalPages: number; totalSessoes: number; }
 const getPseBadgeVariant = (pse: OpcaoPSEFrontend | null | undefined): "default" | "secondary" | "destructive" | "outline" => { if (!pse) return "secondary"; switch (pse) { case 'Muito Leve': case 'Leve': return "default"; case 'Moderado': return "secondary"; case 'Intenso': case 'Muito Intenso': return "outline"; case 'Máximo Esforço': return "destructive"; default: return "secondary"; } };
 
@@ -101,6 +101,13 @@ const AlunoHistoricoPage: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-green-500" />
+                      <span className="font-semibold text-sm text-gray-800">Aumentou Carga:</span>
+                      <span className={`text-sm font-semibold ${(sessao.aumentouCarga || false) ? 'text-green-600' : 'text-gray-500'}`}>
+                        {(sessao.aumentouCarga || false) ? 'Sim' : 'Não'}
+                      </span>
+                    </div>
                   </CardContent>
                   <CardFooter className="text-xs text-gray-500 pt-3 pb-4 border-t">
                     <p>Finalizado em: {formatarDataHora(sessao.concluidaEm)}</p>

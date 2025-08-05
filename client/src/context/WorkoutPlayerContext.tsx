@@ -5,6 +5,7 @@ import React, { createContext, useState, useEffect, useContext, ReactNode, useCa
 interface WorkoutExercise {
   _id: string; 
   exercicioDetalhes: { nome: string; } | null;
+  carga?: string;
   descanso?: string;
 }
 
@@ -143,11 +144,21 @@ export const WorkoutPlayerProvider: React.FC<{ children: ReactNode }> = ({ child
     const createNewWorkoutSession = () => {
       console.log('[WorkoutPlayerContext] START_WORKOUT: Executando createNewWorkoutSession...');
       const startTime = Date.now();
+      
+      // Initialize exercise loads from template
+      const initialLoads: Record<string, string> = {};
+      initialExercises.forEach(exercise => {
+        if (exercise.carga && exercise.carga.trim()) {
+          initialLoads[exercise._id] = exercise.carga.trim();
+          console.log(`[WorkoutPlayerContext] START_WORKOUT: Inicializando carga para exercício ${exercise._id}: ${exercise.carga}`);
+        }
+      });
+      
       const newSession: WorkoutSession = {
         startTime,
         exercises: initialExercises,
         completedExercises: [],
-        exerciseLoads: {},
+        exerciseLoads: initialLoads,
         diaDeTreinoId,
         rotinaId,
       };
