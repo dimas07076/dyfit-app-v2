@@ -237,140 +237,19 @@ export class PlanoService {
     }
 
     /**
-     * Get active tokens for a personal trainer
+     * Get available (unassigned) tokens for a personal trainer
+     * Updated to use new token assignment logic
      */
     async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
         try {
-            // Validate input
-            if (!personalTrainerId) {
-                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
-                return 0;
-            }
-
-            console.log(`[PlanoService] 🔍 Searching for active tokens for personal: ${personalTrainerId}`);
-            console.log(`[PlanoService] 🆔 Personal ID type: ${typeof personalTrainerId}, value: ${personalTrainerId}`);
+            // Import the new TokenAssignmentService
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
             
-            const now = new Date();
-            console.log(`[PlanoService] 🕐 Current time: ${now.toISOString()}`);
+            // Use the new service to get available tokens count
+            const availableTokens = await TokenAssignmentService.getAvailableTokensCount(personalTrainerId);
+            console.log(`[PlanoService] 💯 Available (unassigned) tokens for ${personalTrainerId}: ${availableTokens}`);
             
-            // Handle both string and ObjectId formats for comparison
-            let queryPersonalId: any = personalTrainerId;
-            
-            // Try to convert to ObjectId if it's a valid ObjectId string
-            try {
-                if (mongoose.Types.ObjectId.isValid(personalTrainerId)) {
-                    queryPersonalId = new mongoose.Types.ObjectId(personalTrainerId);
-                    console.log(`[PlanoService] 🔄 Converted string to ObjectId: ${queryPersonalId}`);
-                } else {
-                    console.log(`[PlanoService] ⚠️ PersonalTrainerId is not a valid ObjectId: ${personalTrainerId}`);
-                }
-            } catch (conversionError) {
-                console.warn(`[PlanoService] ⚠️ Error converting personalTrainerId to ObjectId:`, conversionError);
-                // Continue with original string value
-            }
-            
-            // Try both string and ObjectId queries to ensure we find the tokens
-            const queries = [
-                { personalTrainerId: personalTrainerId, ativo: true, dataVencimento: { $gt: now } },
-                { personalTrainerId: queryPersonalId, ativo: true, dataVencimento: { $gt: now } }
-            ];
-            
-            let tokens: any[] = [];
-            let allTokens: any[] = [];
-            
-            // Try first query (string)
-            try {
-                console.log(`[PlanoService] 🔍 Query 1 (string): personalTrainerId = ${personalTrainerId}`);
-                tokens = await TokenAvulso.find(queries[0]).lean();
-                allTokens = await TokenAvulso.find({ personalTrainerId: personalTrainerId }).lean();
-                console.log(`[PlanoService] 📊 Query 1 results: ${tokens.length} active, ${allTokens.length} total`);
-            } catch (error) {
-                console.warn(`[PlanoService] ⚠️ Query 1 failed:`, error);
-            }
-            
-            // If no tokens found and we have a valid ObjectId, try second query
-            if (tokens.length === 0 && mongoose.Types.ObjectId.isValid(personalTrainerId)) {
-                try {
-                    console.log(`[PlanoService] 🔍 Query 2 (ObjectId): personalTrainerId = ${queryPersonalId}`);
-                    tokens = await TokenAvulso.find(queries[1]).lean();
-                    if (allTokens.length === 0) {
-                        allTokens = await TokenAvulso.find({ personalTrainerId: queryPersonalId }).lean();
-                    }
-                    console.log(`[PlanoService] 📊 Query 2 results: ${tokens.length} active, ${allTokens.length} total`);
-                } catch (error) {
-                    console.warn(`[PlanoService] ⚠️ Query 2 failed:`, error);
-                }
-            }
-
-            console.log(`[PlanoService] 📋 Found ${tokens.length} active token records:`, 
-                tokens.map(t => ({
-                    id: t._id,
-                    quantidade: t.quantidade,
-                    ativo: t.ativo,
-                    dataVencimento: t.dataVencimento,
-                    isExpired: t.dataVencimento <= now,
-                    personalTrainerId: t.personalTrainerId,
-                    personalTrainerIdType: typeof t.personalTrainerId
-                }))
-            );
-            
-            console.log(`[PlanoService] 📊 All tokens for personal (active + inactive):`, 
-                allTokens.map(t => ({
-                    id: t._id,
-                    quantidade: t.quantidade,
-                    ativo: t.ativo,
-                    dataVencimento: t.dataVencimento,
-                    isExpired: t.dataVencimento <= now,
-                    personalTrainerId: t.personalTrainerId,
-                    personalTrainerIdType: typeof t.personalTrainerId,
-                    status: t.ativo && t.dataVencimento > now ? 'ACTIVE' : 'INACTIVE'
-                }))
-            );
-
-            const total = tokens.reduce((total, token) => {
-                const quantidade = token.quantidade || 0;
-                console.log(`[PlanoService] 🔢 Adding ${quantidade} tokens from token ${token._id}`);
-                return total + quantidade;
-            }, 0);
-            
-            console.log(`[PlanoService] 💯 Total active tokens for ${personalTrainerId}: ${total}`);
-            
-            // Double-check calculation
-            const manualTotal = tokens
-                .filter(t => t.ativo && t.dataVencimento > now)
-                .reduce((sum, t) => sum + (t.quantidade || 0), 0);
-            
-            if (total !== manualTotal) {
-                console.warn(`[PlanoService] ⚠️ Token calculation mismatch! Query total: ${total}, Manual total: ${manualTotal}`);
-            }
-            
-            // Additional debugging: Check if tokens exist but query is failing
-            if (total === 0 && allTokens.length > 0) {
-                console.warn(`[PlanoService] 🚨 CRITICAL: Found ${allTokens.length} total tokens but 0 active tokens!`);
-                console.warn(`[PlanoService] 🚨 This suggests a query matching issue or all tokens are expired/inactive`);
-                
-                // Detailed analysis of why tokens aren't matching
-                allTokens.forEach((token, index) => {
-                    const isActive = token.ativo;
-                    const isNotExpired = token.dataVencimento > now;
-                    const matchesPersonalId = token.personalTrainerId.toString() === personalTrainerId.toString();
-                    
-                    console.log(`[PlanoService] 🔬 Token ${index + 1} analysis:`, {
-                        id: token._id,
-                        quantidade: token.quantidade,
-                        isActive,
-                        isNotExpired,
-                        matchesPersonalId,
-                        shouldBeIncluded: isActive && isNotExpired && matchesPersonalId,
-                        personalTrainerIdInDb: token.personalTrainerId.toString(),
-                        searchingFor: personalTrainerId.toString(),
-                        dataVencimento: token.dataVencimento.toISOString(),
-                        now: now.toISOString()
-                    });
-                });
-            }
-            
-            return total;
+            return availableTokens;
         } catch (error) {
             console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
             return 0; // Return 0 instead of throwing to prevent cascade failures

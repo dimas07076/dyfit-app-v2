@@ -13,6 +13,11 @@ export interface StudentLimitStatus {
         tokensAvulsos: number;
         isExpired: boolean;
     } | null;
+    tokenInfo: {
+        availableTokens: number;
+        consumedTokens: number;
+        totalTokens: number;
+    };
     limitExceeded: boolean;
     blockedActions: {
         canActivateStudents: boolean;
@@ -48,6 +53,12 @@ export class StudentLimitService {
                 planLimit: planStatus.plano?.limiteAlunos
             });
             
+            // Get token assignment details
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+            const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+            
+            console.log(`[StudentLimitService] 🎫 Token assignment status:`, tokenAssignmentStatus);
+            
             const canActivateStatus = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
             console.log(`[StudentLimitService] 🔍 Can activate status:`, canActivateStatus);
 
@@ -56,18 +67,20 @@ export class StudentLimitService {
             
             // Debug breakdown
             const planLimit = planStatus.plano?.limiteAlunos || 0;
-            const tokensLimit = planStatus.tokensAvulsos || 0;
-            const totalLimit = planLimit + tokensLimit;
+            const availableTokens = tokenAssignmentStatus.availableTokens; // Use available tokens from assignment service
+            const totalLimit = planLimit + availableTokens; // Only count available tokens for limit
             const activeStudents = planStatus.alunosAtivos;
             const availableSlots = totalLimit - activeStudents;
             
             console.log(`[StudentLimitService] 🧮 Calculation breakdown:`, {
                 planLimit,
-                tokensLimit,
+                availableTokens,
                 totalLimit,
                 activeStudents,
                 availableSlots: Math.max(0, availableSlots),
-                shouldAllowActivation: availableSlots > 0
+                shouldAllowActivation: availableSlots > 0,
+                consumedTokens: tokenAssignmentStatus.consumedTokens,
+                totalTokens: tokenAssignmentStatus.totalTokens
             });
             
             let message = '';
@@ -101,8 +114,13 @@ export class StudentLimitService {
                 planInfo: {
                     plano: planStatus.plano,
                     personalPlano: planStatus.personalPlano,
-                    tokensAvulsos: planStatus.tokensAvulsos,
+                    tokensAvulsos: planStatus.tokensAvulsos, // Keep this for backward compatibility
                     isExpired: planStatus.isExpired,
+                },
+                tokenInfo: {
+                    availableTokens: tokenAssignmentStatus.availableTokens,
+                    consumedTokens: tokenAssignmentStatus.consumedTokens,
+                    totalTokens: tokenAssignmentStatus.totalTokens,
                 },
                 limitExceeded,
                 blockedActions: {
@@ -125,6 +143,11 @@ export class StudentLimitService {
                 activeStudents: 0,
                 availableSlots: 0,
                 planInfo: null,
+                tokenInfo: {
+                    availableTokens: 0,
+                    consumedTokens: 0,
+                    totalTokens: 0,
+                },
                 limitExceeded: true,
                 blockedActions: {
                     canActivateStudents: false,

@@ -77,6 +77,29 @@ router.post('/registrar', async (req: Request, res: Response, next: NextFunction
         convite.usadoPor = novoAluno._id as mongoose.Types.ObjectId;
         await convite.save();
 
+        // Assign token to the newly created student
+        try {
+            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+            
+            console.log(`[conviteAlunoPublic] 🔗 Assigning token to student ${novoAluno._id} for personal ${convite.criadoPor}`);
+            
+            const assignmentResult = await TokenAssignmentService.assignTokenToStudent(
+                convite.criadoPor.toString(), 
+                (novoAluno._id as mongoose.Types.ObjectId).toString(), 
+                1
+            );
+            
+            if (!assignmentResult.success) {
+                console.warn(`[conviteAlunoPublic] ⚠️ Token assignment failed: ${assignmentResult.message}`);
+                // Log warning but don't fail the registration
+            } else {
+                console.log(`[conviteAlunoPublic] ✅ Token successfully assigned to student ${novoAluno._id}`);
+            }
+        } catch (tokenError) {
+            console.error('[conviteAlunoPublic] ❌ Error assigning token:', tokenError);
+            // Log error but don't fail the registration
+        }
+
         res.status(201).json({ mensagem: 'Aluno registrado com sucesso!' });
 
     } catch (error: any) {

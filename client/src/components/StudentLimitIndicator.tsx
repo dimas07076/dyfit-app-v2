@@ -195,11 +195,14 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                             }
                         </p>
 
-                        {status.planInfo?.tokensAvulsos > 0 && (
+                        {(status.tokenInfo?.totalTokens > 0 || status.planInfo?.tokensAvulsos > 0) && (
                             <div className="flex items-center gap-1 mt-2">
                                 <Zap className="h-3 w-3 text-yellow-500" />
                                 <span className="text-xs text-muted-foreground">
-                                    {status.planInfo.tokensAvulsos} tokens ativos
+                                    {status.tokenInfo ? 
+                                        `${status.tokenInfo.availableTokens} disponíveis / ${status.tokenInfo.consumedTokens} consumidos` :
+                                        `${status.planInfo?.tokensAvulsos} tokens ativos`
+                                    }
                                 </span>
                             </div>
                         )}
@@ -233,7 +236,25 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                                     <span className="text-muted-foreground">Slots disponíveis:</span>
                                     <span className="ml-2 font-medium">{status.availableSlots}</span>
                                 </div>
-                                {status.planInfo?.tokensAvulsos > 0 && (
+                                {status.tokenInfo && status.tokenInfo.totalTokens > 0 && (
+                                    <>
+                                        <div>
+                                            <span className="text-muted-foreground">Tokens disponíveis:</span>
+                                            <span className="ml-2 font-medium flex items-center gap-1">
+                                                <Zap className="h-3 w-3 text-green-500" />
+                                                {status.tokenInfo.availableTokens}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">Tokens consumidos:</span>
+                                            <span className="ml-2 font-medium flex items-center gap-1">
+                                                <Zap className="h-3 w-3 text-red-500" />
+                                                {status.tokenInfo.consumedTokens}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                                {(!status.tokenInfo || status.tokenInfo.totalTokens === 0) && status.planInfo?.tokensAvulsos > 0 && (
                                     <div>
                                         <span className="text-muted-foreground">Tokens ativos:</span>
                                         <span className="ml-2 font-medium flex items-center gap-1">

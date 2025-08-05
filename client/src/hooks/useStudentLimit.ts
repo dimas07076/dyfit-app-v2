@@ -13,6 +13,11 @@ export interface StudentLimitStatus {
         tokensAvulsos: number;
         isExpired: boolean;
     } | null;
+    tokenInfo: {
+        availableTokens: number;
+        consumedTokens: number;
+        totalTokens: number;
+    };
     limitExceeded: boolean;
     blockedActions: {
         canActivateStudents: boolean;
@@ -45,6 +50,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                 activeStudents: 0,
                 availableSlots: 0,
                 planInfo: null,
+                tokenInfo: {
+                    availableTokens: 0,
+                    consumedTokens: 0,
+                    totalTokens: 0,
+                },
                 limitExceeded: true,
                 blockedActions: {
                     canActivateStudents: false,
@@ -81,6 +91,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                     activeStudents: 0,
                     availableSlots: 0,
                     planInfo: null,
+                    tokenInfo: {
+                        availableTokens: 0,
+                        consumedTokens: 0,
+                        totalTokens: 0,
+                    },
                     limitExceeded: true,
                     blockedActions: {
                         canActivateStudents: false,
@@ -97,6 +112,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                 activeStudents: 0,
                 availableSlots: 0,
                 planInfo: null,
+                tokenInfo: {
+                    availableTokens: 0,
+                    consumedTokens: 0,
+                    totalTokens: 0,
+                },
                 limitExceeded: true,
                 blockedActions: {
                     canActivateStudents: false,
@@ -117,6 +137,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                 activeStudents: 0,
                 availableSlots: 0,
                 planInfo: null,
+                tokenInfo: {
+                    availableTokens: 0,
+                    consumedTokens: 0,
+                    totalTokens: 0,
+                },
                 limitExceeded: true,
                 blockedActions: {
                     canActivateStudents: false,
@@ -147,6 +172,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
             activeStudents: 0,
             availableSlots: 0,
             planInfo: null,
+            tokenInfo: {
+                availableTokens: 0,
+                consumedTokens: 0,
+                totalTokens: 0,
+            },
             limitExceeded: true,
             blockedActions: {
                 canActivateStudents: false,

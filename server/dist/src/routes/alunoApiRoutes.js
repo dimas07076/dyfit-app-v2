@@ -11,6 +11,7 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
+import { assignTokenToStudent } from '../../middlewares/assignTokenToStudent.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
@@ -63,7 +64,7 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     }
 });
 // POST /api/aluno/gerenciar - Criar um novo aluno
-router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res, next) => {
+router.post("/gerenciar", authenticateToken, checkLimiteAlunos, assignTokenToStudent, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -94,6 +95,8 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
+        // Set student ID for token assignment middleware
+        res.locals.createdStudentId = novoAluno._id.toString();
         res.status(201).json({
             mensagem: "Aluno criado com sucesso!",
             aluno: alunoResponse
@@ -130,7 +133,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     }
 });
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req, res, next) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assignTokenToStudent, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;

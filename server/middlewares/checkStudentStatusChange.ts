@@ -50,7 +50,34 @@ export const checkStudentStatusChange = async (req: Request, res: Response, next
             return next();
         }
 
-        // Student is being activated, check if personal trainer can activate
+        // Student is being activated, check if they already have an assigned token
+        const TokenAssignmentService = (await import('../services/TokenAssignmentService.js')).default;
+        const existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+        
+        if (existingToken) {
+            const now = new Date();
+            const isTokenExpired = existingToken.dataVencimento <= now;
+            
+            console.log(`[checkStudentStatusChange] 🔍 Student ${alunoId} has existing token:`, {
+                tokenId: existingToken._id,
+                expired: isTokenExpired,
+                expirationDate: existingToken.dataVencimento
+            });
+            
+            if (!isTokenExpired) {
+                console.log(`[checkStudentStatusChange] ✅ Student ${alunoId} can be reactivated with existing valid token`);
+                // Student has a valid token, allow activation without new token assignment
+                return next();
+            } else {
+                console.log(`[checkStudentStatusChange] ⚠️ Student ${alunoId} has expired token, need new token for activation`);
+                // Token is expired, need to assign a new token - continue with normal validation
+            }
+        } else {
+            console.log(`[checkStudentStatusChange] 🆕 Student ${alunoId} has no assigned token, need new token for activation`);
+            // No existing token, need to assign a new token - continue with normal validation
+        }
+        
+        // Check if personal trainer can activate (for new token assignment)
         const validation = await StudentLimitService.validateStudentActivation(personalTrainerId, 1);
 
         if (!validation.isValid) {
@@ -66,6 +93,13 @@ export const checkStudentStatusChange = async (req: Request, res: Response, next
                     studentName: currentStudent.nome
                 }
             });
+        }
+
+        // If we reach here, student needs a new token assignment
+        // Set student ID for token assignment middleware (only if no valid existing token)
+        if (!existingToken || existingToken.dataVencimento <= new Date()) {
+            res.locals.studentId = alunoId;
+            console.log(`[checkStudentStatusChange] 📝 Set student ID for token assignment: ${alunoId}`);
         }
 
         // Add status to request for potential use in controller

@@ -12,6 +12,7 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanActivateStudent, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
+import { assignTokenToStudent } from '../../middlewares/assignTokenToStudent.js';
 
 const router = express.Router();
 
@@ -74,7 +75,7 @@ router.get("/gerenciar", authenticateToken, async (req: Request, res: Response, 
 });
 
 // POST /api/aluno/gerenciar - Criar um novo aluno
-router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/gerenciar", authenticateToken, checkLimiteAlunos, assignTokenToStudent, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -110,6 +111,9 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
+
+        // Set student ID for token assignment middleware
+        res.locals.createdStudentId = (novoAluno._id as mongoose.Types.ObjectId).toString();
 
         res.status(201).json({
             mensagem: "Aluno criado com sucesso!",
@@ -154,7 +158,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
 });
 
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assignTokenToStudent, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;

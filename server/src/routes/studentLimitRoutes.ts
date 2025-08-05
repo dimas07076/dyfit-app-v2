@@ -303,4 +303,53 @@ router.post('/force-refresh', authenticateToken, async (req: Request, res: Respo
     }
 });
 
+/**
+ * GET /api/student-limit/consumed-tokens
+ * Get consumed tokens with student details for personal trainer
+ */
+router.get('/consumed-tokens', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        
+        console.log(`[StudentLimitRoutes] GET /consumed-tokens - Personal Trainer ID: ${personalTrainerId}`);
+        
+        const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        
+        console.log(`[StudentLimitRoutes] Returning consumed tokens for ${personalTrainerId}:`, {
+            consumedTokens: tokenAssignmentStatus.consumedTokens,
+            totalConsumedRecords: tokenAssignmentStatus.consumedTokenDetails.length
+        });
+        
+        return res.json({
+            success: true,
+            data: {
+                summary: {
+                    availableTokens: tokenAssignmentStatus.availableTokens,
+                    consumedTokens: tokenAssignmentStatus.consumedTokens,
+                    totalTokens: tokenAssignmentStatus.totalTokens,
+                },
+                consumedTokenDetails: tokenAssignmentStatus.consumedTokenDetails
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting consumed tokens:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro interno do servidor',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;
