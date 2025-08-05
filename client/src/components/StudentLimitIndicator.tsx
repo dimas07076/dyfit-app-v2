@@ -157,7 +157,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                                         size="sm" 
                                         onClick={async () => {
                                             try {
-                                                const token = localStorage.getItem('token');
+                                                const token = localStorage.getItem('authToken');
                                                 const response = await fetch('/api/student-limit/debug-tokens', {
                                                     headers: {
                                                         'Authorization': `Bearer ${token}`,

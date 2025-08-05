@@ -34,9 +34,10 @@ const API_BASE = '/api/student-limit';
 // API functions
 const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
     try {
-        const token = localStorage.getItem('token');
+        // Use the correct token key for personal/admin users
+        const token = localStorage.getItem('authToken');
         if (!token) {
-            console.warn('🔑 [StudentLimit] No token found, returning default status');
+            console.warn('🔑 [StudentLimit] No authToken found, returning default status');
             // Return a safe default instead of throwing
             return {
                 canActivate: false,
@@ -69,9 +70,9 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
             
             if (response.status === 401) {
                 // Clear invalid token and force re-login
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                console.log('🔑 [StudentLimit] Token expired, clearing storage');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userData');
+                console.log('🔑 [StudentLimit] AuthToken expired, clearing storage');
                 
                 // Return safe default instead of throwing
                 return {
@@ -160,7 +161,7 @@ const validateStudentActivation = async (quantidade: number = 1): Promise<Studen
     const response = await fetch(`${API_BASE}/validate-activation`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ quantidade }),
@@ -183,7 +184,7 @@ const validateSendInvite = async (): Promise<StudentLimitValidation> => {
     const response = await fetch(`${API_BASE}/validate-invite`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json',
         },
     });
@@ -297,7 +298,7 @@ export const useStudentLimit = () => {
         
         try {
             // Call force refresh endpoint for fresh data
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('authToken');
             if (token) {
                 const response = await fetch('/api/student-limit/force-refresh', {
                     method: 'POST',
