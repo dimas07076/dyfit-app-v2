@@ -3,6 +3,8 @@ import Aluno from '../models/Aluno.js';
 // <<< INÍCIO DA CORREÇÃO >>>
 // 1. Importar a função de conexão com o banco de dados.
 import dbConnect from '../lib/dbConnect.js';
+// Importar PlanoService para verificar status do personal trainer
+import PlanoService from '../services/PlanoService.js';
 // <<< FIM DA CORREÇÃO >>>
 export const authenticateAlunoToken = async (req, res, next) => {
     // <<< INÍCIO DA CORREÇÃO >>>
@@ -47,10 +49,40 @@ export const authenticateAlunoToken = async (req, res, next) => {
         }
         if (decoded.role?.toLowerCase() === 'aluno') {
             // Agora esta chamada ao banco de dados é segura, pois a conexão já foi garantida.
-            const aluno = await Aluno.findById(decoded.id).select('status').lean();
+            const aluno = await Aluno.findById(decoded.id).select('status trainerId').lean();
             if (!aluno || aluno.status !== 'active') {
                 console.warn(`[Auth Aluno Middleware] Falha: Tentativa de acesso do aluno inativo ou não encontrado - ID: ${decoded.id}, IP:`, req.ip);
                 return res.status(403).json({ message: 'Sua conta está inativa. Fale com seu personal trainer.', code: 'ACCOUNT_INACTIVE' });
+            }
+            // NEW: Check if the student's trainer has an active plan or tokens
+            if (aluno.trainerId) {
+                try {
+                    const trainerStatus = await PlanoService.getPersonalCurrentPlan(aluno.trainerId.toString());
+                    // Check if trainer has any active capacity (plan + tokens)
+                    const hasActiveCapacity = trainerStatus.limiteAtual > 0;
+                    if (!hasActiveCapacity) {
+                        console.warn(`[Auth Aluno Middleware] Falha: Aluno ${decoded.id} tentou acessar, mas seu personal trainer ${aluno.trainerId} não possui plano ou tokens ativos.`);
+                        return res.status(403).json({
+                            message: 'Seu acesso foi encerrado. Entre em contato com seu personal trainer para reativar sua conta.',
+                            code: 'TRAINER_NO_ACTIVE_PLAN'
+                        });
+                    }
+                    // Additional check: If trainer has expired plan and no tokens
+                    if (trainerStatus.isExpired && trainerStatus.tokensAvulsos === 0) {
+                        console.warn(`[Auth Aluno Middleware] Falha: Aluno ${decoded.id} tentou acessar, mas o plano do personal trainer ${aluno.trainerId} expirou e não há tokens ativos.`);
+                        return res.status(403).json({
+                            message: 'Seu acesso foi encerrado devido ao vencimento do plano do seu personal trainer. Entre em contato com ele para renovação.',
+                            code: 'TRAINER_PLAN_EXPIRED'
+                        });
+                    }
+                    console.log(`✅ [Auth Aluno Middleware] Aluno ${decoded.id} autorizado - Trainer ${aluno.trainerId} possui limite ativo: ${trainerStatus.limiteAtual}`);
+                }
+                catch (trainerError) {
+                    console.error(`[Auth Aluno Middleware] Erro ao verificar status do trainer ${aluno.trainerId}:`, trainerError);
+                    // In case of error checking trainer status, allow access but log the error
+                    // This prevents students from being locked out due to temporary server issues
+                    console.warn(`[Auth Aluno Middleware] Permitindo acesso do aluno ${decoded.id} devido a erro na verificação do trainer.`);
+                }
             }
             req.aluno = {
                 id: decoded.id,
