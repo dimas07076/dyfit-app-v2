@@ -460,11 +460,17 @@ router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req: Req
 
         // Atualizar as cargas dos exercícios
         let exerciciosAtualizados = 0;
+        
         for (const [exercicioId, novaCarga] of Object.entries(cargas)) {
             const exercicio = diaDeTreino.exerciciosDoDia?.find(ex => ex._id.toString() === exercicioId);
             if (exercicio) {
-                exercicio.carga = novaCarga as string;
-                exerciciosAtualizados++;
+                // Só atualizar se a nova carga não estiver vazia/nula
+                // Preservar carga existente se nova carga for vazia
+                if (novaCarga && typeof novaCarga === 'string' && novaCarga.trim()) {
+                    exercicio.carga = novaCarga.trim();
+                    exerciciosAtualizados++;
+                }
+                // Se nova carga estiver vazia, manter a carga atual (não sobrescrever)
             }
         }
 
