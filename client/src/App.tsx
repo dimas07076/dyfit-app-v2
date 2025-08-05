@@ -234,6 +234,14 @@ function AppContent() {
             message = 'Sua conta está inativa. Fale com seu personal trainer.';
             redirectPath = forAluno ? '/login/aluno' : '/login';
             break;
+        case 'TRAINER_NO_ACTIVE_PLAN':
+            message = 'Seu acesso foi encerrado. Entre em contato com seu personal trainer para reativar sua conta.';
+            redirectPath = forAluno ? '/login/aluno' : '/login';
+            break;
+        case 'TRAINER_PLAN_EXPIRED':
+            message = 'Seu acesso foi encerrado devido ao vencimento do plano do seu personal trainer. Entre em contato com ele para renovação.';
+            redirectPath = forAluno ? '/login/aluno' : '/login';
+            break;
         default:
           if (status === 401 || status === 403) {
             message = 'Ocorreu um problema de autenticação. Por favor, faça login novamente.';

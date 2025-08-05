@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../../shared/types/planos';
 import { Badge } from '../../ui/badge';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { CalendarDays, Users, Clock, DollarSign, AlertCircle, CheckCircle, XCircle, Info, Loader2, Calendar, X } from 'lucide-react';
+import { CalendarDays, Users, Clock, DollarSign, AlertCircle, CheckCircle, XCircle, Info, Loader2, Calendar, X, Trash2 } from 'lucide-react';
+import { ModalConfirmacao } from '../../ui/modal-confirmacao';
 
 interface PlanoModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface PlanoModalProps {
   planos: Plano[];
   onAssignPlan: (personalId: string, data: AssignPlanForm) => Promise<void>;
   onAddTokens: (personalId: string, data: AddTokensForm) => Promise<void>;
+  onRemovePlan: (personalId: string) => Promise<void>;
+  onDeleteToken: (personalId: string, tokenId: string) => Promise<void>;
   getPlanNameById: (planId: string | null) => string;
   getPlanById: (planId: string | null) => Plano | null;
 }
@@ -42,6 +45,8 @@ export function PlanoModal({
   planos, 
   onAssignPlan, 
   onAddTokens,
+  onRemovePlan,
+  onDeleteToken,
   getPlanNameById,
   getPlanById
 }: PlanoModalProps) {
@@ -64,6 +69,12 @@ export function PlanoModal({
     customDays: 30,
     motivo: ''
   });
+
+  // Confirmation dialogs state
+  const [showRemovePlanConfirm, setShowRemovePlanConfirm] = useState(false);
+  const [showDeleteTokenConfirm, setShowDeleteTokenConfirm] = useState(false);
+  const [tokenToDelete, setTokenToDelete] = useState<{ id: string; quantidade: number } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   // Reset form and load detailed status when modal opens
   useEffect(() => {
@@ -139,6 +150,44 @@ export function PlanoModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemovePlan = async () => {
+    if (!personal) return;
+    
+    setConfirmLoading(true);
+    try {
+      await onRemovePlan(personal._id);
+      setShowRemovePlanConfirm(false);
+      await loadDetailedStatus(); // Reload status after removal
+    } catch (error) {
+      console.error('Error removing plan:', error);
+      setError(error instanceof Error ? error.message : 'Erro ao remover plano');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const handleDeleteToken = async () => {
+    if (!personal || !tokenToDelete) return;
+    
+    setConfirmLoading(true);
+    try {
+      await onDeleteToken(personal._id, tokenToDelete.id);
+      setShowDeleteTokenConfirm(false);
+      setTokenToDelete(null);
+      await loadDetailedStatus(); // Reload status after deletion
+    } catch (error) {
+      console.error('Error deleting token:', error);
+      setError(error instanceof Error ? error.message : 'Erro ao remover token');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const initiateTokenDelete = (tokenId: string, quantidade: number) => {
+    setTokenToDelete({ id: tokenId, quantidade });
+    setShowDeleteTokenConfirm(true);
   };
 
   const getStatusColor = (percentual: number) => {
@@ -462,13 +511,24 @@ export function PlanoModal({
                                         </Badge>
                                       )}
                                     </div>
-                                    <Badge className={`${
-                                      isExpiringSoon 
-                                        ? 'bg-yellow-600 hover:bg-yellow-700' 
-                                        : 'bg-green-600 hover:bg-green-700'
-                                    } text-white`}>
-                                      {token.quantidade} token{token.quantidade !== 1 ? 's' : ''}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={`${
+                                        isExpiringSoon 
+                                          ? 'bg-yellow-600 hover:bg-yellow-700' 
+                                          : 'bg-green-600 hover:bg-green-700'
+                                      } text-white`}>
+                                        {token.quantidade} token{token.quantidade !== 1 ? 's' : ''}
+                                      </Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => initiateTokenDelete(token._id, token.quantidade)}
+                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        title="Remover token"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
                                   </div>
                                   
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -799,6 +859,16 @@ export function PlanoModal({
               >
                 Adicionar Tokens
               </Button>
+              {personal?.hasActivePlan && !personal?.isExpired && (
+                <Button 
+                  variant="destructive"
+                  onClick={() => setShowRemovePlanConfirm(true)}
+                  disabled={loadingStatus}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remover Plano
+                </Button>
+              )}
               <Button 
                 onClick={() => setMode('assign-plan')}
                 disabled={loadingStatus}
@@ -851,6 +921,56 @@ export function PlanoModal({
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Plan Removal Confirmation Dialog */}
+      <ModalConfirmacao
+        isOpen={showRemovePlanConfirm}
+        onClose={() => setShowRemovePlanConfirm(false)}
+        onConfirm={handleRemovePlan}
+        titulo="Remover Plano"
+        mensagem={
+          <div className="space-y-2">
+            <p>Tem certeza que deseja remover o plano atual deste personal trainer?</p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                <strong>Atenção:</strong> Esta ação não pode ser desfeita. O personal trainer ficará sem plano ativo.
+              </p>
+            </div>
+          </div>
+        }
+        textoConfirmar="Remover Plano"
+        textoCancelar="Cancelar"
+        isLoadingConfirm={confirmLoading}
+      />
+
+      {/* Token Deletion Confirmation Dialog */}
+      <ModalConfirmacao
+        isOpen={showDeleteTokenConfirm}
+        onClose={() => {
+          setShowDeleteTokenConfirm(false);
+          setTokenToDelete(null);
+        }}
+        onConfirm={handleDeleteToken}
+        titulo="Remover Token"
+        mensagem={
+          <div className="space-y-2">
+            <p>Tem certeza que deseja remover este token?</p>
+            {tokenToDelete && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-800">
+                  <strong>Token:</strong> {tokenToDelete.quantidade} unidade{tokenToDelete.quantidade !== 1 ? 's' : ''}
+                </p>
+                <p className="text-sm text-red-600 mt-1">
+                  Esta ação não pode ser desfeita.
+                </p>
+              </div>
+            )}
+          </div>
+        }
+        textoConfirmar="Remover Token"
+        textoCancelar="Cancelar"
+        isLoadingConfirm={confirmLoading}
+      />
     </Dialog>
   );
 }

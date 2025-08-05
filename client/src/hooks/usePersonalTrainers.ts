@@ -22,6 +22,8 @@ interface UsePlanManagementActions {
   fetchData: () => Promise<void>;
   assignPlan: (personalId: string, data: AssignPlanForm) => Promise<void>;
   addTokens: (personalId: string, data: AddTokensForm) => Promise<void>;
+  removePlan: (personalId: string) => Promise<void>;
+  deleteToken: (personalId: string, tokenId: string) => Promise<void>;
   refreshPersonalData: (personalId: string) => Promise<void>;
   clearError: () => void;
   getPlanNameById: (planId: string | null) => string;
@@ -300,6 +302,66 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
     }
   }, [fetchData]);
 
+  /**
+   * Remove current plan from personal trainer
+   */
+  const removePlan = useCallback(async (personalId: string) => {
+    try {
+      console.log('🔄 [usePlanManagement] Removing plan...', { personalId });
+
+      await fetchWithAuth(`/api/admin/personal/${personalId}/plan`, {
+        method: 'DELETE',
+      });
+
+      console.log('✅ [usePlanManagement] Plan removed successfully');
+
+      // Show success feedback
+      showToast({
+        title: 'Plano Removido',
+        description: 'Plano removido com sucesso.',
+        variant: 'default',
+      });
+
+      // Refresh data to get updated state
+      await fetchData();
+
+    } catch (error) {
+      console.error('❌ [usePlanManagement] Error removing plan:', error);
+      handleApiError(error, 'Erro ao remover plano');
+      throw error;
+    }
+  }, [fetchData]);
+
+  /**
+   * Delete specific token from personal trainer
+   */
+  const deleteToken = useCallback(async (personalId: string, tokenId: string) => {
+    try {
+      console.log('🔄 [usePlanManagement] Deleting token...', { personalId, tokenId });
+
+      await fetchWithAuth(`/api/admin/personal/${personalId}/tokens/${tokenId}`, {
+        method: 'DELETE',
+      });
+
+      console.log('✅ [usePlanManagement] Token deleted successfully');
+
+      // Show success feedback
+      showToast({
+        title: 'Token Removido',
+        description: 'Token removido com sucesso.',
+        variant: 'default',
+      });
+
+      // Refresh data to get updated state
+      await fetchData();
+
+    } catch (error) {
+      console.error('❌ [usePlanManagement] Error deleting token:', error);
+      handleApiError(error, 'Erro ao remover token');
+      throw error;
+    }
+  }, [fetchData]);
+
   // Memoized computed values
   const memoizedValues = useMemo(() => ({
     planLookupMap: state.planLookupMap,
@@ -320,6 +382,8 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
     fetchData,
     assignPlan,
     addTokens,
+    removePlan,
+    deleteToken,
     refreshPersonalData,
     clearError,
     getPlanNameById: memoizedValues.getPlanNameById,
