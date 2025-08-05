@@ -258,4 +258,49 @@ router.get('/debug-tokens', authenticateToken, async (req: Request, res: Respons
     }
 });
 
+/**
+ * POST /api/student-limit/force-refresh
+ * Force refresh of student limit cache (useful after admin operations)
+ */
+router.post('/force-refresh', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimit] 🔄 Force refresh requested for personal: ${personalTrainerId}`);
+        
+        // Force fresh calculation
+        const status = await StudentLimitService.getStudentLimitStatus(personalTrainerId);
+        
+        console.log(`[StudentLimit] ✅ Force refresh completed:`, {
+            canActivate: status.canActivate,
+            currentLimit: status.currentLimit,
+            availableSlots: status.availableSlots,
+            tokensAvulsos: status.planInfo?.tokensAvulsos
+        });
+        
+        return res.json({
+            success: true,
+            data: status,
+            message: 'Status atualizado com sucesso',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in force refresh:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro interno do servidor',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

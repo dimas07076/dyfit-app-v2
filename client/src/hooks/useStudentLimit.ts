@@ -295,6 +295,31 @@ export const useStudentLimit = () => {
     const refreshStatus = useCallback(async () => {
         console.log('🔄 [StudentLimit] Manual refresh triggered');
         
+        try {
+            // Call force refresh endpoint for fresh data
+            const token = localStorage.getItem('token');
+            if (token) {
+                const response = await fetch('/api/student-limit/force-refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        console.log('🔄 [StudentLimit] Force refresh successful:', data.data);
+                        // Update cache with fresh data
+                        queryClient.setQueryData(['studentLimitStatus'], data.data);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('🔄 [StudentLimit] Force refresh failed, falling back to regular refresh:', error);
+        }
+        
         // Clear any existing cache
         queryClient.removeQueries({ queryKey: ['studentLimitStatus'] });
         
