@@ -163,4 +163,59 @@ router.get('/detailed-breakdown', authenticateToken, async (req: Request, res: R
     }
 });
 
+/**
+ * GET /api/student-limit/debug-status
+ * Get real-time debug status (bypasses any caching)
+ */
+router.get('/debug-status', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        console.log(`[StudentLimitRoutes] DEBUG - Personal Trainer ID: ${personalTrainerId}`);
+        
+        if (!personalTrainerId) {
+            console.log(`[StudentLimitRoutes] DEBUG - Unauthorized access attempt`);
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        // Force fresh calculation without any caching
+        const timestamp = new Date().toISOString();
+        console.log(`[StudentLimitRoutes] DEBUG - Starting fresh calculation at ${timestamp}`);
+        
+        const status = await StudentLimitService.getStudentLimitStatus(personalTrainerId);
+        const breakdown = await StudentLimitService.getDetailedLimitBreakdown(personalTrainerId);
+        
+        console.log(`[StudentLimitRoutes] DEBUG - Fresh calculation complete:`, {
+            canActivate: status.canActivate,
+            currentLimit: status.currentLimit,
+            activeStudents: status.activeStudents,
+            availableSlots: status.availableSlots,
+            tokensAvulsos: status.planInfo?.tokensAvulsos,
+            limitExceeded: status.limitExceeded
+        });
+        
+        return res.json({
+            success: true,
+            timestamp,
+            data: {
+                status,
+                breakdown,
+                freshCalculation: true
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting debug status:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro interno do servidor',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

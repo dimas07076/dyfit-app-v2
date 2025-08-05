@@ -21,7 +21,29 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
     showRecommendations = false,
     className = '',
 }) => {
-    const { status, isLoading, isError, error, isAtLimit, isCloseToLimit, refreshStatus } = useStudentLimit();
+    const { 
+        status, 
+        isLoading, 
+        isError, 
+        error, 
+        isAtLimit, 
+        isCloseToLimit, 
+        refreshStatus, 
+        getDebugStatus 
+    } = useStudentLimit();
+
+    // Debug function for development/troubleshooting
+    const handleDebugClick = async () => {
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const debugData = await getDebugStatus();
+                console.log('🔧 Debug Status:', debugData);
+                alert(`Debug Info:\nTokens: ${debugData.data.status.planInfo?.tokensAvulsos || 0}\nLimit: ${debugData.data.status.currentLimit}\nActive: ${debugData.data.status.activeStudents}\nAvailable: ${debugData.data.status.availableSlots}`);
+            } catch (error) {
+                console.error('Debug failed:', error);
+            }
+        }
+    };
 
     if (isLoading) {
         return (
@@ -106,6 +128,17 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                             >
                                 ↻
                             </Button>
+                            {process.env.NODE_ENV === 'development' && (
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={handleDebugClick}
+                                    className="h-6 w-6 p-0 opacity-30 hover:opacity-100"
+                                    title="Debug info"
+                                >
+                                    🔧
+                                </Button>
+                            )}
                         </div>
                     </div>
                     

@@ -52,9 +52,14 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
 
         if (!response.ok) {
             if (response.status === 401) {
-                // Clear invalid token
+                // Clear invalid token and force re-login
                 localStorage.removeItem('token');
-                throw new Error('Sessão expirada. Faça login novamente.');
+                localStorage.removeItem('user');
+                console.log('🔑 [StudentLimit] Token expired, clearing storage');
+                
+                // Trigger a page reload to force re-authentication
+                window.location.href = '/login';
+                throw new Error('Sessão expirada. Redirecionando para login...');
             }
             if (response.status === 403) {
                 throw new Error('Acesso negado. Verifique suas permissões.');
@@ -62,7 +67,14 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
             if (response.status >= 500) {
                 throw new Error('Erro interno do servidor. Tente novamente em alguns instantes.');
             }
-            throw new Error(`Erro na requisição: ${response.status} - ${response.statusText}`);
+            
+            // Try to get error details from response
+            try {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Erro na requisição: ${response.status}`);
+            } catch {
+                throw new Error(`Erro na requisição: ${response.status} - ${response.statusText}`);
+            }
         }
 
         const data = await response.json();
@@ -140,10 +152,32 @@ const validateSendInvite = async (): Promise<StudentLimitValidation> => {
     };
 };
 
+// Debug function to get fresh status bypassing cache
+const fetchDebugStatus = async (): Promise<any> => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        throw new Error('Token de autenticação não encontrado');
+    }
+
+    const response = await fetch(`${API_BASE}/debug-status`, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Debug status failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+};
+
 export const useStudentLimit = () => {
     const queryClient = useQueryClient();
 
-    // Main status query with aggressive refresh settings
+    // Main status query with aggressive refresh settings and better error handling
     const {
         data: status,
         isLoading,
@@ -158,9 +192,29 @@ export const useStudentLimit = () => {
         refetchOnReconnect: true, // Refetch when network reconnects
         staleTime: 15 * 1000, // Reduced to 15 seconds for even faster updates
         gcTime: 30 * 1000, // Reduce garbage collection time to 30 seconds
-        retry: 3, // Increased retry attempts
+        retry: (failureCount, error) => {
+            // Don't retry on authentication errors
+            if (error instanceof Error && (
+                error.message.includes('Sessão expirada') ||
+                error.message.includes('Token de autenticação') ||
+                error.message.includes('Acesso negado')
+            )) {
+                return false;
+            }
+            // Retry up to 3 times for other errors
+            return failureCount < 3;
+        },
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
-        refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds (more aggressive)
+        refetchInterval: (data, query) => {
+            // Don't auto-refetch if there's an authentication error
+            if (query.state.error instanceof Error && (
+                query.state.error.message.includes('Sessão expirada') ||
+                query.state.error.message.includes('Token de autenticação')
+            )) {
+                return false;
+            }
+            return 30 * 1000; // Auto-refetch every 30 seconds (more aggressive)
+        },
         refetchIntervalInBackground: false, // Don't waste resources when page is hidden
     });
 
@@ -264,6 +318,19 @@ export const useStudentLimit = () => {
     // Check if close to limit (within 1 slot)
     const isCloseToLimit = (status?.availableSlots ?? 0) <= 1 && (status?.availableSlots ?? 0) > 0;
 
+    // Debug function for troubleshooting
+    const getDebugStatus = useCallback(async () => {
+        try {
+            console.log('🔧 [StudentLimit] Fetching debug status...');
+            const debugData = await fetchDebugStatus();
+            console.log('🔧 [StudentLimit] Debug status received:', debugData);
+            return debugData;
+        } catch (error) {
+            console.error('❌ [StudentLimit] Debug status failed:', error);
+            throw error;
+        }
+    }, []);
+
     return {
         // Status data
         status,
@@ -283,6 +350,7 @@ export const useStudentLimit = () => {
         refreshStatus,
         validateActivation,
         validateInvite,
+        getDebugStatus, // Debug function
 
         // Validation states
         activationValidation: {

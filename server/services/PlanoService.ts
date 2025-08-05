@@ -249,11 +249,15 @@ export class PlanoService {
 
             console.log(`[PlanoService] 🔍 Searching for active tokens for personal: ${personalTrainerId}`);
             
+            const now = new Date();
+            console.log(`[PlanoService] 🕐 Current time: ${now.toISOString()}`);
+            
+            // More robust query with explicit conditions
             const tokens = await TokenAvulso.find({
-                personalTrainerId,
+                personalTrainerId: personalTrainerId,
                 ativo: true,
-                dataVencimento: { $gt: new Date() }
-            });
+                dataVencimento: { $gt: now }
+            }).lean(); // Use lean() for better performance and avoid hydration issues
 
             console.log(`[PlanoService] 📋 Found ${tokens.length} token records:`, 
                 tokens.map(t => ({
@@ -261,13 +265,43 @@ export class PlanoService {
                     quantidade: t.quantidade,
                     ativo: t.ativo,
                     dataVencimento: t.dataVencimento,
-                    expired: t.dataVencimento <= new Date()
+                    isExpired: t.dataVencimento <= now,
+                    personalTrainerId: t.personalTrainerId
                 }))
             );
 
-            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            // Additional validation - check for any tokens that might be miscounted
+            const allTokens = await TokenAvulso.find({
+                personalTrainerId: personalTrainerId
+            }).lean();
+            
+            console.log(`[PlanoService] 📊 All tokens for personal (active + inactive):`, 
+                allTokens.map(t => ({
+                    id: t._id,
+                    quantidade: t.quantidade,
+                    ativo: t.ativo,
+                    dataVencimento: t.dataVencimento,
+                    isExpired: t.dataVencimento <= now,
+                    status: t.ativo && t.dataVencimento > now ? 'ACTIVE' : 'INACTIVE'
+                }))
+            );
+
+            const total = tokens.reduce((total, token) => {
+                const quantidade = token.quantidade || 0;
+                console.log(`[PlanoService] 🔢 Adding ${quantidade} tokens from token ${token._id}`);
+                return total + quantidade;
+            }, 0);
             
             console.log(`[PlanoService] 💯 Total active tokens for ${personalTrainerId}: ${total}`);
+            
+            // Double-check calculation
+            const manualTotal = tokens
+                .filter(t => t.ativo && t.dataVencimento > now)
+                .reduce((sum, t) => sum + (t.quantidade || 0), 0);
+            
+            if (total !== manualTotal) {
+                console.warn(`[PlanoService] ⚠️ Token calculation mismatch! Query total: ${total}, Manual total: ${manualTotal}`);
+            }
             
             return total;
         } catch (error) {
