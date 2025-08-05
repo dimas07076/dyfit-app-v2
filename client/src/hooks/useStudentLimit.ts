@@ -33,23 +33,50 @@ const API_BASE = '/api/student-limit';
 
 // API functions
 const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
-    const response = await fetch(`${API_BASE}/status`, {
-        headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to fetch student limit status: ${response.statusText}`);
+    const token = localStorage.getItem('token');
+    if (!token) {
+        throw new Error('Token de autenticação não encontrado. Faça login novamente.');
     }
 
-    const data = await response.json();
-    if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch student limit status');
-    }
+    try {
+        const response = await fetch(`${API_BASE}/status`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
 
-    return data.data;
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('Sessão expirada. Faça login novamente.');
+            }
+            if (response.status === 403) {
+                throw new Error('Acesso negado.');
+            }
+            if (response.status >= 500) {
+                throw new Error('Erro interno do servidor. Tente novamente em alguns instantes.');
+            }
+            throw new Error(`Erro na requisição: ${response.status} - ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.message || 'Erro ao buscar status do limite de alunos');
+        }
+
+        return data.data;
+    } catch (error) {
+        // Log error for debugging
+        console.error('Erro ao buscar status do limite de alunos:', error);
+        
+        // Re-throw with a user-friendly message
+        if (error instanceof Error) {
+            throw error;
+        }
+        
+        throw new Error('Erro de conexão. Verifique sua internet e tente novamente.');
+    }
 };
 
 const validateStudentActivation = async (quantidade: number = 1): Promise<StudentLimitValidation> => {
@@ -110,9 +137,11 @@ export const useStudentLimit = () => {
     } = useQuery<StudentLimitStatus>({
         queryKey: ['studentLimitStatus'],
         queryFn: fetchStudentLimitStatus,
-        refetchOnWindowFocus: false,
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        retry: 2,
+        refetchOnWindowFocus: true, // Enable refetch on window focus
+        staleTime: 30 * 1000, // Reduced to 30 seconds for faster updates
+        retry: 3, // Increased retry attempts
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+        refetchInterval: 60 * 1000, // Auto-refetch every minute
     });
 
     // Validation mutations

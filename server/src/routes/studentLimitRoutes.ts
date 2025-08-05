@@ -15,7 +15,10 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
         await dbConnect();
         
         const personalTrainerId = req.user?.id;
+        console.log(`[StudentLimitRoutes] GET /status - Personal Trainer ID: ${personalTrainerId}`);
+        
         if (!personalTrainerId) {
+            console.log(`[StudentLimitRoutes] Unauthorized access attempt`);
             return res.status(401).json({
                 success: false,
                 message: 'Usuário não autenticado',
@@ -25,12 +28,20 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
 
         const status = await StudentLimitService.getStudentLimitStatus(personalTrainerId);
         
+        console.log(`[StudentLimitRoutes] Returning status for ${personalTrainerId}:`, {
+            canActivate: status.canActivate,
+            currentLimit: status.currentLimit,
+            activeStudents: status.activeStudents,
+            availableSlots: status.availableSlots,
+            tokensAvulsos: status.planInfo?.tokensAvulsos
+        });
+        
         return res.json({
             success: true,
             data: status
         });
     } catch (error) {
-        console.error('Error getting student limit status:', error);
+        console.error('❌ Error getting student limit status:', error);
         return res.status(500).json({
             success: false,
             message: 'Erro interno do servidor',

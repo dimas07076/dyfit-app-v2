@@ -33,7 +33,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
   const [view, setView] = useState<'form' | 'success'>('form');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const { canSendInvites, validateInvite, inviteValidation } = useStudentLimit();
+  const { canSendInvites, validateInvite, inviteValidation, refreshStatus } = useStudentLimit();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -56,6 +56,8 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
     onSuccess: (data) => {
       setInviteLink(data.linkConvite);
       setView('success');
+      // Refresh student limit status after successful invite
+      refreshStatus();
     },
     onError: (error: Error) => {
       toast({

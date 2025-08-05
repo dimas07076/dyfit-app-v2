@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
 import useStudentLimit from '../hooks/useStudentLimit';
 
 interface StudentLimitIndicatorProps {
@@ -20,7 +21,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
     showRecommendations = false,
     className = '',
 }) => {
-    const { status, isLoading, isError, isAtLimit, isCloseToLimit } = useStudentLimit();
+    const { status, isLoading, isError, error, isAtLimit, isCloseToLimit, refreshStatus } = useStudentLimit();
 
     if (isLoading) {
         return (
@@ -31,11 +32,21 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
     }
 
     if (isError || !status) {
+        const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar status do limite de alunos';
+        
         return (
             <Alert variant="destructive" className={className}>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                    Erro ao carregar status do limite de alunos
+                <AlertDescription className="space-y-2">
+                    <div>{errorMessage}</div>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => refreshStatus()}
+                        className="text-xs"
+                    >
+                        Tentar novamente
+                    </Button>
                 </AlertDescription>
             </Alert>
         );
@@ -82,9 +93,20 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                             <Users className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm font-medium">Alunos Ativos</span>
                         </div>
-                        <Badge variant={getStatusColor()}>
-                            {status.activeStudents}/{status.currentLimit}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                            <Badge variant={getStatusColor()}>
+                                {status.activeStudents}/{status.currentLimit}
+                            </Badge>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => refreshStatus()}
+                                className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
+                                title="Atualizar status"
+                            >
+                                ↻
+                            </Button>
+                        </div>
                     </div>
                     
                     {showProgress && status.currentLimit > 0 && (

@@ -186,10 +186,21 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
         );
 
         console.log('✅ Tokens adicionados com sucesso:', token._id);
+        
+        // Get updated student limit status for verification
+        const StudentLimitService = (await import('../../services/StudentLimitService.js')).default;
+        const updatedStatus = await StudentLimitService.getStudentLimitStatus(personalId);
+        console.log('📊 Status atualizado após adição de tokens:', {
+            canActivate: updatedStatus.canActivate,
+            currentLimit: updatedStatus.currentLimit,
+            availableSlots: updatedStatus.availableSlots,
+            tokensAvulsos: updatedStatus.planInfo?.tokensAvulsos
+        });
 
         res.status(201).json({
             message: 'Tokens adicionados com sucesso',
             token,
+            updatedStatus, // Include updated status for frontend
             timestamp: new Date().toISOString()
         });
     } catch (error) {

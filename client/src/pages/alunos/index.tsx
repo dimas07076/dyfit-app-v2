@@ -1,5 +1,5 @@
 // client/src/pages/alunos/index.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -136,6 +136,19 @@ export default function StudentsIndex() {
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+    // Add page visibility handler to refresh student limit status
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                // Page became visible, invalidate student limit cache to get fresh data
+                queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [queryClient]);
 
     console.log("Fetching students data...");
     const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({

@@ -35,9 +35,19 @@ export class StudentLimitService {
      */
     async getStudentLimitStatus(personalTrainerId: string): Promise<StudentLimitStatus> {
         try {
+            console.log(`[StudentLimitService] Getting status for personal trainer: ${personalTrainerId}`);
+            
             // Get current plan status from PlanoService
             const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+            console.log(`[StudentLimitService] Plan status:`, {
+                limiteAtual: planStatus.limiteAtual,
+                alunosAtivos: planStatus.alunosAtivos,
+                tokensAvulsos: planStatus.tokensAvulsos,
+                isExpired: planStatus.isExpired
+            });
+            
             const canActivateStatus = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+            console.log(`[StudentLimitService] Can activate status:`, canActivateStatus);
 
             const limitExceeded = !canActivateStatus.canActivate;
             
@@ -64,7 +74,7 @@ export class StudentLimitService {
                 }
             }
 
-            return {
+            const result = {
                 canActivate: canActivateStatus.canActivate,
                 currentLimit: canActivateStatus.currentLimit,
                 activeStudents: canActivateStatus.activeStudents,
@@ -83,8 +93,11 @@ export class StudentLimitService {
                 message,
                 recommendations: recommendations.length > 0 ? recommendations : undefined,
             };
+
+            console.log(`[StudentLimitService] Final result:`, result);
+            return result;
         } catch (error) {
-            console.error('Error getting student limit status:', error);
+            console.error('❌ Error getting student limit status:', error);
             
             // Return safe defaults on error
             return {

@@ -9,12 +9,26 @@ import { fetchWithAuth } from "@/lib/apiClient";
 import { Aluno } from "@/types/aluno";
 import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
 import useStudentLimit from "@/hooks/useStudentLimit";
+import { useEffect } from "react";
 
 export default function NewStudent() {
     const [, navigate] = useLocation();
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const { status, isLoading: isLimitLoading, canActivateStudents, refreshStatus } = useStudentLimit();
+
+    // Add page visibility handler to refresh student limit status
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                // Page became visible, invalidate student limit cache to get fresh data
+                queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [queryClient]);
 
     // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
     const mutation = useMutation<Aluno, Error, StudentFormDataProcessed>({
