@@ -6,11 +6,12 @@ import Sessao, { OPCOES_PSE } from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import WorkoutLog from '../../models/WorkoutLog.js';
+import StudentLimitService from '../../services/StudentLimitService.js';
 import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
-import { checkLimiteAlunos, checkCanActivateStudent } from '../../middlewares/checkLimiteAlunos.js';
+import { checkLimiteAlunos, checkCanActivateStudent, checkCanSendInvite, checkStudentStatusChange } from '../../middlewares/checkLimiteAlunos.js';
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ const router = express.Router();
 // =======================================================
 
 // POST /api/aluno/convite - Gera um link de convite para aluno
-router.post("/convite", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/convite", authenticateToken, checkCanSendInvite, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -106,6 +107,9 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
             status: 'active'
         });
 
+        // Consume tokens if necessary before saving
+        await StudentLimitService.consumeTokensForActivation(trainerId, 1);
+
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
@@ -153,7 +157,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
 });
 
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req: Request, res: Response, next: NextFunction) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;
@@ -214,6 +218,11 @@ router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
         }
         if (height !== null && height !== undefined && height !== '') {
             updateData.height = parseInt(height);
+        }
+
+        // Consume tokens if activating an inactive student
+        if (alunoExistente.status === 'inactive' && status === 'active') {
+            await StudentLimitService.consumeTokensForActivation(trainerId, 1);
         }
 
         // Atualizar o aluno

@@ -46,6 +46,33 @@ export interface Aluno {
     dataCriacao: string; // Use string se for ISO date string, ou Date se converter
     dataAtualizacao: string; // Use string se for ISO date string, ou Date se converter
   }
+
+  // Student Limit Management Types
+  export interface StudentLimitStatus {
+    planDetails: {
+      name: string;
+      limit: number;
+      isActive: boolean;
+      expiresAt: Date | null;
+    } | null;
+    tokensAvailable: number;
+    totalLimit: number;
+    activeStudents: number;
+    availableSlots: number;
+    isAtLimit: boolean;
+  }
+
+  export interface ValidationResult {
+    success: boolean;
+    message: string;
+    code: string;
+    data: {
+      currentLimit: number;
+      activeStudents: number;
+      availableSlots: number;
+      recommendations: string[];
+    };
+  }
   
   // Adicione outras interfaces compartilhadas aqui (Exercicio, FichaModelo, etc.)
   
