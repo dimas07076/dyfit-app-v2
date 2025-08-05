@@ -78,6 +78,23 @@ router.get('/tokens-ativos', async (req, res) => {
 });
 
 /**
+ * GET /api/personal/tokens-detalhados - Get detailed tokens information for personal trainer view
+ */
+router.get('/tokens-detalhados', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = (req as any).user.id;
+        const tokenDetails = await PlanoService.getDetailedTokensForAdmin(personalTrainerId);
+        
+        res.json(tokenDetails);
+    } catch (error) {
+        console.error('Error fetching detailed tokens:', error);
+        res.status(500).json({ message: 'Erro ao buscar detalhes dos tokens' });
+    }
+});
+
+/**
  * GET /api/personal/planos-disponiveis - Get available plans (for reference/upgrade info)
  */
 router.get('/planos-disponiveis', async (req, res) => {
