@@ -33,12 +33,12 @@ const API_BASE = '/api/student-limit';
 
 // API functions
 const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        throw new Error('Token de autenticação não encontrado. Faça login novamente.');
-    }
-
     try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('Token de autenticação não encontrado. Faça login novamente.');
+        }
+
         console.log('🔍 [StudentLimit] Fetching student limit status...');
         
         const response = await fetch(`${API_BASE}/status`, {
@@ -57,9 +57,8 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                 localStorage.removeItem('user');
                 console.log('🔑 [StudentLimit] Token expired, clearing storage');
                 
-                // Trigger a page reload to force re-authentication
-                window.location.href = '/login';
-                throw new Error('Sessão expirada. Redirecionando para login...');
+                // Don't redirect immediately - let the user handle it gracefully
+                throw new Error('Token de autenticação não encontrado. Faça login novamente.');
             }
             if (response.status === 403) {
                 throw new Error('Acesso negado. Verifique suas permissões.');
@@ -152,28 +151,6 @@ const validateSendInvite = async (): Promise<StudentLimitValidation> => {
     };
 };
 
-// Debug function to get fresh status bypassing cache
-const fetchDebugStatus = async (): Promise<any> => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        throw new Error('Token de autenticação não encontrado');
-    }
-
-    const response = await fetch(`${API_BASE}/debug-status`, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Debug status failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data;
-};
-
 export const useStudentLimit = () => {
     const queryClient = useQueryClient();
 
@@ -195,7 +172,6 @@ export const useStudentLimit = () => {
         retry: (failureCount, error) => {
             // Don't retry on authentication errors
             if (error instanceof Error && (
-                error.message.includes('Sessão expirada') ||
                 error.message.includes('Token de autenticação') ||
                 error.message.includes('Acesso negado')
             )) {
@@ -208,7 +184,6 @@ export const useStudentLimit = () => {
         refetchInterval: (data, query) => {
             // Don't auto-refetch if there's an authentication error
             if (query.state.error instanceof Error && (
-                query.state.error.message.includes('Sessão expirada') ||
                 query.state.error.message.includes('Token de autenticação')
             )) {
                 return false;
@@ -318,19 +293,6 @@ export const useStudentLimit = () => {
     // Check if close to limit (within 1 slot)
     const isCloseToLimit = (status?.availableSlots ?? 0) <= 1 && (status?.availableSlots ?? 0) > 0;
 
-    // Debug function for troubleshooting
-    const getDebugStatus = useCallback(async () => {
-        try {
-            console.log('🔧 [StudentLimit] Fetching debug status...');
-            const debugData = await fetchDebugStatus();
-            console.log('🔧 [StudentLimit] Debug status received:', debugData);
-            return debugData;
-        } catch (error) {
-            console.error('❌ [StudentLimit] Debug status failed:', error);
-            throw error;
-        }
-    }, []);
-
     return {
         // Status data
         status,
@@ -350,7 +312,6 @@ export const useStudentLimit = () => {
         refreshStatus,
         validateActivation,
         validateInvite,
-        getDebugStatus, // Debug function
 
         // Validation states
         activationValidation: {
