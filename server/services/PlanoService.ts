@@ -77,6 +77,8 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
+            console.log(`[PlanoService] 🎯 Starting plan calculation for personal: ${personalTrainerId}`);
+
             // First, try to find an active plan
             const personalPlanoAtivo = await PersonalPlano.findOne({
                 personalTrainerId,
@@ -100,22 +102,41 @@ export class PlanoService {
                 }).sort({ dataVencimento: -1 }); // Most recent expired plan
             }
 
-            // --- DIAGNOSTIC LOG ---
-            console.log(`[PlanoService] personalPlanoAtivo para ${personalTrainerId}:`, personalPlanoAtivo);
-            console.log(`[PlanoService] personalPlanoExpirado para ${personalTrainerId}:`, personalPlanoExpirado);
-            if ((personalPlanoAtivo || personalPlanoExpirado)?.planoId) {
-                const planoRef = (personalPlanoAtivo || personalPlanoExpirado)?.planoId;
-                console.log(`[PlanoService] Populated planoId type: ${typeof planoRef}`);
-                console.log(`[PlanoService] Populated planoId content:`, planoRef);
+            // --- ENHANCED DIAGNOSTIC LOG ---
+            console.log(`[PlanoService] 📋 Plan query results:`, {
+                personalId: personalTrainerId,
+                activeFound: !!personalPlanoAtivo,
+                activePlanId: personalPlanoAtivo?.planoId,
+                expiredFound: !!personalPlanoExpirado,
+                expiredPlanId: personalPlanoExpirado?.planoId,
+                timestamp: new Date().toISOString()
+            });
+            
+            if (personalPlanoAtivo?.planoId) {
+                console.log(`[PlanoService] 📝 Active plan details:`, {
+                    planoId: personalPlanoAtivo.planoId,
+                    planoType: typeof personalPlanoAtivo.planoId,
+                    planoData: personalPlanoAtivo.planoId
+                });
             }
-            // --- END DIAGNOSTIC LOG ---
+            
+            if (personalPlanoExpirado?.planoId) {
+                console.log(`[PlanoService] 📝 Expired plan details:`, {
+                    planoId: personalPlanoExpirado.planoId,
+                    planoType: typeof personalPlanoExpirado.planoId,
+                    planoData: personalPlanoExpirado.planoId
+                });
+            }
+            // --- END ENHANCED DIAGNOSTIC LOG ---
 
             const alunosAtivos = await Aluno.countDocuments({
                 trainerId: personalTrainerId,
                 status: 'active'
             });
+            console.log(`[PlanoService] 👥 Active students count: ${alunosAtivos}`);
 
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
+            console.log(`[PlanoService] 🎫 Active tokens count: ${tokensAtivos}`);
             
             let limiteAtual = 0;
             let plano: IPlano | null = null;
@@ -129,20 +150,26 @@ export class PlanoService {
                 plano = currentPersonalPlano.planoId as unknown as IPlano;
                 personalPlano = currentPersonalPlano;
                 
+                console.log(`[PlanoService] 📊 Using plan: ${plano.nome} (limit: ${plano.limiteAlunos})`);
+                
                 // For active plans, use full limit. For expired plans, limit is 0
                 if (personalPlanoAtivo) {
                     limiteAtual = plano.limiteAlunos || 0;
+                    console.log(`[PlanoService] ✅ Plan is active, using plan limit: ${limiteAtual}`);
                 } else {
                     // Plan is expired - no student limit from base plan
                     limiteAtual = 0;
                     isExpired = true;
+                    console.log(`[PlanoService] ⚠️ Plan is expired, plan limit set to 0`);
                 }
             } else {
-                console.log(`❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
+                console.log(`[PlanoService] ❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
             }
 
             // Always add active tokens to limit (even if base plan is expired)
+            const oldLimit = limiteAtual;
             limiteAtual += tokensAtivos;
+            console.log(`[PlanoService] 🧮 Final calculation: ${oldLimit} (plan) + ${tokensAtivos} (tokens) = ${limiteAtual} (total)`);
 
             const result: {
                 plano: IPlano | null;
@@ -171,6 +198,16 @@ export class PlanoService {
                     personalPlano: personalPlanoExpirado
                 };
             }
+
+            console.log(`[PlanoService] 🎯 Final result summary:`, {
+                personalId: personalTrainerId,
+                totalLimit: result.limiteAtual,
+                activeStudents: result.alunosAtivos,
+                tokensAvulsos: result.tokensAvulsos,
+                isExpired: result.isExpired,
+                planName: result.plano?.nome,
+                availableSlots: result.limiteAtual - result.alunosAtivos
+            });
 
             return result;
         } catch (error) {
@@ -210,17 +247,27 @@ export class PlanoService {
                 return 0;
             }
 
+            console.log(`[PlanoService] 🔍 Searching for active tokens for personal: ${personalTrainerId}`);
+            
             const tokens = await TokenAvulso.find({
                 personalTrainerId,
                 ativo: true,
                 dataVencimento: { $gt: new Date() }
             });
 
+            console.log(`[PlanoService] 📋 Found ${tokens.length} token records:`, 
+                tokens.map(t => ({
+                    id: t._id,
+                    quantidade: t.quantidade,
+                    ativo: t.ativo,
+                    dataVencimento: t.dataVencimento,
+                    expired: t.dataVencimento <= new Date()
+                }))
+            );
+
             const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
             
-            if (total > 0) {
-                console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
-            }
+            console.log(`[PlanoService] 💯 Total active tokens for ${personalTrainerId}: ${total}`);
             
             return total;
         } catch (error) {

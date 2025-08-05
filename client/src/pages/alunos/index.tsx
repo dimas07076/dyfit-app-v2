@@ -175,6 +175,10 @@ export default function StudentsIndex() {
             console.log("Student deleted successfully.");
             toast({ title: "Aluno Removido", description: `O aluno foi removido com sucesso.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
+            
+            // Refresh student limit status after deletion
+            queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            localStorage.setItem('studentLimitRefresh', Date.now().toString());
         },
         onError: (error) => {
             console.error("Error deleting student:", error);

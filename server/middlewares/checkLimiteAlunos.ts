@@ -11,7 +11,16 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
     try {
         const personalTrainerId = req.user?.id;
         
+        console.log(`[checkLimiteAlunos] 🔍 Middleware called for personal: ${personalTrainerId}`);
+        console.log(`[checkLimiteAlunos] 📋 Request details:`, {
+            method: req.method,
+            url: req.url,
+            userRole: req.user?.role,
+            bodyQuantidade: req.body.quantidade
+        });
+        
         if (!personalTrainerId) {
+            console.log(`[checkLimiteAlunos] ❌ Unauthorized access attempt`);
             return res.status(401).json({ 
                 message: 'Usuário não autenticado',
                 code: 'UNAUTHORIZED'
@@ -20,15 +29,28 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
 
         // Skip check for admins
         if (req.user?.role === 'admin') {
+            console.log(`[checkLimiteAlunos] 👑 Admin user, skipping limit check`);
             return next();
         }
 
         // Get requested quantity from body or default to 1
         const quantidadeDesejada = req.body.quantidade || 1;
+        console.log(`[checkLimiteAlunos] 🔢 Validating activation for quantity: ${quantidadeDesejada}`);
 
         const validation = await StudentLimitService.validateStudentActivation(personalTrainerId, quantidadeDesejada);
+        
+        console.log(`[checkLimiteAlunos] 📊 Validation result:`, {
+            isValid: validation.isValid,
+            message: validation.message,
+            errorCode: validation.errorCode,
+            currentLimit: validation.status.currentLimit,
+            activeStudents: validation.status.activeStudents,
+            availableSlots: validation.status.availableSlots,
+            tokensAvulsos: validation.status.planInfo?.tokensAvulsos
+        });
 
         if (!validation.isValid) {
+            console.log(`[checkLimiteAlunos] 🚫 Validation failed, blocking request`);
             return res.status(403).json({
                 success: false,
                 message: validation.message,
@@ -43,11 +65,12 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
             });
         }
 
+        console.log(`[checkLimiteAlunos] ✅ Validation passed, allowing request`);
         // Add status to request for potential use in controller
         (req as any).studentLimitStatus = validation.status;
         next();
     } catch (error) {
-        console.error('Error in checkLimiteAlunos middleware:', error);
+        console.error('[checkLimiteAlunos] ❌ Error in middleware:', error);
         res.status(500).json({ 
             success: false,
             message: 'Erro interno do servidor ao verificar limite de alunos',
@@ -112,7 +135,16 @@ export const checkCanSendInvite = async (req: Request, res: Response, next: Next
     try {
         const personalTrainerId = req.user?.id;
         
+        console.log(`[checkCanSendInvite] 🔍 Middleware called for personal: ${personalTrainerId}`);
+        console.log(`[checkCanSendInvite] 📋 Request details:`, {
+            method: req.method,
+            url: req.url,
+            userRole: req.user?.role,
+            bodyEmail: req.body.emailConvidado
+        });
+        
         if (!personalTrainerId) {
+            console.log(`[checkCanSendInvite] ❌ Unauthorized access attempt`);
             return res.status(401).json({ 
                 message: 'Usuário não autenticado',
                 code: 'UNAUTHORIZED'
@@ -121,12 +153,25 @@ export const checkCanSendInvite = async (req: Request, res: Response, next: Next
 
         // Skip check for admins
         if (req.user?.role === 'admin') {
+            console.log(`[checkCanSendInvite] 👑 Admin user, skipping limit check`);
             return next();
         }
 
+        console.log(`[checkCanSendInvite] 📧 Validating invite capability`);
         const validation = await StudentLimitService.validateSendInvite(personalTrainerId);
+        
+        console.log(`[checkCanSendInvite] 📊 Validation result:`, {
+            isValid: validation.isValid,
+            message: validation.message,
+            errorCode: validation.errorCode,
+            currentLimit: validation.status.currentLimit,
+            activeStudents: validation.status.activeStudents,
+            availableSlots: validation.status.availableSlots,
+            tokensAvulsos: validation.status.planInfo?.tokensAvulsos
+        });
 
         if (!validation.isValid) {
+            console.log(`[checkCanSendInvite] 🚫 Validation failed, blocking invite`);
             return res.status(403).json({
                 success: false,
                 message: validation.message,
@@ -140,11 +185,12 @@ export const checkCanSendInvite = async (req: Request, res: Response, next: Next
             });
         }
 
+        console.log(`[checkCanSendInvite] ✅ Validation passed, allowing invite`);
         // Add status to request for potential use in controller
         (req as any).studentLimitStatus = validation.status;
         next();
     } catch (error) {
-        console.error('Error in checkCanSendInvite middleware:', error);
+        console.error('[checkCanSendInvite] ❌ Error in middleware:', error);
         res.status(500).json({ 
             success: false,
             message: 'Erro interno do servidor ao verificar envio de convite',

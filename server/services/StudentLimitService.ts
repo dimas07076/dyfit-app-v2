@@ -35,21 +35,40 @@ export class StudentLimitService {
      */
     async getStudentLimitStatus(personalTrainerId: string): Promise<StudentLimitStatus> {
         try {
-            console.log(`[StudentLimitService] Getting status for personal trainer: ${personalTrainerId}`);
+            console.log(`[StudentLimitService] 🎯 Getting status for personal trainer: ${personalTrainerId}`);
             
             // Get current plan status from PlanoService
             const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
-            console.log(`[StudentLimitService] Plan status:`, {
+            console.log(`[StudentLimitService] 📊 Plan status:`, {
                 limiteAtual: planStatus.limiteAtual,
                 alunosAtivos: planStatus.alunosAtivos,
                 tokensAvulsos: planStatus.tokensAvulsos,
-                isExpired: planStatus.isExpired
+                isExpired: planStatus.isExpired,
+                planName: planStatus.plano?.nome,
+                planLimit: planStatus.plano?.limiteAlunos
             });
             
             const canActivateStatus = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
-            console.log(`[StudentLimitService] Can activate status:`, canActivateStatus);
+            console.log(`[StudentLimitService] 🔍 Can activate status:`, canActivateStatus);
 
             const limitExceeded = !canActivateStatus.canActivate;
+            console.log(`[StudentLimitService] 🚨 Limit exceeded: ${limitExceeded}`);
+            
+            // Debug breakdown
+            const planLimit = planStatus.plano?.limiteAlunos || 0;
+            const tokensLimit = planStatus.tokensAvulsos || 0;
+            const totalLimit = planLimit + tokensLimit;
+            const activeStudents = planStatus.alunosAtivos;
+            const availableSlots = totalLimit - activeStudents;
+            
+            console.log(`[StudentLimitService] 🧮 Calculation breakdown:`, {
+                planLimit,
+                tokensLimit,
+                totalLimit,
+                activeStudents,
+                availableSlots: Math.max(0, availableSlots),
+                shouldAllowActivation: availableSlots > 0
+            });
             
             let message = '';
             const recommendations: string[] = [];
