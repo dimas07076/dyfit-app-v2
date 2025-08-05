@@ -61,7 +61,18 @@ export function useAppUpdates() {
     } catch (error) {
       console.error('Error updating service worker:', error);
       setState(prev => ({ ...prev, isUpdating: false }));
+      
+      // Reset the notification state to allow retry
+      notificationsShown.current.update = false;
     }
+    
+    // Failsafe: if the update doesn't complete within 10 seconds, reset the state
+    setTimeout(() => {
+      setState(prev => ({ 
+        ...prev, 
+        isUpdating: false 
+      }));
+    }, 10000);
   };
 
   const handleOfflineReady = () => {

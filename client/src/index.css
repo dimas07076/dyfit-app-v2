@@ -338,7 +338,7 @@
   /* 🔧 ENHANCED: Toast Animations - SMOOTH & STABLE */
   [data-radix-toast-viewport] {
     position: fixed !important;
-    top: 1rem !important;
+    top: 1.5rem !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: calc(100vw - 2rem) !important;
@@ -383,11 +383,18 @@
     margin-top: 0.5rem !important;
   }
 
-  /* Mobile responsivo para toast */
+  /* Mobile responsive for toast - consistent with desktop positioning */
   @media (max-width: 640px) {
     [data-radix-toast-viewport] {
       width: calc(100vw - 1rem) !important;
-      top: 0.5rem !important;
+      top: 1rem !important;
+    }
+  }
+
+  /* Tablet responsive positioning */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    [data-radix-toast-viewport] {
+      top: 1.25rem !important;
     }
   }
 }
