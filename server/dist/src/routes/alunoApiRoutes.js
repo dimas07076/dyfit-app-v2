@@ -9,13 +9,14 @@ import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay 
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
-import { checkLimiteAlunos } from '../../middlewares/checkLimiteAlunos.js';
+import { checkLimiteAlunos, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
+import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
 // =======================================================
 // POST /api/aluno/convite - Gera um link de convite para aluno
-router.post("/convite", authenticateToken, async (req, res, next) => {
+router.post("/convite", authenticateToken, checkCanSendInvite, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -129,7 +130,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     }
 });
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;
