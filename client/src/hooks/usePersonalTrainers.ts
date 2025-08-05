@@ -257,6 +257,9 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
         variant: 'default',
       });
 
+      // Trigger student limit refresh across all tabs
+      localStorage.setItem('studentLimitRefresh', Date.now().toString());
+
       // Refresh data to get updated state
       await fetchData();
 
@@ -291,6 +294,9 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
         description: `${data.quantidade} tokens adicionados com sucesso.`,
         variant: 'default',
       });
+
+      // Trigger student limit refresh across all tabs
+      localStorage.setItem('studentLimitRefresh', Date.now().toString());
 
       // Refresh data to get updated state
       await fetchData();

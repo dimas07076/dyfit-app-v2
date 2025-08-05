@@ -127,7 +127,7 @@ const validateSendInvite = async (): Promise<StudentLimitValidation> => {
 export const useStudentLimit = () => {
     const queryClient = useQueryClient();
 
-    // Main status query
+    // Main status query with aggressive refresh settings
     const {
         data: status,
         isLoading,
@@ -142,7 +142,21 @@ export const useStudentLimit = () => {
         retry: 3, // Increased retry attempts
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
         refetchInterval: 60 * 1000, // Auto-refetch every minute
+        refetchIntervalInBackground: false, // Don't waste resources when page is hidden
     });
+
+    // Listen for storage events to detect cross-tab changes
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'studentLimitRefresh') {
+                console.log('🔄 Detected student limit refresh event from another tab');
+                queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [queryClient]);
 
     // Validation mutations
     const activationValidation = useMutation<StudentLimitValidation, Error, number>({
@@ -182,6 +196,8 @@ export const useStudentLimit = () => {
     // Invalidate and refetch status (useful after student operations)
     const refreshStatus = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+        // Trigger refresh across tabs
+        localStorage.setItem('studentLimitRefresh', Date.now().toString());
         return refetch();
     }, [queryClient, refetch]);
 
