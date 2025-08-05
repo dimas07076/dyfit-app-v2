@@ -151,7 +151,10 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
         alunosAtivos: personal.alunosAtivos || 0,
         limiteAlunos: personal.limiteAlunos || 0,
         percentualUso: personal.percentualUso || 0,
-        hasActivePlan: planId !== null && planoAtual !== 'Sem plano',
+        hasActivePlan: planId !== null && planoAtual !== 'Sem plano' && !personal.isExpired,
+        isExpired: personal.isExpired || false, // Handle expired plan status
+        dataInicio: personal.dataInicio || null, // Preserve plan start date
+        dataVencimento: personal.dataVencimento || null, // Preserve plan expiration date
         planDetails,
       };
 
