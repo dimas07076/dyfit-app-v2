@@ -230,6 +230,15 @@ router.get('/personal-trainers', async (req, res) => {
                         status.plano.nome : 
                         'Sem plano';
                     
+                    // Extract plan dates - prefer active plan, fallback to expired plan
+                    let dataInicio = null;
+                    let dataVencimento = null;
+                    
+                    if (status.personalPlano) {
+                        dataInicio = status.personalPlano.dataInicio;
+                        dataVencimento = status.personalPlano.dataVencimento;
+                    }
+                    
                     const personalData = {
                         _id: personal._id,
                         nome: personal.nome,
@@ -245,7 +254,10 @@ router.get('/personal-trainers', async (req, res) => {
                         alunosAtivos: status.alunosAtivos,
                         limiteAlunos: status.limiteAtual, // Total limit: base plan + active tokens
                         percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
-                        hasActivePlan: !!(status.plano && status.plano.nome),
+                        hasActivePlan: !!(status.plano && status.plano.nome && !status.isExpired),
+                        isExpired: status.isExpired, // New field for expiration status
+                        dataInicio: dataInicio, // Plan start date (preserved when expired)
+                        dataVencimento: dataVencimento, // Plan expiration date (preserved when expired)
                         planDetails: (status.plano && status.plano.nome) ? {
                             id: status.plano._id,
                             nome: status.plano.nome,
@@ -273,6 +285,9 @@ router.get('/personal-trainers', async (req, res) => {
                         limiteAlunos: 0,
                         percentualUso: 0,
                         hasActivePlan: false,
+                        isExpired: false,
+                        dataInicio: null,
+                        dataVencimento: null,
                         planDetails: null
                     };
                 }

@@ -4,7 +4,7 @@ import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Alert, AlertDescription } from '../../components/ui/alert';
-import { Search, RefreshCw, Mail, User, AlertCircle, CheckCircle, Clock, Users, Trophy, Zap } from 'lucide-react';
+import { Search, RefreshCw, Mail, User, AlertCircle, CheckCircle, Clock, Users, Trophy, Zap, Calendar, X } from 'lucide-react';
 import { PlanoModal } from '../../components/dialogs/admin/PlanoModal';
 import { PersonalTrainerWithStatus, AssignPlanForm, AddTokensForm } from '../../../../shared/types/planos';
 import { usePersonalTrainers } from '../../hooks/usePersonalTrainers';
@@ -106,18 +106,34 @@ export function GerenciarPlanosPersonalPage() {
         return 'Normal';
     };
 
-    const getPlanBadgeVariant = (planName: string) => {
+    const getPlanBadgeVariant = (planName: string, isExpired: boolean) => {
+        if (isExpired) return 'destructive';
         if (planName === 'Sem plano') return 'outline';
         if (planName === 'Free') return 'secondary';
         return 'default';
+    };
+
+    const getCardClasses = (isExpired: boolean) => {
+        if (isExpired) {
+            return "group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-red-300 bg-gradient-to-br from-red-50 to-red-100/50 relative overflow-hidden";
+        }
+        return "group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-gray-200 bg-gradient-to-br from-white to-blue-50/30 relative overflow-hidden";
+    };
+
+    const getStatusIndicatorColor = (percentual: number, isExpired: boolean) => {
+        if (isExpired) return 'bg-red-500';
+        if (percentual >= 90) return 'bg-red-500';
+        if (percentual >= 70) return 'bg-yellow-500';
+        return 'bg-green-500';
     };
 
     // Statistics
     const stats = {
         total: personalTrainers.length,
         withPlans: personalTrainers.filter(p => p.hasActivePlan).length,
-        critical: personalTrainers.filter(p => p.percentualUso >= 90).length,
-        warning: personalTrainers.filter(p => p.percentualUso >= 70 && p.percentualUso < 90).length,
+        expired: personalTrainers.filter(p => p.isExpired).length,
+        critical: personalTrainers.filter(p => p.percentualUso >= 90 && !p.isExpired).length,
+        warning: personalTrainers.filter(p => p.percentualUso >= 70 && p.percentualUso < 90 && !p.isExpired).length,
     };
 
     if (loading && personalTrainers.length === 0) {
@@ -176,7 +192,7 @@ export function GerenciarPlanosPersonalPage() {
             )}
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
@@ -201,6 +217,18 @@ export function GerenciarPlanosPersonalPage() {
                     </CardContent>
                 </Card>
 
+                <Card className="border-red-200 bg-gradient-to-br from-red-50 to-red-100">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-red-600">Expirados</p>
+                                <p className="text-2xl font-bold text-red-800">{stats.expired}</p>
+                            </div>
+                            <Calendar className="w-8 h-8 text-red-600" />
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-yellow-100">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
@@ -213,14 +241,14 @@ export function GerenciarPlanosPersonalPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-red-200 bg-gradient-to-br from-red-50 to-red-100">
+                <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-red-600">Crítico</p>
-                                <p className="text-2xl font-bold text-red-800">{stats.critical}</p>
+                                <p className="text-sm font-medium text-orange-600">Crítico</p>
+                                <p className="text-2xl font-bold text-orange-800">{stats.critical}</p>
                             </div>
-                            <AlertCircle className="w-8 h-8 text-red-600" />
+                            <AlertCircle className="w-8 h-8 text-orange-600" />
                         </div>
                     </CardContent>
                 </Card>
@@ -282,20 +310,28 @@ export function GerenciarPlanosPersonalPage() {
                             return (
                                 <Card 
                                     key={personal._id} 
-                                    className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-gray-200 bg-gradient-to-br from-white to-blue-50/30 relative overflow-hidden"
+                                    className={getCardClasses(personal.isExpired)}
                                 >
-                                    {/* Status indicator */}
-                                    <div className={`absolute top-0 left-0 w-full h-1 ${getStatusColor(personal.percentualUso)}`} />
+                                    {/* Status indicator - red for expired plans */}
+                                    <div className={`absolute top-0 left-0 w-full h-1 ${getStatusIndicatorColor(personal.percentualUso, personal.isExpired)}`} />
                                     
                                     <CardContent className="p-6">
                                         <div className="space-y-4">
                                             {/* Header with avatar and name */}
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg ${
+                                                    personal.isExpired 
+                                                        ? 'bg-gradient-to-br from-red-500 to-red-700' 
+                                                        : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                                                }`}>
                                                     {personal.nome.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <h3 className="font-semibold text-lg text-gray-800 group-hover:text-blue-600 transition-colors">
+                                                    <h3 className={`font-semibold text-lg transition-colors ${
+                                                        personal.isExpired 
+                                                            ? 'text-red-800 group-hover:text-red-900' 
+                                                            : 'text-gray-800 group-hover:text-blue-600'
+                                                    }`}>
                                                         {personal.nome}
                                                     </h3>
                                                     <div className="flex items-center gap-2 mt-1">
@@ -305,11 +341,26 @@ export function GerenciarPlanosPersonalPage() {
                                                 </div>
                                             </div>
 
+                                            {/* Expired Plan Badge */}
+                                            {personal.isExpired && (
+                                                <div className="flex items-center gap-2 p-3 bg-red-100 border border-red-300 rounded-lg">
+                                                    <X className="w-4 h-4 text-red-600" />
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-red-800">Plano Expirado</p>
+                                                        {personal.dataVencimento && (
+                                                            <p className="text-xs text-red-600">
+                                                                Venceu em: {new Date(personal.dataVencimento).toLocaleDateString('pt-BR')}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Plan Information */}
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-sm text-gray-600">Plano Atual</span>
-                                                    <Badge variant={getPlanBadgeVariant(planName)} className="text-xs">
+                                                    <Badge variant={getPlanBadgeVariant(planName, personal.isExpired)} className="text-xs">
                                                         {planName}
                                                     </Badge>
                                                 </div>
@@ -318,6 +369,20 @@ export function GerenciarPlanosPersonalPage() {
                                                     <div className="text-xs text-gray-500 grid grid-cols-2 gap-2">
                                                         <div>Limite: {plan.limiteAlunos}</div>
                                                         <div>Preço: R$ {plan.preco.toFixed(2)}</div>
+                                                    </div>
+                                                )}
+
+                                                {/* Plan Dates for Expired Plans */}
+                                                {personal.isExpired && personal.dataInicio && personal.dataVencimento && (
+                                                    <div className="text-xs text-gray-500 grid grid-cols-2 gap-2 pt-2 border-t border-gray-200">
+                                                        <div>
+                                                            <span className="text-gray-400">Início:</span><br/>
+                                                            {new Date(personal.dataInicio).toLocaleDateString('pt-BR')}
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-400">Fim:</span><br/>
+                                                            {new Date(personal.dataVencimento).toLocaleDateString('pt-BR')}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -340,20 +405,26 @@ export function GerenciarPlanosPersonalPage() {
                                                             {getStatusIcon(personal.percentualUso)}
                                                             <span className="text-gray-600">Status</span>
                                                         </div>
-                                                        <span className="font-medium">{personal.percentualUso}%</span>
+                                                        <span className="font-medium">
+                                                            {personal.isExpired ? 'Expirado' : `${personal.percentualUso}%`}
+                                                        </span>
                                                     </div>
                                                     
                                                     <div className="w-full bg-gray-200 rounded-full h-2">
                                                         <div 
-                                                            className={`h-2 rounded-full transition-all duration-300 ${getStatusColor(personal.percentualUso)}`}
-                                                            style={{ width: `${Math.min(personal.percentualUso, 100)}%` }}
+                                                            className={`h-2 rounded-full transition-all duration-300 ${getStatusIndicatorColor(personal.percentualUso, personal.isExpired)}`}
+                                                            style={{ 
+                                                                width: personal.isExpired ? '100%' : `${Math.min(personal.percentualUso, 100)}%` 
+                                                            }}
                                                         />
                                                     </div>
                                                     
                                                     <div className="flex justify-between text-xs text-gray-500">
                                                         <span>0</span>
-                                                        <span className="font-medium">{getStatusText(personal.percentualUso)}</span>
-                                                        <span>100%</span>
+                                                        <span className="font-medium">
+                                                            {personal.isExpired ? 'Expirado' : getStatusText(personal.percentualUso)}
+                                                        </span>
+                                                        <span>{personal.isExpired ? 'Renovar' : '100%'}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -362,11 +433,15 @@ export function GerenciarPlanosPersonalPage() {
                                             <div className="pt-2">
                                                 <Button
                                                     onClick={() => openModal(personal)}
-                                                    className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
+                                                    className={`w-full border-0 shadow-md hover:shadow-lg transition-all duration-200 ${
+                                                        personal.isExpired
+                                                            ? 'bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white'
+                                                            : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white'
+                                                    }`}
                                                     size="sm"
                                                 >
                                                     <Zap className="w-4 h-4 mr-2" />
-                                                    Gerenciar Plano
+                                                    {personal.isExpired ? 'Renovar Plano' : 'Gerenciar Plano'}
                                                 </Button>
                                             </div>
                                         </div>

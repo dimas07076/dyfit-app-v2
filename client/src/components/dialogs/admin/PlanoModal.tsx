@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../../../shared/types/planos';
 import { Badge } from '../../ui/badge';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { CalendarDays, Users, Clock, DollarSign, AlertCircle, CheckCircle, XCircle, Info, Loader2 } from 'lucide-react';
+import { CalendarDays, Users, Clock, DollarSign, AlertCircle, CheckCircle, XCircle, Info, Loader2, Calendar, X } from 'lucide-react';
 
 interface PlanoModalProps {
   isOpen: boolean;
@@ -211,11 +211,34 @@ export function PlanoModal({
               </div>
             </div>
 
+            {/* Expired Plan Alert */}
+            {personal.isExpired && (
+              <div className="bg-red-50 border-2 border-red-200 p-6 rounded-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <X className="w-6 h-6 text-red-600" />
+                  <h3 className="font-semibold text-lg text-red-800">Plano Expirado</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-red-700">
+                    Este plano expirou e o personal trainer não pode mais ativar novos alunos.
+                  </p>
+                  {personal.dataVencimento && (
+                    <p className="text-sm text-red-600">
+                      <strong>Data de expiração:</strong> {new Date(personal.dataVencimento).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                  <p className="text-sm text-red-600 font-medium">
+                    Para reativar o acesso, atribua um novo plano ao personal trainer.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Current Plan Status - Enhanced Display */}
-            <div className="bg-white border-2 p-6 rounded-lg">
+            <div className={`border-2 p-6 rounded-lg ${personal.isExpired ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
               <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-purple-600" />
-                Status do Plano Atual
+                <CalendarDays className={`w-5 h-5 ${personal.isExpired ? 'text-red-600' : 'text-purple-600'}`} />
+                {personal.isExpired ? 'Status do Plano Expirado' : 'Status do Plano Atual'}
               </h3>
               
               {loadingStatus ? (
@@ -227,15 +250,19 @@ export function PlanoModal({
                 <div className="space-y-6">
                   {/* Primary Status Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className={`p-4 rounded-lg border ${personal.isExpired ? 'bg-red-100 border-red-300' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <CalendarDays className="w-5 h-5 text-blue-600" />
-                        <Info className="w-4 h-4 text-blue-400" />
+                        <CalendarDays className={`w-5 h-5 ${personal.isExpired ? 'text-red-600' : 'text-blue-600'}`} />
+                        <Info className={`w-4 h-4 ${personal.isExpired ? 'text-red-400' : 'text-blue-400'}`} />
                       </div>
-                      <p className="text-sm text-blue-600 font-medium">Plano Atual</p>
-                      <p className="font-bold text-lg text-blue-800">{currentPlanName}</p>
+                      <p className={`text-sm font-medium ${personal.isExpired ? 'text-red-600' : 'text-blue-600'}`}>
+                        {personal.isExpired ? 'Plano Expirado' : 'Plano Atual'}
+                      </p>
+                      <p className={`font-bold text-lg ${personal.isExpired ? 'text-red-800' : 'text-blue-800'}`}>
+                        {currentPlanName}
+                      </p>
                       {personal.planoId && (
-                        <p className="text-xs text-blue-500 mt-1">
+                        <p className={`text-xs mt-1 ${personal.isExpired ? 'text-red-500' : 'text-blue-500'}`}>
                           ID: {personal.planoId.substring(0, 8)}...
                         </p>
                       )}
@@ -252,33 +279,60 @@ export function PlanoModal({
                       </p>
                     </div>
                     
-                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <div className={`p-4 rounded-lg border ${
+                      personal.isExpired 
+                        ? 'bg-red-100 border-red-300' 
+                        : personal.percentualUso >= 90 
+                          ? 'bg-red-50 border-red-200' 
+                          : personal.percentualUso >= 70 
+                            ? 'bg-yellow-50 border-yellow-200' 
+                            : 'bg-green-50 border-green-200'
+                    }`}>
                       <div className="flex items-center justify-between mb-2">
-                        {getStatusIcon(personal.percentualUso)}
+                        {personal.isExpired ? (
+                          <X className="w-4 h-4 text-red-500" />
+                        ) : (
+                          getStatusIcon(personal.percentualUso)
+                        )}
                         <Badge variant={
+                          personal.isExpired ? 'destructive' :
                           personal.percentualUso >= 90 ? 'destructive' : 
                           personal.percentualUso >= 70 ? 'default' : 'secondary'
                         }>
-                          {getStatusText(personal.percentualUso)}
+                          {personal.isExpired ? 'Expirado' : getStatusText(personal.percentualUso)}
                         </Badge>
                       </div>
-                      <p className="text-sm text-purple-600 font-medium">Status</p>
-                      <p className="font-bold text-lg text-purple-800">
-                        {personal.percentualUso}% usado
+                      <p className={`text-sm font-medium ${
+                        personal.isExpired ? 'text-red-600' : 
+                        personal.percentualUso >= 90 ? 'text-red-600' : 
+                        personal.percentualUso >= 70 ? 'text-yellow-600' : 'text-green-600'
+                      }`}>Status</p>
+                      <p className={`font-bold text-lg ${
+                        personal.isExpired ? 'text-red-800' : 
+                        personal.percentualUso >= 90 ? 'text-red-800' : 
+                        personal.percentualUso >= 70 ? 'text-yellow-800' : 'text-green-800'
+                      }`}>
+                        {personal.isExpired ? 'Bloqueado' : `${personal.percentualUso}% usado`}
                       </p>
                     </div>
                     
                     <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                       <div className="flex items-center justify-between mb-2">
-                        <div className={`w-3 h-3 rounded-full ${getStatusColor(personal.percentualUso)}`} />
+                        <div className={`w-3 h-3 rounded-full ${
+                          personal.isExpired ? 'bg-red-500' : getStatusColor(personal.percentualUso)
+                        }`} />
                         <Clock className="w-4 h-4 text-orange-400" />
                       </div>
                       <p className="text-sm text-orange-600 font-medium">Utilização</p>
                       <div className="mt-2">
                         <div className="w-full bg-orange-200 rounded-full h-3">
                           <div 
-                            className={`h-3 rounded-full transition-all duration-300 ${getStatusColor(personal.percentualUso)}`}
-                            style={{ width: `${Math.min(personal.percentualUso, 100)}%` }}
+                            className={`h-3 rounded-full transition-all duration-300 ${
+                              personal.isExpired ? 'bg-red-500' : getStatusColor(personal.percentualUso)
+                            }`}
+                            style={{ 
+                              width: personal.isExpired ? '100%' : `${Math.min(personal.percentualUso, 100)}%` 
+                            }}
                           />
                         </div>
                       </div>
@@ -309,28 +363,42 @@ export function PlanoModal({
                     </div>
                   )}
 
-                  {/* Additional Details from Server */}
-                  {detailedStatus && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-semibold mb-3">Informações Adicionais</h4>
+                  {/* Plan History/Dates - Always show if available */}
+                  {(personal.dataInicio || personal.dataVencimento || detailedStatus?.currentPlan?.personalPlano) && (
+                    <div className={`p-4 rounded-lg ${personal.isExpired ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Calendar className={`w-4 h-4 ${personal.isExpired ? 'text-red-600' : 'text-blue-600'}`} />
+                        {personal.isExpired ? 'Histórico do Plano Expirado' : 'Datas do Plano'}
+                      </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {detailedStatus.currentPlan?.personalPlano && (
-                          <>
-                            <div>
-                              <span className="text-gray-600">Início da Assinatura:</span>
-                              <p className="font-medium">
-                                {new Date(detailedStatus.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Fim da Assinatura:</span>
-                              <p className="font-medium">
-                                {new Date(detailedStatus.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')}
-                              </p>
-                            </div>
-                          </>
+                        {/* Show dates from personal object first, then fall back to detailed status */}
+                        {(personal.dataInicio || detailedStatus?.currentPlan?.personalPlano?.dataInicio) && (
+                          <div>
+                            <span className={`${personal.isExpired ? 'text-red-600' : 'text-gray-600'}`}>
+                              {personal.isExpired ? 'Data de Início (Expirado):' : 'Início da Assinatura:'}
+                            </span>
+                            <p className="font-medium">
+                              {personal.dataInicio 
+                                ? new Date(personal.dataInicio).toLocaleDateString('pt-BR')
+                                : new Date(detailedStatus.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')
+                              }
+                            </p>
+                          </div>
                         )}
-                        {detailedStatus.activeTokens?.length > 0 && (
+                        {(personal.dataVencimento || detailedStatus?.currentPlan?.personalPlano?.dataVencimento) && (
+                          <div>
+                            <span className={`${personal.isExpired ? 'text-red-600' : 'text-gray-600'}`}>
+                              {personal.isExpired ? 'Data de Expiração:' : 'Fim da Assinatura:'}
+                            </span>
+                            <p className={`font-medium ${personal.isExpired ? 'text-red-700' : ''}`}>
+                              {personal.dataVencimento 
+                                ? new Date(personal.dataVencimento).toLocaleDateString('pt-BR')
+                                : new Date(detailedStatus.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')
+                              }
+                            </p>
+                          </div>
+                        )}
+                        {detailedStatus?.activeTokens?.length > 0 && (
                           <div className="md:col-span-2">
                             <span className="text-gray-600">Tokens Ativos:</span>
                             <p className="font-medium">
@@ -339,6 +407,16 @@ export function PlanoModal({
                           </div>
                         )}
                       </div>
+                      
+                      {/* Duration calculation for expired plans */}
+                      {personal.isExpired && personal.dataInicio && personal.dataVencimento && (
+                        <div className="mt-3 pt-3 border-t border-red-200">
+                          <div className="text-sm text-red-600">
+                            <strong>Duração do plano:</strong> {' '}
+                            {Math.ceil((new Date(personal.dataVencimento).getTime() - new Date(personal.dataInicio).getTime()) / (1000 * 60 * 60 * 24))} dias
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -67,6 +67,9 @@ export interface PersonalTrainerWithStatus {
     limiteAlunos: number; // Total limit including base plan + active tokens
     percentualUso: number;
     hasActivePlan: boolean;
+    isExpired: boolean; // New field to indicate if current plan is expired
+    dataInicio: Date | null; // Plan start date (preserved even when expired)
+    dataVencimento: Date | null; // Plan expiration date (preserved even when expired)
     planDetails: {
         id: string;
         nome: string;

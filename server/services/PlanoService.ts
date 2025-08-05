@@ -57,6 +57,7 @@ const INITIAL_PLANS = [
 export class PlanoService {
     /**
      * Get current active plan for a personal trainer
+     * Enhanced to also return expired plan information for admin visibility
      */
     async getPersonalCurrentPlan(personalTrainerId: string): Promise<{
         plano: IPlano | null;
@@ -64,6 +65,11 @@ export class PlanoService {
         limiteAtual: number;
         alunosAtivos: number;
         tokensAvulsos: number;
+        isExpired: boolean;
+        expiredPlan?: {
+            plano: IPlano | null;
+            personalPlano: IPersonalPlano | null;
+        };
     }> {
         try {
             // Validate input
@@ -71,6 +77,7 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
+            // First, try to find an active plan
             const personalPlanoAtivo = await PersonalPlano.findOne({
                 personalTrainerId,
                 ativo: true,
@@ -80,11 +87,26 @@ export class PlanoService {
                 model: 'Plano'
             }).sort({ dataInicio: -1 });
 
+            // If no active plan, look for the most recent expired plan
+            let personalPlanoExpirado = null;
+            if (!personalPlanoAtivo) {
+                personalPlanoExpirado = await PersonalPlano.findOne({
+                    personalTrainerId,
+                    ativo: true, // Still marked as active but expired by date
+                    dataVencimento: { $lte: new Date() }
+                }).populate({
+                    path: 'planoId',
+                    model: 'Plano'
+                }).sort({ dataVencimento: -1 }); // Most recent expired plan
+            }
+
             // --- DIAGNOSTIC LOG ---
             console.log(`[PlanoService] personalPlanoAtivo para ${personalTrainerId}:`, personalPlanoAtivo);
-            if (personalPlanoAtivo && personalPlanoAtivo.planoId) {
-                console.log(`[PlanoService] Populated planoId type: ${typeof personalPlanoAtivo.planoId}`);
-                console.log(`[PlanoService] Populated planoId content:`, personalPlanoAtivo.planoId);
+            console.log(`[PlanoService] personalPlanoExpirado para ${personalTrainerId}:`, personalPlanoExpirado);
+            if ((personalPlanoAtivo || personalPlanoExpirado)?.planoId) {
+                const planoRef = (personalPlanoAtivo || personalPlanoExpirado)?.planoId;
+                console.log(`[PlanoService] Populated planoId type: ${typeof planoRef}`);
+                console.log(`[PlanoService] Populated planoId content:`, planoRef);
             }
             // --- END DIAGNOSTIC LOG ---
 
@@ -96,26 +118,61 @@ export class PlanoService {
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
             
             let limiteAtual = 0;
-            let plano: IPlano | null = null; // Explicitly type plano as IPlano | null
+            let plano: IPlano | null = null;
+            let personalPlano: IPersonalPlano | null = null;
+            let isExpired = false;
 
-            // Ensure planoId is populated and is an object before accessing its properties
-            if (personalPlanoAtivo && personalPlanoAtivo.planoId && typeof personalPlanoAtivo.planoId === 'object' && 'nome' in personalPlanoAtivo.planoId) {
-                // Correção do erro de tipagem: converte para 'unknown' primeiro
-                plano = personalPlanoAtivo.planoId as unknown as IPlano;
-                limiteAtual = plano.limiteAlunos || 0;
+            // Determine which plan to use for current status
+            const currentPersonalPlano = personalPlanoAtivo || personalPlanoExpirado;
+            
+            if (currentPersonalPlano && currentPersonalPlano.planoId && typeof currentPersonalPlano.planoId === 'object' && 'nome' in currentPersonalPlano.planoId) {
+                plano = currentPersonalPlano.planoId as unknown as IPlano;
+                personalPlano = currentPersonalPlano;
+                
+                // For active plans, use full limit. For expired plans, limit is 0
+                if (personalPlanoAtivo) {
+                    limiteAtual = plano.limiteAlunos || 0;
+                } else {
+                    // Plan is expired - no student limit from base plan
+                    limiteAtual = 0;
+                    isExpired = true;
+                }
             } else {
-                console.log(`❌ No active plan document found or populated for personal ${personalTrainerId}`);
+                console.log(`❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
             }
 
+            // Always add active tokens to limit (even if base plan is expired)
             limiteAtual += tokensAtivos;
 
-            return {
+            const result: {
+                plano: IPlano | null;
+                personalPlano: IPersonalPlano | null;
+                limiteAtual: number;
+                alunosAtivos: number;
+                tokensAvulsos: number;
+                isExpired: boolean;
+                expiredPlan?: {
+                    plano: IPlano | null;
+                    personalPlano: IPersonalPlano | null;
+                };
+            } = {
                 plano,
-                personalPlano: personalPlanoAtivo,
+                personalPlano,
                 limiteAtual,
                 alunosAtivos,
-                tokensAvulsos: tokensAtivos
+                tokensAvulsos: tokensAtivos,
+                isExpired
             };
+
+            // Include expired plan info if we have one but no active plan
+            if (personalPlanoExpirado && !personalPlanoAtivo) {
+                result.expiredPlan = {
+                    plano: plano,
+                    personalPlano: personalPlanoExpirado
+                };
+            }
+
+            return result;
         } catch (error) {
             console.error('❌ Erro ao buscar plano atual do personal:', error);
             throw error;
