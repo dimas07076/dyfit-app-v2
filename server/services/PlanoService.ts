@@ -500,6 +500,16 @@ export class PlanoService {
             currentPlan.ativo = false;
             await currentPlan.save();
 
+            // Clear the PersonalTrainer model fields to ensure UI reflects no plan status
+            const PersonalTrainer = (await import('../models/PersonalTrainer.js')).default;
+            await PersonalTrainer.findByIdAndUpdate(personalTrainerId, {
+                planoId: null,
+                statusAssinatura: 'sem_assinatura',
+                dataInicioAssinatura: null,
+                dataFimAssinatura: null,
+                limiteAlunos: 0
+            });
+
             console.log(`✅ Plano removido: ${(currentPlan.planoId as any)?.nome} do personal ${personalTrainerId} por admin ${removedByAdminId}`);
 
             return {
