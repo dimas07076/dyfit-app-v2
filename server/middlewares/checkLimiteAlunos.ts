@@ -25,23 +25,17 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
         // Get requested quantity from body or default to 1
         const quantidadeDesejada = req.body.quantidade || 1;
 
-        const status = await PlanoService.canActivateMoreStudents(personalTrainerId, quantidadeDesejada);
+        // Use the new StudentLimitService for validation
+        const validationResult = await StudentLimitService.validateStudentActivation(personalTrainerId, quantidadeDesejada);
 
-        if (!status.canActivate) {
+        if (!validationResult.success) {
             return res.status(403).json({
-                message: 'Limite de alunos ativos excedido',
-                code: 'STUDENT_LIMIT_EXCEEDED',
-                data: {
-                    currentLimit: status.currentLimit,
-                    activeStudents: status.activeStudents,
-                    availableSlots: status.availableSlots,
-                    requestedQuantity: quantidadeDesejada
-                }
+                message: validationResult.message,
+                code: validationResult.code,
+                data: validationResult.data
             });
         }
 
-        // Add status to request for potential use in controller
-        (req as any).studentLimitStatus = status;
         next();
     } catch (error) {
         console.error('Error in checkLimiteAlunos middleware:', error);
@@ -72,17 +66,13 @@ export const checkCanActivateStudent = async (req: Request, res: Response, next:
             return next();
         }
 
-        const status = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        const validationResult = await StudentLimitService.validateStudentActivation(personalTrainerId, 1);
 
-        if (!status.canActivate) {
+        if (!validationResult.success) {
             return res.status(403).json({
-                message: 'Não é possível ativar mais alunos. Limite excedido.',
-                code: 'STUDENT_LIMIT_EXCEEDED',
-                data: {
-                    currentLimit: status.currentLimit,
-                    activeStudents: status.activeStudents,
-                    availableSlots: status.availableSlots
-                }
+                message: validationResult.message,
+                code: validationResult.code,
+                data: validationResult.data
             });
         }
 

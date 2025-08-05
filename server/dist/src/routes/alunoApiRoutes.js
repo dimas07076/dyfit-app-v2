@@ -70,7 +70,7 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         return res.status(401).json({ erro: "Usuário não autenticado." });
     }
     try {
-        const { nome, email, password, phone, birthDate, goal, weight, height, startDate } = req.body;
+        const { nome, email, password, phone, birthDate, gender, goal, weight, height, startDate, status, notes } = req.body;
         if (!nome || !email || !password) {
             return res.status(400).json({ erro: "Nome, email e senha são obrigatórios." });
         }
@@ -84,12 +84,14 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             passwordHash: password,
             trainerId: new mongoose.Types.ObjectId(trainerId),
             phone,
-            birthDate: birthDate ? new Date(birthDate) : undefined,
+            birthDate,
+            gender,
             goal,
             weight: weight ? parseFloat(weight) : undefined,
             height: height ? parseInt(height) : undefined,
-            startDate: startDate ? new Date(startDate) : new Date(),
-            status: 'active'
+            startDate,
+            status: status || 'active',
+            notes
         });
         // Consume tokens if necessary before saving
         await StudentLimitService.consumeTokensForActivation(trainerId, 1);
