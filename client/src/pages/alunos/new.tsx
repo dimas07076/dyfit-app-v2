@@ -7,11 +7,14 @@ import { ChevronLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { Aluno } from "@/types/aluno";
+import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
+import useStudentLimit from "@/hooks/useStudentLimit";
 
 export default function NewStudent() {
     const [, navigate] = useLocation();
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const { status, isLoading: isLimitLoading, canActivateStudents, refreshStatus } = useStudentLimit();
 
     // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
     const mutation = useMutation<Aluno, Error, StudentFormDataProcessed>({
@@ -24,6 +27,8 @@ export default function NewStudent() {
         onSuccess: (createdStudent) => {
             toast({ title: "Aluno Cadastrado!", description: `${createdStudent?.nome || 'Aluno'} adicionado com sucesso.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
+            // Refresh student limit status after successful creation
+            refreshStatus();
             navigate("/alunos");
         },
         onError: (error) => {
@@ -41,12 +46,21 @@ export default function NewStudent() {
                 <CardHeader>
                     <CardTitle>Adicionar Novo Aluno</CardTitle>
                     <CardDescription>Insira os dados do novo aluno para começar.</CardDescription>
+                    {/* Student Limit Status */}
+                    <div className="mt-4">
+                        <StudentLimitIndicator 
+                            variant="detailed" 
+                            showProgress={true} 
+                            showRecommendations={!canActivateStudents(1)}
+                        />
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <StudentForm
                         onSubmit={(formData) => mutation.mutate(formData)}
                         isLoading={mutation.isPending}
                         isEditing={false}
+                        disabled={!canActivateStudents(1) && !isLimitLoading}
                     />
                 </CardContent>
             </Card>

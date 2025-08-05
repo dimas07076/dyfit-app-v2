@@ -19,6 +19,7 @@ import AlunoViewModal from "@/components/dialogs/AlunoViewModal";
 import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
 
 const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
     const getInitials = (nome: string) => {
@@ -205,7 +206,7 @@ export default function StudentsIndex() {
                 <CardHeader className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between 
                                      px-6 py-6 md:px-8 md:py-8 border-b border-gray-100 dark:border-slate-700/50 
                                      bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
-                    <div className="space-y-2 mb-4 sm:mb-0">
+                    <div className="space-y-2 mb-4 sm:mb-0 flex-1">
                         <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 
                                            dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 
                                            bg-clip-text text-transparent">
@@ -214,6 +215,10 @@ export default function StudentsIndex() {
                         <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base leading-relaxed">
                             Visualize e gerencie todos os seus alunos cadastrados.
                         </p>
+                        {/* Student Limit Indicator */}
+                        <div className="mt-3">
+                            <StudentLimitIndicator variant="compact" showProgress={true} />
+                        </div>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">

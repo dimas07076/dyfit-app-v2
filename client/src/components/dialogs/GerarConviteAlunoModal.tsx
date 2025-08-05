@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Loader2, Copy, Check } from 'lucide-react';
+import { StudentLimitIndicator } from '@/components/StudentLimitIndicator';
+import useStudentLimit from '@/hooks/useStudentLimit';
 
 const formSchema = z.object({
   email: z.string().email("Se preenchido, deve ser um e-mail válido.").optional().or(z.literal('')),
@@ -31,6 +33,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
   const [view, setView] = useState<'form' | 'success'>('form');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const { canSendInvites, validateInvite, inviteValidation } = useStudentLimit();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -63,7 +66,23 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
     },
   });
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = async (data: FormValues) => {
+    // Pre-validate before making API call
+    try {
+      const validation = await validateInvite();
+      if (!validation.isValid) {
+        toast({
+          variant: "destructive",
+          title: "Limite de alunos atingido",
+          description: validation.message,
+        });
+        return;
+      }
+    } catch (error) {
+      // If validation fails, still proceed to let the server handle it
+      console.warn('Client-side validation failed, proceeding to server validation');
+    }
+    
     mutation.mutate(data);
   };
 
@@ -96,8 +115,23 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
         </DialogHeader>
         
         {view === 'form' && (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <>
+            {/* Student Limit Status */}
+            <div className="mb-4">
+              <StudentLimitIndicator 
+                variant="compact" 
+                showProgress={true} 
+                className="mb-2"
+              />
+              {!canSendInvites() && (
+                <p className="text-sm text-destructive">
+                  Não é possível enviar convites. Limite de alunos atingido.
+                </p>
+              )}
+            </div>
+            
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -113,13 +147,14 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
               />
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={onClose}>Cancelar</Button>
-                <Button type="submit" disabled={mutation.isPending}>
+                <Button type="submit" disabled={mutation.isPending || !canSendInvites()}>
                   {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Gerar Link
                 </Button>
               </DialogFooter>
             </form>
           </Form>
+          </>
         )}
 
         {view === 'success' && inviteLink && (
