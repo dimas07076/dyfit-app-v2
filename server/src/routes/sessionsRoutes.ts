@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
-import Sessao, { ISessaoLean, ISessaoDocument, TipoCompromisso, TIPOS_COMPROMISSO, OpcaoPSE } from '../../models/Sessao.js';
+import Sessao, { ISessaoLean, ISessaoDocument, TipoCompromisso, TIPOS_COMPROMISSO, OpcaoPSE, DetalheAumentoCarga } from '../../models/Sessao.js';
 import Aluno from '../../models/Aluno.js';
 import Treino, { ITreino } from '../../models/Treino.js';
 import dbConnect from '../../lib/dbConnect.js';
@@ -75,12 +75,62 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             });
         }
 
+        // Buscar sessão anterior do mesmo aluno/rotina/dia para comparar cargas
+        let aumentouCarga = false;
+        let detalhesAumentoCarga: DetalheAumentoCarga[] = [];
+
+        if (cargas && Object.keys(cargas).length > 0) {
+            try {
+                const sessaoAnterior = await Sessao.findOne({
+                    alunoId: new Types.ObjectId(alunoId),
+                    rotinaId: rotina._id,
+                    diaDeTreinoId: diaDeTreino._id,
+                    status: 'completed'
+                })
+                .sort({ concluidaEm: -1 })
+                .session(mongoTransactionSession);
+
+                if (sessaoAnterior && sessaoAnterior.cargasExecutadas) {
+                    const cargasAnteriores = sessaoAnterior.cargasExecutadas;
+                    
+                    // Comparar cargas exercício por exercício
+                    for (const [exercicioId, cargaAtual] of Object.entries(cargas)) {
+                        // Lidar com Map ou objeto plano
+                        let cargaAnterior: string | undefined;
+                        if (cargasAnteriores instanceof Map) {
+                            cargaAnterior = cargasAnteriores.get(exercicioId);
+                        } else {
+                            cargaAnterior = (cargasAnteriores as any)[exercicioId];
+                        }
+                        
+                        // Considerar aumento apenas se havia carga anterior e a atual é maior
+                        if (cargaAnterior && typeof cargaAnterior === 'string' && cargaAnterior.trim() && 
+                            cargaAtual && typeof cargaAtual === 'string' && cargaAtual.trim()) {
+                            const cargaAnteriorNum = parseFloat(cargaAnterior.replace(/[^\d.,]/g, '').replace(',', '.'));
+                            const cargaAtualNum = parseFloat(cargaAtual.replace(/[^\d.,]/g, '').replace(',', '.'));
+                            
+                            if (!isNaN(cargaAnteriorNum) && !isNaN(cargaAtualNum) && cargaAtualNum > cargaAnteriorNum) {
+                                aumentouCarga = true;
+                                detalhesAumentoCarga.push({
+                                    exercicioId,
+                                    cargaAnterior: cargaAnterior,
+                                    cargaAtual: cargaAtual
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (comparisonError) {
+                console.warn('Erro ao comparar cargas:', comparisonError);
+                // Continua sem interromper o fluxo principal
+            }
+        }
+
         const novaSessao = new Sessao({
             personalId: rotina.criadorId,
             alunoId: new Types.ObjectId(alunoId),
-            // <-- 3. MUDANÇA: Usa a data de início recebida do frontend -->
             sessionDate: dataInicioValida,
-            concluidaEm: new Date(), // A data de conclusão é sempre o momento atual
+            concluidaEm: new Date(),
             status: 'completed',
             tipoCompromisso: 'treino',
             rotinaId: rotina._id,
@@ -90,6 +140,8 @@ router.post('/aluno/concluir-dia', authenticateAlunoToken, async (req: Request, 
             comentarioAluno: comentarioAluno || null,
             duracaoSegundos: duracaoSegundos || 0,
             cargasExecutadas: cargas || {},
+            aumentouCarga,
+            detalhesAumentoCarga
         });
         await novaSessao.save({ session: mongoTransactionSession });
         
