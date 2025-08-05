@@ -163,4 +163,99 @@ router.get('/detailed-breakdown', authenticateToken, async (req: Request, res: R
     }
 });
 
+/**
+ * GET /api/student-limit/debug-tokens
+ * Debug endpoint to inspect token calculation (development only)
+ */
+router.get('/debug-tokens', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        // Import TokenAvulso directly for debug
+        const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        
+        console.log(`[DEBUG] Analyzing tokens for personal: ${personalTrainerId}`);
+        console.log(`[DEBUG] Personal ID type: ${typeof personalTrainerId}`);
+        
+        const now = new Date();
+        console.log(`[DEBUG] Current time: ${now.toISOString()}`);
+        
+        // Get all tokens for this personal (no filters)
+        const allTokens = await TokenAvulso.find({
+            personalTrainerId: personalTrainerId
+        }).lean();
+        
+        console.log(`[DEBUG] Found ${allTokens.length} total tokens`);
+        
+        // Get active tokens using exact same query as service
+        const activeTokens = await TokenAvulso.find({
+            personalTrainerId: personalTrainerId,
+            ativo: true,
+            dataVencimento: { $gt: now }
+        }).lean();
+        
+        console.log(`[DEBUG] Found ${activeTokens.length} active tokens`);
+        
+        // Get tokens using service method
+        const serviceTokenCount = await PlanoService.getTokensAvulsosAtivos(personalTrainerId);
+        console.log(`[DEBUG] Service returned: ${serviceTokenCount} tokens`);
+        
+        // Analysis
+        const tokenAnalysis = allTokens.map(token => ({
+            id: token._id.toString(),
+            quantidade: token.quantidade,
+            ativo: token.ativo,
+            dataVencimento: token.dataVencimento,
+            isExpired: token.dataVencimento <= now,
+            personalTrainerId: token.personalTrainerId.toString(),
+            isActive: token.ativo && token.dataVencimento > now,
+            daysTillExpiry: Math.ceil((token.dataVencimento.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        }));
+        
+        const activeTokensSum = activeTokens.reduce((sum, token) => sum + (token.quantidade || 0), 0);
+        
+        return res.json({
+            success: true,
+            debug: {
+                personalTrainerId,
+                personalIdType: typeof personalTrainerId,
+                currentTime: now.toISOString(),
+                totalTokenRecords: allTokens.length,
+                activeTokenRecords: activeTokens.length,
+                activeTokensSum,
+                serviceTokenCount,
+                tokenAnalysis,
+                queryResults: {
+                    allTokensQuery: allTokens.length,
+                    activeTokensQuery: activeTokens.length,
+                    serviceMethod: serviceTokenCount
+                },
+                calculations: {
+                    expectedActiveSum: activeTokensSum,
+                    actualServiceResult: serviceTokenCount,
+                    matches: activeTokensSum === serviceTokenCount
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error in debug-tokens:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro no debug de tokens',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+        });
+    }
+});
+
 export default router;

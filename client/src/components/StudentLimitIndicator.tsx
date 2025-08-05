@@ -151,6 +151,33 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                                 >
                                     ↻
                                 </Button>
+                                {process.env.NODE_ENV === 'development' && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={async () => {
+                                            try {
+                                                const token = localStorage.getItem('token');
+                                                const response = await fetch('/api/student-limit/debug-tokens', {
+                                                    headers: {
+                                                        'Authorization': `Bearer ${token}`,
+                                                        'Content-Type': 'application/json',
+                                                    },
+                                                });
+                                                const data = await response.json();
+                                                console.log('🔧 [Debug] Token debug response:', data);
+                                                alert(`Tokens Debug: Total Records: ${data.debug?.totalTokenRecords}, Active: ${data.debug?.activeTokenRecords}, Service Result: ${data.debug?.serviceTokenCount}. Check console for details.`);
+                                            } catch (error) {
+                                                console.error('Debug failed:', error);
+                                                alert('Debug failed. Check console.');
+                                            }
+                                        }}
+                                        className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
+                                        title="Debug tokens (DEV)"
+                                    >
+                                        🔧
+                                    </Button>
+                                )}
                             </div>
                         </div>
                         
