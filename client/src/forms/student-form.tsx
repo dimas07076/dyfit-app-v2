@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Aluno } from '@/types/aluno';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { useEffect } from 'react';
+import { formatDateForInput } from '@/utils/dateUtils';
 
 // --- Funções de Validação (sem alterações) ---
 const requiredNumericString = (fieldName: string) => z.string().min(1, `${fieldName} é obrigatório.`).refine((val) => !isNaN(parseFloat(val.replace(',', '.'))), { message: "Deve ser um número." });
@@ -90,10 +91,10 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
         if (isEditing) {
             return {
                 nome: initialData?.nome || "", email: initialData?.email || "", phone: initialData?.phone || "",
-                birthDate: initialData?.birthDate ? initialData.birthDate.split('T')[0] : "",
+                birthDate: formatDateForInput(initialData?.birthDate),
                 gender: initialData?.gender as any || undefined, goal: initialData?.goal || "",
                 weight: initialData?.weight ? String(initialData.weight) : '', height: initialData?.height ? String(initialData.height) : '',
-                startDate: initialData?.startDate ? initialData.startDate.split('T')[0] : "",
+                startDate: formatDateForInput(initialData?.startDate),
                 status: initialData?.status || 'active', notes: initialData?.notes || "",
                 password: "", confirmPassword: ""
             };

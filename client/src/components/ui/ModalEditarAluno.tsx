@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react"; // Import Loader2
+import { formatDateForInput } from "@/utils/dateUtils";
 
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
 interface AlunoEditData {
@@ -61,8 +62,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         // Ao popular o estado, converte números para string para os inputs text
       setFormData({
         ...aluno,
-        birthDate: aluno.birthDate ? aluno.birthDate.split('T')[0] : "",
-        startDate: aluno.startDate ? aluno.startDate.split('T')[0] : "",
+        birthDate: formatDateForInput(aluno.birthDate),
+        startDate: formatDateForInput(aluno.startDate),
         // Converte para string ao carregar no estado, ou usa '' se for null/undefined
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',

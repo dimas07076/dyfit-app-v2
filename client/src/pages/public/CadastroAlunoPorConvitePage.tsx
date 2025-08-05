@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import ErrorMessage from '@/components/ErrorMessage';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { formatDateForInput } from '@/utils/dateUtils';
 
 const formSchema = z.object({
   email: z.string().email("Por favor, insira um e-mail válido.").optional(),
@@ -67,7 +68,7 @@ const CadastroAlunoPorConvitePage: React.FC = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "", nome: "", password: "", confirmPassword: "", phone: "", birthDate: "",
-      goal: "", weight: "", height: "", startDate: new Date().toISOString().split('T')[0]
+      goal: "", weight: "", height: "", startDate: formatDateForInput(new Date().toISOString())
     },
   });
 
