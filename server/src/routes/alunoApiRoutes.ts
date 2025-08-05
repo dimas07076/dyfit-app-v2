@@ -423,6 +423,69 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req: Request, res:
     }
 });
 
+// PATCH /api/aluno/meus-treinos/:id/cargas - Atualiza as cargas de exercícios no treino
+router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const alunoId = req.aluno?.id;
+    const rotinaId = req.params.id;
+    const { diaDeTreinoId, cargas } = req.body;
+
+    if (!alunoId) return res.status(401).json({ erro: "Aluno não autenticado." });
+    
+    if (!mongoose.Types.ObjectId.isValid(rotinaId)) {
+        return res.status(400).json({ erro: 'ID da rotina inválido.' });
+    }
+
+    if (!diaDeTreinoId || !cargas || typeof cargas !== 'object') {
+        return res.status(400).json({ erro: 'diaDeTreinoId e cargas são obrigatórios.' });
+    }
+
+    try {
+        // Verificar se a rotina pertence ao aluno
+        const rotina = await Treino.findOne({
+            _id: new mongoose.Types.ObjectId(rotinaId),
+            alunoId: new mongoose.Types.ObjectId(alunoId),
+            tipo: 'individual'
+        });
+
+        if (!rotina) {
+            return res.status(404).json({ erro: 'Rotina não encontrada ou não pertence a este aluno.' });
+        }
+
+        // Encontrar o dia de treino
+        const diaDeTreino = rotina.diasDeTreino.find(dia => dia._id.toString() === diaDeTreinoId);
+        if (!diaDeTreino) {
+            return res.status(404).json({ erro: 'Dia de treino não encontrado na rotina.' });
+        }
+
+        // Atualizar as cargas dos exercícios
+        let exerciciosAtualizados = 0;
+        for (const [exercicioId, novaCarga] of Object.entries(cargas)) {
+            const exercicio = diaDeTreino.exerciciosDoDia?.find(ex => ex._id.toString() === exercicioId);
+            if (exercicio) {
+                exercicio.carga = novaCarga as string;
+                exerciciosAtualizados++;
+            }
+        }
+
+        if (exerciciosAtualizados === 0) {
+            return res.status(400).json({ erro: 'Nenhum exercício foi encontrado para atualizar.' });
+        }
+
+        // Salvar as mudanças
+        await rotina.save();
+
+        res.status(200).json({
+            mensagem: `${exerciciosAtualizados} carga(s) atualizada(s) com sucesso.`,
+            exerciciosAtualizados
+        });
+
+    } catch (error) {
+        console.error(`Erro ao atualizar cargas da rotina ${rotinaId}:`, error);
+        next(error);
+    }
+});
+
 // <<< NOVA ROTA >>>
 // GET /api/aluno/meu-historico-sessoes - Retorna o histórico paginado de sessões do aluno
 router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req: Request, res: Response, next: NextFunction) => {
