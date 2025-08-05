@@ -82,6 +82,8 @@ export interface PersonalStatusAdmin {
     personalInfo: PersonalTrainerBasicInfo;
     currentPlan: PersonalPlanStatus;
     activeTokens: TokenAvulso[];
+    expiredTokens: TokenAvulso[];
+    totalActiveTokens: number;
     activeStudents: number;
     totalLimit: number;
     planHistory: PersonalPlano[];

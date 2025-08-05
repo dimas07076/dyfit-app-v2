@@ -387,23 +387,68 @@ export class PlanoService {
     }
 
     /**
+     * Get detailed tokens for admin view (active + recently expired for audit)
+     */
+    async getDetailedTokensForAdmin(personalTrainerId: string): Promise<{
+        activeTokens: ITokenAvulso[];
+        expiredTokens: ITokenAvulso[];
+        totalActiveQuantity: number;
+    }> {
+        try {
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+            const [activeTokens, expiredTokens] = await Promise.all([
+                // Active tokens (not expired)
+                TokenAvulso.find({
+                    personalTrainerId,
+                    ativo: true,
+                    dataVencimento: { $gt: now }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: 1 }),
+                
+                // Recently expired tokens (for audit trail) - last 30 days
+                TokenAvulso.find({
+                    personalTrainerId,
+                    ativo: true,
+                    dataVencimento: { $lte: now, $gte: thirtyDaysAgo }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: -1 })
+            ]);
+
+            const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
+
+            console.log(`📊 Tokens detalhados para ${personalTrainerId}: ${activeTokens.length} ativos, ${expiredTokens.length} expirados recentes`);
+
+            return {
+                activeTokens,
+                expiredTokens,
+                totalActiveQuantity
+            };
+        } catch (error) {
+            console.error('❌ Erro ao buscar tokens detalhados:', error);
+            return {
+                activeTokens: [],
+                expiredTokens: [],
+                totalActiveQuantity: 0
+            };
+        }
+    }
+
+    /**
      * Get personal trainer status for admin view
      */
     async getPersonalStatusForAdmin(personalTrainerId: string): Promise<{
         personalInfo: any;
         currentPlan: any;
         activeTokens: ITokenAvulso[];
+        expiredTokens: ITokenAvulso[];
+        totalActiveTokens: number;
         activeStudents: number;
         totalLimit: number;
         planHistory: IPersonalPlano[];
     }> {
-        const [currentStatus, activeTokens, planHistory] = await Promise.all([
+        const [currentStatus, tokenDetails, planHistory] = await Promise.all([
             this.getPersonalCurrentPlan(personalTrainerId),
-            TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
-            }).populate('adicionadoPorAdmin', 'nome'),
+            this.getDetailedTokensForAdmin(personalTrainerId),
             PersonalPlano.find({ personalTrainerId })
                 .populate('planoId')
                 .populate('atribuidoPorAdmin', 'nome')
@@ -414,7 +459,9 @@ export class PlanoService {
         return {
             personalInfo: null, // Will be populated by the controller
             currentPlan: currentStatus,
-            activeTokens,
+            activeTokens: tokenDetails.activeTokens,
+            expiredTokens: tokenDetails.expiredTokens,
+            totalActiveTokens: tokenDetails.totalActiveQuantity,
             activeStudents: currentStatus.alunosAtivos,
             totalLimit: currentStatus.limiteAtual,
             planHistory

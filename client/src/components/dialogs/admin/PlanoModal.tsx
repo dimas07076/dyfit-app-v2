@@ -26,6 +26,8 @@ interface DetailedPersonalStatus {
   personalInfo: any;
   currentPlan: any;
   activeTokens: any[];
+  expiredTokens: any[];
+  totalActiveTokens: number;
   activeStudents: number;
   totalLimit: number;
   planHistory: any[];
@@ -371,8 +373,7 @@ export function PlanoModal({
                         {personal.isExpired ? 'Histórico do Plano Expirado' : 'Datas do Plano'}
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {/* Show dates from personal object first, then fall back to detailed status */}
-                        {(personal.dataInicio || detailedStatus?.currentPlan?.personalPlano?.dataInicio) && (
+                        {(personal.dataInicio || personal.dataVencimento || detailedStatus?.currentPlan?.personalPlano) && (
                           <div>
                             <span className={`${personal.isExpired ? 'text-red-600' : 'text-gray-600'}`}>
                               {personal.isExpired ? 'Data de Início (Expirado):' : 'Início da Assinatura:'}
@@ -398,14 +399,6 @@ export function PlanoModal({
                             </p>
                           </div>
                         )}
-                        {detailedStatus?.activeTokens?.length > 0 && (
-                          <div className="md:col-span-2">
-                            <span className="text-gray-600">Tokens Ativos:</span>
-                            <p className="font-medium">
-                              {detailedStatus.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens adicionais
-                            </p>
-                          </div>
-                        )}
                       </div>
                       
                       {/* Duration calculation for expired plans */}
@@ -415,6 +408,207 @@ export function PlanoModal({
                             <strong>Duração do plano:</strong> {' '}
                             {Math.ceil((new Date(personal.dataVencimento).getTime() - new Date(personal.dataInicio).getTime()) / (1000 * 60 * 60 * 24))} dias
                           </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Comprehensive Token Display Section */}
+                  {(detailedStatus?.activeTokens?.length > 0 || detailedStatus?.expiredTokens?.length > 0) && (
+                    <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border">
+                      <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        Detalhes dos Tokens
+                      </h4>
+
+                      {/* Active Tokens Summary */}
+                      {detailedStatus?.activeTokens?.length > 0 && (
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-green-800 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              Tokens Ativos ({detailedStatus.activeTokens.length})
+                            </h5>
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              {detailedStatus.totalActiveTokens || detailedStatus.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens disponíveis
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid gap-3">
+                            {detailedStatus.activeTokens.map((token, index) => {
+                              const createdDate = new Date(token.createdAt);
+                              const expirationDate = new Date(token.dataVencimento);
+                              const now = new Date();
+                              const daysUntilExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                              const isExpiringSoon = daysUntilExpiration <= 7 && daysUntilExpiration > 0;
+                              
+                              return (
+                                <div key={token._id || index} className={`p-4 rounded-lg border-2 ${
+                                  isExpiringSoon 
+                                    ? 'bg-yellow-50 border-yellow-200' 
+                                    : 'bg-white border-green-200'
+                                }`}>
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3 h-3 rounded-full ${
+                                        isExpiringSoon ? 'bg-yellow-500' : 'bg-green-500'
+                                      }`} />
+                                      <span className="font-medium">
+                                        Token #{index + 1}
+                                      </span>
+                                      {isExpiringSoon && (
+                                        <Badge variant="outline" className="text-yellow-700 border-yellow-300">
+                                          Expira em {daysUntilExpiration} dia{daysUntilExpiration !== 1 ? 's' : ''}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <Badge className={`${
+                                      isExpiringSoon 
+                                        ? 'bg-yellow-600 hover:bg-yellow-700' 
+                                        : 'bg-green-600 hover:bg-green-700'
+                                    } text-white`}>
+                                      {token.quantidade} token{token.quantidade !== 1 ? 's' : ''}
+                                    </Badge>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                      <span className="text-gray-600 font-medium">Início:</span>
+                                      <p className="text-gray-800">
+                                        {createdDate.toLocaleDateString('pt-BR')} às {createdDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className={`font-medium ${isExpiringSoon ? 'text-yellow-600' : 'text-gray-600'}`}>
+                                        Expira em:
+                                      </span>
+                                      <p className={`${isExpiringSoon ? 'text-yellow-800 font-medium' : 'text-gray-800'}`}>
+                                        {expirationDate.toLocaleDateString('pt-BR')} às {expirationDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {(token.motivoAdicao || token.adicionadoPorAdmin) && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      {token.adicionadoPorAdmin && (
+                                        <div className="mb-2">
+                                          <span className="text-gray-600 text-sm">Adicionado por:</span>
+                                          <p className="text-sm font-medium text-blue-700">
+                                            {typeof token.adicionadoPorAdmin === 'object' 
+                                              ? token.adicionadoPorAdmin.nome 
+                                              : 'Admin'
+                                            }
+                                          </p>
+                                        </div>
+                                      )}
+                                      {token.motivoAdicao && (
+                                        <div>
+                                          <span className="text-gray-600 text-sm">Motivo:</span>
+                                          <p className="text-sm text-gray-700 italic">"{token.motivoAdicao}"</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expired Tokens (Recent) */}
+                      {detailedStatus?.expiredTokens?.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-red-800 flex items-center gap-2">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              Tokens Expirados Recentes ({detailedStatus.expiredTokens.length})
+                            </h5>
+                            <Badge variant="destructive" className="bg-red-100 text-red-800">
+                              Últimos 30 dias
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid gap-3">
+                            {detailedStatus.expiredTokens.slice(0, 3).map((token, index) => {
+                              const createdDate = new Date(token.createdAt);
+                              const expirationDate = new Date(token.dataVencimento);
+                              
+                              return (
+                                <div key={token._id || index} className="p-4 rounded-lg border-2 bg-red-50 border-red-200 opacity-75">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                                      <span className="font-medium text-red-800">
+                                        Token #{index + 1} (Expirado)
+                                      </span>
+                                    </div>
+                                    <Badge variant="destructive">
+                                      {token.quantidade} token{token.quantidade !== 1 ? 's' : ''}
+                                    </Badge>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                      <span className="text-red-600 font-medium">Início:</span>
+                                      <p className="text-red-700">
+                                        {createdDate.toLocaleDateString('pt-BR')}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-red-600 font-medium">Expirou em:</span>
+                                      <p className="text-red-700 font-medium">
+                                        {expirationDate.toLocaleDateString('pt-BR')}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {(token.motivoAdicao || token.adicionadoPorAdmin) && (
+                                    <div className="mt-3 pt-3 border-t border-red-200">
+                                      {token.adicionadoPorAdmin && (
+                                        <div className="mb-2">
+                                          <span className="text-red-600 text-sm">Adicionado por:</span>
+                                          <p className="text-sm font-medium text-red-700">
+                                            {typeof token.adicionadoPorAdmin === 'object' 
+                                              ? token.adicionadoPorAdmin.nome 
+                                              : 'Admin'
+                                            }
+                                          </p>
+                                        </div>
+                                      )}
+                                      {token.motivoAdicao && (
+                                        <div>
+                                          <span className="text-red-600 text-sm">Motivo:</span>
+                                          <p className="text-sm text-red-700 italic">"{token.motivoAdicao}"</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            
+                            {detailedStatus.expiredTokens.length > 3 && (
+                              <div className="text-center py-2">
+                                <p className="text-sm text-gray-500">
+                                  ... e mais {detailedStatus.expiredTokens.length - 3} token{detailedStatus.expiredTokens.length - 3 !== 1 ? 's' : ''} expirado{detailedStatus.expiredTokens.length - 3 !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* No Tokens Message */}
+                      {(!detailedStatus?.activeTokens?.length && !detailedStatus?.expiredTokens?.length) && (
+                        <div className="text-center py-8">
+                          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                            <Info className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-gray-600 font-medium">Nenhum token encontrado</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Este personal trainer não possui tokens ativos ou expirados recentes.
+                          </p>
                         </div>
                       )}
                     </div>
