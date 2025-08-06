@@ -90,12 +90,11 @@ export class StudentLimitService {
                 if (planStatus.limiteAtual === 0) {
                     message = 'Você não possui um plano ativo ou tokens disponíveis. Não é possível ativar alunos.';
                     recommendations.push('Contrate um plano para começar a ativar alunos');
-                    recommendations.push('Solicite tokens avulsos ao administrador');
+                    recommendations.push('Adquira tokens avulsos entrando em contato com o Suporte DyFit');
                 } else {
                     message = `Limite de ${planStatus.limiteAtual} alunos ativos atingido. Você possui ${planStatus.alunosAtivos} alunos ativos.`;
-                    recommendations.push('Desative alunos inativos para liberar espaço');
                     recommendations.push('Faça upgrade do seu plano para mais slots');
-                    recommendations.push('Solicite tokens avulsos ao administrador');
+                    recommendations.push('Adquira tokens avulsos entrando em contato com o Suporte DyFit');
                 }
             } else {
                 const availableSlots = canActivateStatus.availableSlots;
