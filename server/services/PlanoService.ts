@@ -262,16 +262,26 @@ export class PlanoService {
         let planBasedInactiveStudents = 0;
         
         for (const student of allStudents) {
-            const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as mongoose.Types.ObjectId).toString());
-            if (studentToken) {
-                // This student has a token (regardless of status)
-                if (student.status === 'active') {
-                    tokenBasedActiveStudents++;
+            try {
+                const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as mongoose.Types.ObjectId).toString());
+                if (studentToken) {
+                    // This student has a token (regardless of status)
+                    if (student.status === 'active') {
+                        tokenBasedActiveStudents++;
+                    } else {
+                        tokenBasedInactiveStudents++;
+                    }
                 } else {
-                    tokenBasedInactiveStudents++;
+                    // This student does NOT have a token (plan-based)
+                    if (student.status === 'active') {
+                        planBasedActiveStudents++;
+                    } else {
+                        planBasedInactiveStudents++;
+                    }
                 }
-            } else {
-                // This student does NOT have a token (plan-based)
+            } catch (error) {
+                console.error(`[PlanoService.canActivateMoreStudents] ❌ Error checking token for student ${student._id}:`, error);
+                // If there's an error checking the token, assume it's plan-based to prevent auth failures
                 if (student.status === 'active') {
                     planBasedActiveStudents++;
                 } else {

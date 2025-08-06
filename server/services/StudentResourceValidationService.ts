@@ -290,13 +290,19 @@ export class StudentResourceValidationService {
             let tokenBasedStudents = 0;
 
             for (const student of allStudents) {
-                const studentToken = await TokenAssignmentService.getStudentAssignedToken(
-                    (student._id as mongoose.Types.ObjectId).toString()
-                );
-                
-                if (studentToken) {
-                    tokenBasedStudents++;
-                } else {
+                try {
+                    const studentToken = await TokenAssignmentService.getStudentAssignedToken(
+                        (student._id as mongoose.Types.ObjectId).toString()
+                    );
+                    
+                    if (studentToken) {
+                        tokenBasedStudents++;
+                    } else {
+                        planBasedStudents++;
+                    }
+                } catch (error) {
+                    console.error(`[StudentResourceValidation] ❌ Error checking token for student ${student._id}:`, error);
+                    // If there's an error checking the token, assume it's plan-based to prevent failures
                     planBasedStudents++;
                 }
             }

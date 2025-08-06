@@ -89,7 +89,7 @@ export const checkStudentStatusChange = async (req: Request, res: Response, next
                     currentLimit: validation.status.currentLimit,
                     activeStudents: validation.status.activeStudents,
                     availableSlots: validation.status.availableSlots,
-                    recommendations: validation.status.recommendations,
+                    recommendations: validation.status.recommendations || [],
                     studentName: currentStudent.nome
                 }
             });
