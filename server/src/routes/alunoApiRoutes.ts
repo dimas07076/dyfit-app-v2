@@ -198,10 +198,14 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
             personalTrainerId: trainerId
         });
         
+        // Declare variables for tracking token status changes
+        let assignedToken: any = null;
+        let tokenStatusBefore: any = null;
+        
         // Get comprehensive token assignment status for this student BEFORE update
         if (statusAnterior !== status) {
             const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
-            const assignedToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+            assignedToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
             
             console.log(`[AlunoUpdate] 🎫 DETAILED: Pre-update token analysis for student ${alunoId}:`, {
                 hasAssignedToken: !!assignedToken,
@@ -214,7 +218,7 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
             });
             
             // Get personal trainer's token status BEFORE update
-            const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+            tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
             console.log(`[AlunoUpdate] 🏋️ DETAILED: Personal trainer token status BEFORE student update:`, {
                 personalTrainerId: trainerId,
                 availableTokens: tokenStatusBefore.availableTokens,
@@ -224,8 +228,10 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
             });
             
             if (status === 'inactive' && assignedToken) {
-                console.log(`[AlunoUpdate] ⚠️ CRITICAL: Student ${alunoId} (${alunoExistente.nome}) is being INACTIVATED but should keep token ${assignedToken._id} PERMANENTLY ASSIGNED`);
-                console.log(`[AlunoUpdate] ⚠️ CRITICAL: This token should NOT become available for reassignment`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL VERIFICATION: Student ${alunoId} (${alunoExistente.nome}) is being INACTIVATED`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL VERIFICATION: Token ${assignedToken._id} should remain PERMANENTLY ASSIGNED`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL VERIFICATION: This token should NOT become available for redistribution`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL VERIFICATION: Available slots should NOT increase after this operation`);
             }
             
             if (status === 'active' && statusAnterior === 'inactive' && assignedToken) {
@@ -312,7 +318,17 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
             
             // Check if there was any unexpected change in token availability
             if (alunoAtualizado?.status === 'inactive' && assignedTokenAfter) {
-                console.log(`[AlunoUpdate] ✅ VERIFICATION: Student ${alunoId} is inactive but token ${assignedTokenAfter._id} remains assigned - this is CORRECT behavior`);
+                console.log(`[AlunoUpdate] ✅ VERIFICATION PASSED: Student ${alunoId} is inactive but token ${assignedTokenAfter._id} remains assigned - this is CORRECT behavior`);
+                console.log(`[AlunoUpdate] ✅ VERIFICATION PASSED: Token assignment is permanent as expected`);
+                
+                // Additional verification: check if available slots increased (this would be wrong)
+                console.log(`[AlunoUpdate] 🔍 FINAL VERIFICATION: Checking if available slots increased incorrectly:`, {
+                    availableTokensBefore: tokenStatusBefore.availableTokens,
+                    availableTokensAfter: tokenStatusAfter.availableTokens,
+                    availableTokensIncreased: tokenStatusAfter.availableTokens > tokenStatusBefore.availableTokens,
+                    shouldNotIncrease: true,
+                    criticalIssue: tokenStatusAfter.availableTokens > tokenStatusBefore.availableTokens ? "BUG: Available tokens increased after inactivation!" : "OK: Available tokens did not increase"
+                });
             } else if (alunoAtualizado?.status === 'inactive' && !assignedTokenAfter) {
                 console.log(`[AlunoUpdate] ⚠️ WARNING: Student ${alunoId} is inactive but has no assigned token - this may indicate a problem`);
             }
