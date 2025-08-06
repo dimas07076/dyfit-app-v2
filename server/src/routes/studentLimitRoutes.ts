@@ -352,4 +352,129 @@ router.get('/consumed-tokens', authenticateToken, async (req: Request, res: Resp
     }
 });
 
+/**
+ * GET /api/student-limit/debug-assignment
+ * Comprehensive debug endpoint for token assignment troubleshooting
+ */
+router.get('/debug-assignment', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimitRoutes] 🔧 DEBUG - Starting comprehensive token assignment analysis for personal: ${personalTrainerId}`);
+        
+        // Import required services
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        // Get all tokens for this personal trainer
+        const allTokens = await TokenAvulso.find({
+            personalTrainerId: personalTrainerId
+        }).sort({ createdAt: -1 });
+        
+        // Get all students for this personal trainer  
+        const allStudents = await Aluno.find({
+            trainerId: personalTrainerId
+        }).select('nome email status createdAt').sort({ createdAt: -1 });
+        
+        // Get current status from services
+        const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+        const limitStatus = await StudentLimitService.getStudentLimitStatus(personalTrainerId);
+        
+        // Analyze current state
+        const now = new Date();
+        const tokenAnalysis = allTokens.map(token => ({
+            tokenId: (token._id as any).toString(),
+            quantidade: token.quantidade,
+            dataVencimento: token.dataVencimento,
+            isExpired: token.dataVencimento <= now,
+            ativo: token.ativo,
+            assignedToStudentId: token.assignedToStudentId?.toString() || null,
+            dateAssigned: token.dateAssigned,
+            motivoAdicao: token.motivoAdicao,
+            createdAt: token.createdAt
+        }));
+        
+        const studentAnalysis = allStudents.map(student => ({
+            studentId: (student._id as any).toString(),
+            nome: student.nome,
+            email: student.email,
+            status: student.status,
+            createdAt: student.createdAt,
+            hasAssignedToken: allTokens.some(t => t.assignedToStudentId?.toString() === (student._id as any).toString())
+        }));
+        
+        console.log(`[StudentLimitRoutes] 🔧 DEBUG - Analysis complete:`, {
+            totalTokens: allTokens.length,
+            totalStudents: allStudents.length,
+            availableTokens: tokenAssignmentStatus.availableTokens,
+            consumedTokens: tokenAssignmentStatus.consumedTokens,
+            activeStudents: allStudents.filter(s => s.status === 'active').length,
+            canActivate: limitStatus.canActivate
+        });
+        
+        return res.json({
+            success: true,
+            data: {
+                timestamp: new Date().toISOString(),
+                personalTrainerId,
+                overview: {
+                    totalTokens: allTokens.length,
+                    totalStudents: allStudents.length,
+                    activeStudents: allStudents.filter(s => s.status === 'active').length,
+                    inactiveStudents: allStudents.filter(s => s.status === 'inactive').length
+                },
+                tokenSummary: {
+                    availableTokens: tokenAssignmentStatus.availableTokens,
+                    consumedTokens: tokenAssignmentStatus.consumedTokens,
+                    totalTokens: tokenAssignmentStatus.totalTokens,
+                    expiredTokens: allTokens.filter(t => t.dataVencimento <= now).length
+                },
+                planInfo: {
+                    planName: planStatus.plano?.nome || 'No Plan',
+                    planLimit: planStatus.plano?.limiteAlunos || 0,
+                    isExpired: planStatus.isExpired,
+                    currentLimit: planStatus.limiteAtual
+                },
+                limitStatus: {
+                    canActivate: limitStatus.canActivate,
+                    availableSlots: limitStatus.availableSlots,
+                    limitExceeded: limitStatus.limitExceeded,
+                    message: limitStatus.message
+                },
+                tokenDetails: tokenAnalysis,
+                studentDetails: studentAnalysis,
+                possibleIssues: {
+                    tokensWithoutStudents: tokenAnalysis.filter(t => t.assignedToStudentId && !studentAnalysis.some(s => s.studentId === t.assignedToStudentId)),
+                    studentsWithoutTokens: studentAnalysis.filter(s => s.status === 'active' && !s.hasAssignedToken),
+                    expiredAssignedTokens: tokenAnalysis.filter(t => t.assignedToStudentId && t.isExpired),
+                    inactiveStudentsWithTokens: allStudents.filter(s => s.status === 'inactive').map(s => ({
+                        studentId: (s._id as any).toString(),
+                        nome: s.nome,
+                        hasToken: allTokens.some(t => t.assignedToStudentId?.toString() === (s._id as any).toString())
+                    })).filter(s => s.hasToken)
+                }
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error in debug assignment endpoint:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro interno do servidor',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

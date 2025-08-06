@@ -166,10 +166,16 @@ export class PlanoService {
                 console.log(`[PlanoService] ❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
             }
 
-            // Always add active tokens to limit (even if base plan is expired)
+            // Get token information for proper calculation
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+            const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+            
+            // Always add total valid tokens to limit (even if base plan is expired)
+            // This includes both available and consumed tokens for display purposes
             const oldLimit = limiteAtual;
-            limiteAtual += tokensAtivos;
-            console.log(`[PlanoService] 🧮 Final calculation: ${oldLimit} (plan) + ${tokensAtivos} (tokens) = ${limiteAtual} (total)`);
+            limiteAtual += tokenAssignmentStatus.totalTokens;
+            console.log(`[PlanoService] 🧮 Final calculation: ${oldLimit} (plan) + ${tokenAssignmentStatus.totalTokens} (total tokens) = ${limiteAtual} (total limit)`);
+            console.log(`[PlanoService] 🎫 Token breakdown: ${tokenAssignmentStatus.availableTokens} available + ${tokenAssignmentStatus.consumedTokens} consumed = ${tokenAssignmentStatus.totalTokens} total`);
 
             const result: {
                 plano: IPlano | null;
@@ -187,7 +193,7 @@ export class PlanoService {
                 personalPlano,
                 limiteAtual,
                 alunosAtivos,
-                tokensAvulsos: tokensAtivos,
+                tokensAvulsos: tokenAssignmentStatus.availableTokens, // Use available tokens for backward compatibility
                 isExpired
             };
 
@@ -218,6 +224,7 @@ export class PlanoService {
 
     /**
      * Check if personal trainer can activate more students
+     * Updated to properly account for permanently assigned tokens
      */
     async canActivateMoreStudents(personalTrainerId: string, quantidadeDesejada: number = 1): Promise<{
         canActivate: boolean;
@@ -226,11 +233,47 @@ export class PlanoService {
         availableSlots: number;
     }> {
         const status = await this.getPersonalCurrentPlan(personalTrainerId);
-        const availableSlots = status.limiteAtual - status.alunosAtivos;
+        
+        // Import TokenAssignmentService to get accurate token counts
+        const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+        const tokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 📊 Calculating slots for ${personalTrainerId}:`, {
+            planLimit: status.plano?.limiteAlunos || 0,
+            activeStudents: status.alunosAtivos,
+            availableTokens: tokenStatus.availableTokens,
+            consumedTokens: tokenStatus.consumedTokens,
+            totalTokens: tokenStatus.totalTokens,
+            oldLimitCalculation: status.limiteAtual
+        });
+        
+        // NEW LOGIC: Available slots = only unassigned tokens + plan slots not occupied by active students
+        const planLimit = status.plano?.limiteAlunos || 0;
+        const isExpired = status.isExpired;
+        
+        // If plan is expired, only tokens can provide slots
+        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - status.alunosAtivos);
+        const tokenBasedSlots = tokenStatus.availableTokens; // Only unassigned tokens
+        
+        const availableSlots = planBasedSlots + tokenBasedSlots;
+        
+        // Current limit includes all valid capacity (plan + all valid tokens)
+        const currentLimit = planLimit + tokenStatus.totalTokens;
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 Slot calculation breakdown:`, {
+            planLimit,
+            activeStudents: status.alunosAtivos,
+            planBasedSlots,
+            tokenBasedSlots,
+            totalAvailableSlots: availableSlots,
+            currentLimit,
+            canActivate: availableSlots >= quantidadeDesejada,
+            isExpired
+        });
         
         return {
             canActivate: availableSlots >= quantidadeDesejada,
-            currentLimit: status.limiteAtual,
+            currentLimit,
             activeStudents: status.alunosAtivos,
             availableSlots
         };

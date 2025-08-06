@@ -149,13 +149,33 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
         if (!nome || !email || !birthDate || !gender || !goal || !startDate || !status) {
             return res.status(400).json({ erro: "Nome, email, data de nascimento, gênero, objetivo, data de início e status são obrigatórios." });
         }
-        // Verificar se o aluno pertence ao personal trainer autenticado
+        // Get current student for status change tracking
         const alunoExistente = await Aluno.findOne({
             _id: new mongoose.Types.ObjectId(alunoId),
             trainerId: new mongoose.Types.ObjectId(trainerId)
         });
         if (!alunoExistente) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
+        }
+        const statusAnterior = alunoExistente.status;
+        console.log(`[AlunoUpdate] 🔄 Student ${alunoId} status change: ${statusAnterior} → ${status}`);
+        // Log token assignment status for debugging
+        if (statusAnterior !== status) {
+            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+            const assignedToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+            console.log(`[AlunoUpdate] 🎫 Student ${alunoId} token assignment status:`, {
+                hasAssignedToken: !!assignedToken,
+                tokenId: assignedToken?._id,
+                tokenExpired: assignedToken ? assignedToken.dataVencimento <= new Date() : null,
+                statusChange: `${statusAnterior} → ${status}`
+            });
+            if (status === 'inactive' && assignedToken) {
+                console.log(`[AlunoUpdate] ⚠️ IMPORTANT: Student ${alunoId} is being INACTIVATED but their token ${assignedToken._id} remains PERMANENTLY ASSIGNED (as designed)`);
+            }
+            if (status === 'active' && statusAnterior === 'inactive' && assignedToken) {
+                const isExpired = assignedToken.dataVencimento <= new Date();
+                console.log(`[AlunoUpdate] ✅ Student ${alunoId} is being REACTIVATED with existing token ${assignedToken._id} (expired: ${isExpired})`);
+            }
         }
         // Verificar se email já existe (exceto para este aluno)
         if (email.toLowerCase() !== alunoExistente.email) {
@@ -188,6 +208,12 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
         }
         // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
+        // Log final status for debugging
+        console.log(`[AlunoUpdate] ✅ Student ${alunoId} successfully updated:`, {
+            nome: alunoAtualizado?.nome,
+            statusFinal: alunoAtualizado?.status,
+            statusChange: statusAnterior !== alunoAtualizado?.status ? `${statusAnterior} → ${alunoAtualizado?.status}` : 'No change'
+        });
         res.status(200).json({
             mensagem: "Aluno atualizado com sucesso!",
             aluno: alunoAtualizado
