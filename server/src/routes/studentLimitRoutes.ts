@@ -652,4 +652,382 @@ router.get('/debug-real-time', authenticateToken, async (req: Request, res: Resp
     }
 });
 
+/**
+ * POST /api/student-limit/test-scenario
+ * Test endpoint to simulate the problematic scenario
+ */
+router.post('/test-scenario', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Starting test for personal: ${personalTrainerId}`);
+        
+        // Import required services
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        const { action, studentId } = req.body;
+        
+        if (!action) {
+            return res.status(400).json({
+                success: false,
+                message: 'Action is required (test-create, test-activate, test-deactivate, test-status)',
+                code: 'MISSING_ACTION'
+            });
+        }
+        
+        const results: any = {
+            action,
+            timestamp: new Date().toISOString(),
+            personalTrainerId
+        };
+        
+        // Get initial state
+        const initialTokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        const initialCanActivate = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        
+        results.initial = {
+            tokens: {
+                available: initialTokenStatus.availableTokens,
+                consumed: initialTokenStatus.consumedTokens,
+                total: initialTokenStatus.totalTokens
+            },
+            canActivate: {
+                canActivate: initialCanActivate.canActivate,
+                availableSlots: initialCanActivate.availableSlots,
+                currentLimit: initialCanActivate.currentLimit,
+                activeStudents: initialCanActivate.activeStudents
+            }
+        };
+        
+        console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Initial state:`, results.initial);
+        
+        // Execute action
+        if (action === 'test-status') {
+            // Just return current status
+            results.action = 'Status check only';
+            
+        } else if (action === 'test-create' && studentId) {
+            // Test token assignment to existing student
+            console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Testing token assignment to student ${studentId}`);
+            
+            const student = await Aluno.findOne({
+                _id: studentId,
+                trainerId: personalTrainerId
+            });
+            
+            if (!student) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Student not found',
+                    code: 'STUDENT_NOT_FOUND'
+                });
+            }
+            
+            const existingToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            results.studentBefore = {
+                name: student.nome,
+                status: student.status,
+                hasToken: !!existingToken,
+                tokenId: existingToken?._id?.toString()
+            };
+            
+            if (!existingToken && initialTokenStatus.availableTokens > 0) {
+                const assignmentResult = await TokenAssignmentService.assignTokenToStudent(personalTrainerId, studentId, 1);
+                results.assignment = assignmentResult;
+                console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Assignment result:`, assignmentResult);
+            } else {
+                results.assignment = { skipped: true, reason: existingToken ? 'Student already has token' : 'No available tokens' };
+            }
+            
+        } else if (action === 'test-deactivate' && studentId) {
+            // Test student deactivation impact on tokens
+            console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Testing student deactivation impact for ${studentId}`);
+            
+            const student = await Aluno.findOne({
+                _id: studentId,
+                trainerId: personalTrainerId
+            });
+            
+            if (!student) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Student not found',
+                    code: 'STUDENT_NOT_FOUND'
+                });
+            }
+            
+            const existingToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            results.studentBefore = {
+                name: student.nome,
+                status: student.status,
+                hasToken: !!existingToken,
+                tokenId: existingToken?._id?.toString()
+            };
+            
+            // Simulate deactivation
+            if (student.status === 'active') {
+                await Aluno.findByIdAndUpdate(studentId, { status: 'inactive' });
+                results.statusChange = 'active -> inactive';
+                console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Student ${studentId} deactivated`);
+            } else {
+                results.statusChange = 'Student was already inactive';
+            }
+            
+        } else if (action === 'test-activate' && studentId) {
+            // Test student activation
+            console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Testing student activation for ${studentId}`);
+            
+            const student = await Aluno.findOne({
+                _id: studentId,
+                trainerId: personalTrainerId
+            });
+            
+            if (!student) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Student not found',
+                    code: 'STUDENT_NOT_FOUND'
+                });
+            }
+            
+            const existingToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            results.studentBefore = {
+                name: student.nome,
+                status: student.status,
+                hasToken: !!existingToken,
+                tokenId: existingToken?._id?.toString()
+            };
+            
+            // Simulate activation
+            if (student.status === 'inactive') {
+                await Aluno.findByIdAndUpdate(studentId, { status: 'active' });
+                results.statusChange = 'inactive -> active';
+                console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Student ${studentId} activated`);
+            } else {
+                results.statusChange = 'Student was already active';
+            }
+        }
+        
+        // Get final state
+        const finalTokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        const finalCanActivate = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        
+        if (studentId) {
+            const finalStudentToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            results.studentAfter = {
+                hasToken: !!finalStudentToken,
+                tokenId: finalStudentToken?._id?.toString(),
+                tokenPermanentlyBound: !!finalStudentToken?.assignedToStudentId
+            };
+        }
+        
+        results.final = {
+            tokens: {
+                available: finalTokenStatus.availableTokens,
+                consumed: finalTokenStatus.consumedTokens,
+                total: finalTokenStatus.totalTokens
+            },
+            canActivate: {
+                canActivate: finalCanActivate.canActivate,
+                availableSlots: finalCanActivate.availableSlots,
+                currentLimit: finalCanActivate.currentLimit,
+                activeStudents: finalCanActivate.activeStudents
+            }
+        };
+        
+        results.changes = {
+            availableTokensChange: finalTokenStatus.availableTokens - initialTokenStatus.availableTokens,
+            consumedTokensChange: finalTokenStatus.consumedTokens - initialTokenStatus.consumedTokens,
+            availableSlotsChange: finalCanActivate.availableSlots - initialCanActivate.availableSlots,
+            activeStudentsChange: finalCanActivate.activeStudents - initialCanActivate.activeStudents
+        };
+        
+        results.validation = {
+            expectedBehavior: {
+                deactivation: 'Available tokens should NOT increase when student is deactivated',
+                tokens: 'Tokens should remain permanently assigned to students',
+                slots: 'Available slots should only be based on unassigned tokens'
+            },
+            actualBehavior: {
+                availableIncreasedOnDeactivation: action === 'test-deactivate' && results.changes.availableTokensChange > 0,
+                tokenRemainsAssigned: studentId ? results.studentAfter?.tokenPermanentlyBound : null,
+                slotsBasedOnUnassignedTokens: finalCanActivate.availableSlots === finalTokenStatus.availableTokens
+            }
+        };
+        
+        console.log(`[StudentLimitRoutes] 🧪 TEST SCENARIO - Final results:`, results);
+        
+        return res.json({
+            success: true,
+            data: results
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in test scenario endpoint:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro no teste de cenário',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+/**
+ * POST /api/student-limit/verify-token-binding
+ * Endpoint to verify that tokens remain permanently bound to students even when deactivated
+ */
+router.post('/verify-token-binding', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimitRoutes] 🔒 TOKEN BINDING VERIFICATION - Starting for personal: ${personalTrainerId}`);
+        
+        // Import required services
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        // Get all students and their current token assignments
+        const allStudents = await Aluno.find({
+            trainerId: personalTrainerId
+        }).select('nome email status');
+        
+        const verification = {
+            timestamp: new Date().toISOString(),
+            personalTrainerId,
+            studentsAnalyzed: allStudents.length,
+            tokenBindingVerification: [] as any[],
+            tokenStatusSummary: null as any,
+            canActivateStatus: null as any,
+            potentialIssues: [] as string[],
+            summary: null as any
+        };
+        
+        // Check each student's token binding
+        for (const student of allStudents) {
+            const studentId = (student._id as any).toString();
+            const assignedToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            
+            const studentVerification = {
+                studentId,
+                name: student.nome,
+                email: student.email,
+                status: student.status,
+                hasAssignedToken: !!assignedToken,
+                tokenDetails: assignedToken ? {
+                    tokenId: (assignedToken._id as any).toString(),
+                    quantity: assignedToken.quantidade,
+                    assignedDate: assignedToken.dateAssigned?.toISOString(),
+                    expirationDate: assignedToken.dataVencimento.toISOString(),
+                    isExpired: assignedToken.dataVencimento <= new Date(),
+                    isPermanentlyBound: !!assignedToken.assignedToStudentId
+                } : null
+            };
+            
+            // Check for potential issues
+            if (student.status === 'inactive' && assignedToken) {
+                console.log(`[StudentLimitRoutes] 🔒 VERIFICATION - Inactive student ${student.nome} has assigned token ${assignedToken._id} - this is CORRECT`);
+            } else if (student.status === 'active' && !assignedToken) {
+                verification.potentialIssues.push(`Active student ${student.nome} has no assigned token`);
+                console.log(`[StudentLimitRoutes] 🔒 VERIFICATION - ISSUE: Active student ${student.nome} has no assigned token`);
+            } else if (student.status === 'inactive' && !assignedToken) {
+                console.log(`[StudentLimitRoutes] 🔒 VERIFICATION - Inactive student ${student.nome} has no assigned token - this may be normal`);
+            }
+            
+            (verification.tokenBindingVerification as any[]).push(studentVerification);
+        }
+        
+        // Get current token status
+        const tokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        verification.tokenStatusSummary = {
+            availableTokens: tokenStatus.availableTokens,
+            consumedTokens: tokenStatus.consumedTokens,
+            totalTokens: tokenStatus.totalTokens,
+            consumedTokenDetails: tokenStatus.consumedTokenDetails.map(detail => ({
+                tokenId: detail.tokenId,
+                studentName: detail.assignedStudent.nome,
+                studentStatus: detail.assignedStudent.status,
+                assignedDate: detail.dateAssigned.toISOString()
+            }))
+        };
+        
+        // Get can activate status
+        const canActivate = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        verification.canActivateStatus = {
+            canActivate: canActivate.canActivate,
+            currentLimit: canActivate.currentLimit,
+            activeStudents: canActivate.activeStudents,
+            availableSlots: canActivate.availableSlots
+        };
+        
+        // Additional verification checks
+        const activeStudents = allStudents.filter(s => s.status === 'active');
+        const inactiveStudents = allStudents.filter(s => s.status === 'inactive');
+        const inactiveStudentsWithTokens = (verification.tokenBindingVerification as any[]).filter(v => 
+            v.status === 'inactive' && v.hasAssignedToken
+        );
+        
+        // Check if available slots correctly reflect only unassigned tokens
+        const expectedAvailableSlots = tokenStatus.availableTokens;
+        if (canActivate.availableSlots !== expectedAvailableSlots) {
+            verification.potentialIssues.push(
+                `Available slots (${canActivate.availableSlots}) != Available tokens (${expectedAvailableSlots}). This suggests phantom slots!`
+            );
+        }
+        
+        // Check if deactivated students still have their tokens
+        if (inactiveStudentsWithTokens.length > 0) {
+            console.log(`[StudentLimitRoutes] 🔒 VERIFICATION - ✅ GOOD: ${inactiveStudentsWithTokens.length} inactive students still have assigned tokens (permanent binding working)`);
+        }
+        
+        verification.summary = {
+            totalStudents: allStudents.length,
+            activeStudents: activeStudents.length,
+            inactiveStudents: inactiveStudents.length,
+            inactiveStudentsWithTokens: inactiveStudentsWithTokens.length,
+            availableTokens: tokenStatus.availableTokens,
+            consumedTokens: tokenStatus.consumedTokens,
+            availableSlots: canActivate.availableSlots,
+            expectedAvailableSlots,
+            slotCalculationCorrect: canActivate.availableSlots === expectedAvailableSlots,
+            permanentBindingWorking: inactiveStudentsWithTokens.length > 0
+        };
+        
+        console.log(`[StudentLimitRoutes] 🔒 TOKEN BINDING VERIFICATION - Complete:`, verification.summary);
+        
+        return res.json({
+            success: true,
+            data: verification
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in token binding verification:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro na verificação de vinculação de tokens',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

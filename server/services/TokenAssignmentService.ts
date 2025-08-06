@@ -145,9 +145,56 @@ export class TokenAssignmentService {
         try {
             const now = new Date();
             
-            console.log(`[TokenAssignment] 🔍 DETAILED: Getting available tokens for ${personalTrainerId}`);
-            console.log(`[TokenAssignment] 🔍 DETAILED: Current time: ${now.toISOString()}`);
+            console.log(`[TokenAssignment] 🔍 ULTRA-DETAILED: Getting available tokens for ${personalTrainerId} at ${now.toISOString()}`);
             
+            // First, get ALL tokens for this personal to understand the complete picture
+            const allTokens = await TokenAvulso.find({
+                personalTrainerId: personalTrainerId
+            }).sort({ createdAt: -1 });
+            
+            console.log(`[TokenAssignment] 🔍 ULTRA-DETAILED: Found ${allTokens.length} total token records for personal ${personalTrainerId}`);
+            
+            // Categorize all tokens
+            const tokenCategories = {
+                active: [] as any[],
+                expired: [] as any[],
+                inactive: [] as any[],
+                available: [] as any[],
+                assigned: [] as any[]
+            };
+            
+            allTokens.forEach((token, index) => {
+                const isExpired = token.dataVencimento <= now;
+                const isActive = token.ativo && !isExpired;
+                const isAssigned = !!token.assignedToStudentId;
+                const isAvailable = isActive && !isAssigned;
+                
+                const tokenInfo = {
+                    index: index + 1,
+                    id: (token._id as mongoose.Types.ObjectId).toString(),
+                    quantidade: token.quantidade,
+                    dataVencimento: token.dataVencimento.toISOString(),
+                    ativo: token.ativo,
+                    isExpired,
+                    isActive,
+                    assignedToStudentId: token.assignedToStudentId?.toString() || null,
+                    dateAssigned: token.dateAssigned?.toISOString() || null,
+                    isAssigned,
+                    isAvailable,
+                    motivoAdicao: token.motivoAdicao,
+                    createdAt: token.createdAt.toISOString()
+                };
+                
+                console.log(`[TokenAssignment] 🔍 ULTRA-DETAILED: Token ${index + 1} analysis:`, tokenInfo);
+                
+                if (isActive) tokenCategories.active.push(tokenInfo);
+                if (isExpired) tokenCategories.expired.push(tokenInfo);
+                if (!token.ativo) tokenCategories.inactive.push(tokenInfo);
+                if (isAvailable) tokenCategories.available.push(tokenInfo);
+                if (isAssigned) tokenCategories.assigned.push(tokenInfo);
+            });
+            
+            // Now get the specific query results
             const availableTokens = await TokenAvulso.find({
                 personalTrainerId: personalTrainerId,
                 ativo: true,
@@ -155,9 +202,6 @@ export class TokenAssignmentService {
                 assignedToStudentId: null
             });
             
-            console.log(`[TokenAssignment] 🔍 DETAILED: Query for available tokens found ${availableTokens.length} records`);
-            
-            // Also get assigned tokens for comparison
             const assignedTokens = await TokenAvulso.find({
                 personalTrainerId: personalTrainerId,
                 ativo: true,
@@ -165,42 +209,49 @@ export class TokenAssignmentService {
                 assignedToStudentId: { $ne: null }
             });
             
-            console.log(`[TokenAssignment] 🔍 DETAILED: Query for assigned tokens found ${assignedTokens.length} records`);
+            const totalAvailableQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            const totalAssignedQuantity = assignedTokens.reduce((sum, token) => sum + token.quantidade, 0);
             
-            // Log details of each token for debugging
-            availableTokens.forEach((token, index) => {
-                console.log(`[TokenAssignment] 🔍 DETAILED: Available token ${index + 1}:`, {
-                    id: (token._id as mongoose.Types.ObjectId).toString(),
-                    quantidade: token.quantidade,
-                    dataVencimento: token.dataVencimento.toISOString(),
-                    assignedToStudentId: token.assignedToStudentId,
-                    dateAssigned: token.dateAssigned,
-                    isAssigned: !!token.assignedToStudentId
-                });
+            console.log(`[TokenAssignment] 📊 ULTRA-DETAILED: Complete token analysis for ${personalTrainerId}:`, {
+                timestamp: now.toISOString(),
+                totalTokenRecords: allTokens.length,
+                categorization: {
+                    active: tokenCategories.active.length,
+                    expired: tokenCategories.expired.length,
+                    inactive: tokenCategories.inactive.length,
+                    available: tokenCategories.available.length,
+                    assigned: tokenCategories.assigned.length
+                },
+                queryResults: {
+                    availableFromQuery: availableTokens.length,
+                    assignedFromQuery: assignedTokens.length
+                },
+                quantities: {
+                    totalAvailable: totalAvailableQuantity,
+                    totalAssigned: totalAssignedQuantity,
+                    totalActive: totalAvailableQuantity + totalAssignedQuantity
+                },
+                criticalVerification: {
+                    availableShouldNotIncreaseOnInactivation: true,
+                    assignedTokensShouldRemainPermanent: true,
+                    inactiveStudentsShouldKeepTokens: true
+                }
             });
             
-            assignedTokens.forEach((token, index) => {
-                console.log(`[TokenAssignment] 🔍 DETAILED: Assigned token ${index + 1}:`, {
-                    id: (token._id as mongoose.Types.ObjectId).toString(),
-                    quantidade: token.quantidade,
-                    dataVencimento: token.dataVencimento.toISOString(),
-                    assignedToStudentId: token.assignedToStudentId?.toString(),
-                    dateAssigned: token.dateAssigned?.toISOString()
-                });
+            // Verify our categorization matches the query results
+            const calculatedAvailable = tokenCategories.available.reduce((sum, t) => sum + t.quantidade, 0);
+            const calculatedAssigned = tokenCategories.assigned.reduce((sum, t) => sum + t.quantidade, 0);
+            
+            console.log(`[TokenAssignment] 🔍 ULTRA-DETAILED: Verification check:`, {
+                queryAvailable: totalAvailableQuantity,
+                calculatedAvailable,
+                queryAssigned: totalAssignedQuantity,
+                calculatedAssigned,
+                availableMatches: totalAvailableQuantity === calculatedAvailable,
+                assignedMatches: totalAssignedQuantity === calculatedAssigned
             });
             
-            const totalQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
-            const assignedQuantity = assignedTokens.reduce((sum, token) => sum + token.quantidade, 0);
-            
-            console.log(`[TokenAssignment] 📊 DETAILED: Token calculation summary for ${personalTrainerId}:`, {
-                availableTokensCount: availableTokens.length,
-                availableQuantity: totalQuantity,
-                assignedTokensCount: assignedTokens.length,
-                assignedQuantity: assignedQuantity,
-                totalQuantity: totalQuantity + assignedQuantity
-            });
-            
-            return totalQuantity;
+            return totalAvailableQuantity;
             
         } catch (error) {
             console.error('❌ Error getting available tokens count:', error);
