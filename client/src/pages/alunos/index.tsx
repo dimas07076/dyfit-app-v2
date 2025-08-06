@@ -1,5 +1,5 @@
 // client/src/pages/alunos/index.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,6 +19,7 @@ import AlunoViewModal from "@/components/dialogs/AlunoViewModal";
 import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
 
 const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
     const getInitials = (nome: string) => {
@@ -136,6 +137,19 @@ export default function StudentsIndex() {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
+    // Add page visibility handler to refresh student limit status
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                // Page became visible, invalidate student limit cache to get fresh data
+                queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [queryClient]);
+
     console.log("Fetching students data...");
     const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({
         queryKey: ['/api/aluno/gerenciar'],
@@ -161,6 +175,10 @@ export default function StudentsIndex() {
             console.log("Student deleted successfully.");
             toast({ title: "Aluno Removido", description: `O aluno foi removido com sucesso.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
+            
+            // Refresh student limit status after deletion
+            queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+            localStorage.setItem('studentLimitRefresh', Date.now().toString());
         },
         onError: (error) => {
             console.error("Error deleting student:", error);
@@ -205,7 +223,7 @@ export default function StudentsIndex() {
                 <CardHeader className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between 
                                      px-6 py-6 md:px-8 md:py-8 border-b border-gray-100 dark:border-slate-700/50 
                                      bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
-                    <div className="space-y-2 mb-4 sm:mb-0">
+                    <div className="space-y-2 mb-4 sm:mb-0 flex-1">
                         <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 
                                            dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 
                                            bg-clip-text text-transparent">
@@ -214,6 +232,10 @@ export default function StudentsIndex() {
                         <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base leading-relaxed">
                             Visualize e gerencie todos os seus alunos cadastrados.
                         </p>
+                        {/* Student Limit Indicator */}
+                        <div className="mt-3">
+                            <StudentLimitIndicator variant="compact" showProgress={true} />
+                        </div>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">

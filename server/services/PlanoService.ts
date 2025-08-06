@@ -77,6 +77,8 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
+            console.log(`[PlanoService] 🎯 Starting plan calculation for personal: ${personalTrainerId}`);
+
             // First, try to find an active plan
             const personalPlanoAtivo = await PersonalPlano.findOne({
                 personalTrainerId,
@@ -100,22 +102,41 @@ export class PlanoService {
                 }).sort({ dataVencimento: -1 }); // Most recent expired plan
             }
 
-            // --- DIAGNOSTIC LOG ---
-            console.log(`[PlanoService] personalPlanoAtivo para ${personalTrainerId}:`, personalPlanoAtivo);
-            console.log(`[PlanoService] personalPlanoExpirado para ${personalTrainerId}:`, personalPlanoExpirado);
-            if ((personalPlanoAtivo || personalPlanoExpirado)?.planoId) {
-                const planoRef = (personalPlanoAtivo || personalPlanoExpirado)?.planoId;
-                console.log(`[PlanoService] Populated planoId type: ${typeof planoRef}`);
-                console.log(`[PlanoService] Populated planoId content:`, planoRef);
+            // --- ENHANCED DIAGNOSTIC LOG ---
+            console.log(`[PlanoService] 📋 Plan query results:`, {
+                personalId: personalTrainerId,
+                activeFound: !!personalPlanoAtivo,
+                activePlanId: personalPlanoAtivo?.planoId,
+                expiredFound: !!personalPlanoExpirado,
+                expiredPlanId: personalPlanoExpirado?.planoId,
+                timestamp: new Date().toISOString()
+            });
+            
+            if (personalPlanoAtivo?.planoId) {
+                console.log(`[PlanoService] 📝 Active plan details:`, {
+                    planoId: personalPlanoAtivo.planoId,
+                    planoType: typeof personalPlanoAtivo.planoId,
+                    planoData: personalPlanoAtivo.planoId
+                });
             }
-            // --- END DIAGNOSTIC LOG ---
+            
+            if (personalPlanoExpirado?.planoId) {
+                console.log(`[PlanoService] 📝 Expired plan details:`, {
+                    planoId: personalPlanoExpirado.planoId,
+                    planoType: typeof personalPlanoExpirado.planoId,
+                    planoData: personalPlanoExpirado.planoId
+                });
+            }
+            // --- END ENHANCED DIAGNOSTIC LOG ---
 
             const alunosAtivos = await Aluno.countDocuments({
                 trainerId: personalTrainerId,
                 status: 'active'
             });
+            console.log(`[PlanoService] 👥 Active students count: ${alunosAtivos}`);
 
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
+            console.log(`[PlanoService] 🎫 Active tokens count: ${tokensAtivos}`);
             
             let limiteAtual = 0;
             let plano: IPlano | null = null;
@@ -129,20 +150,32 @@ export class PlanoService {
                 plano = currentPersonalPlano.planoId as unknown as IPlano;
                 personalPlano = currentPersonalPlano;
                 
+                console.log(`[PlanoService] 📊 Using plan: ${plano.nome} (limit: ${plano.limiteAlunos})`);
+                
                 // For active plans, use full limit. For expired plans, limit is 0
                 if (personalPlanoAtivo) {
                     limiteAtual = plano.limiteAlunos || 0;
+                    console.log(`[PlanoService] ✅ Plan is active, using plan limit: ${limiteAtual}`);
                 } else {
                     // Plan is expired - no student limit from base plan
                     limiteAtual = 0;
                     isExpired = true;
+                    console.log(`[PlanoService] ⚠️ Plan is expired, plan limit set to 0`);
                 }
             } else {
-                console.log(`❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
+                console.log(`[PlanoService] ❌ No plan document found (active or expired) for personal ${personalTrainerId}`);
             }
 
-            // Always add active tokens to limit (even if base plan is expired)
-            limiteAtual += tokensAtivos;
+            // Get token information for proper calculation
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+            const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+            
+            // Always add total valid tokens to limit (even if base plan is expired)
+            // This includes both available and consumed tokens for display purposes
+            const oldLimit = limiteAtual;
+            limiteAtual += tokenAssignmentStatus.totalTokens;
+            console.log(`[PlanoService] 🧮 Final calculation: ${oldLimit} (plan) + ${tokenAssignmentStatus.totalTokens} (total tokens) = ${limiteAtual} (total limit)`);
+            console.log(`[PlanoService] 🎫 Token breakdown: ${tokenAssignmentStatus.availableTokens} available + ${tokenAssignmentStatus.consumedTokens} consumed = ${tokenAssignmentStatus.totalTokens} total`);
 
             const result: {
                 plano: IPlano | null;
@@ -160,7 +193,7 @@ export class PlanoService {
                 personalPlano,
                 limiteAtual,
                 alunosAtivos,
-                tokensAvulsos: tokensAtivos,
+                tokensAvulsos: tokenAssignmentStatus.availableTokens, // Use available tokens for backward compatibility
                 isExpired
             };
 
@@ -172,6 +205,16 @@ export class PlanoService {
                 };
             }
 
+            console.log(`[PlanoService] 🎯 Final result summary:`, {
+                personalId: personalTrainerId,
+                totalLimit: result.limiteAtual,
+                activeStudents: result.alunosAtivos,
+                tokensAvulsos: result.tokensAvulsos,
+                isExpired: result.isExpired,
+                planName: result.plano?.nome,
+                availableSlots: result.limiteAtual - result.alunosAtivos
+            });
+
             return result;
         } catch (error) {
             console.error('❌ Erro ao buscar plano atual do personal:', error);
@@ -181,6 +224,7 @@ export class PlanoService {
 
     /**
      * Check if personal trainer can activate more students
+     * Updated to properly account for permanently assigned tokens
      */
     async canActivateMoreStudents(personalTrainerId: string, quantidadeDesejada: number = 1): Promise<{
         canActivate: boolean;
@@ -189,40 +233,122 @@ export class PlanoService {
         availableSlots: number;
     }> {
         const status = await this.getPersonalCurrentPlan(personalTrainerId);
-        const availableSlots = status.limiteAtual - status.alunosAtivos;
+        
+        // Import TokenAssignmentService to get accurate token counts
+        const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+        const tokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 📊 Calculating slots for ${personalTrainerId}:`, {
+            planLimit: status.plano?.limiteAlunos || 0,
+            activeStudents: status.alunosAtivos,
+            availableTokens: tokenStatus.availableTokens,
+            consumedTokens: tokenStatus.consumedTokens,
+            totalTokens: tokenStatus.totalTokens,
+            oldLimitCalculation: status.limiteAtual
+        });
+        
+        // CORRECTED LOGIC: Available slots = only unassigned tokens (plan slots are irrelevant with permanent token assignment)
+        const planLimit = status.plano?.limiteAlunos || 0;
+        const isExpired = status.isExpired;
+        
+        // Get all students for this personal trainer to count token-based vs plan-based students
+        const Aluno = (await import('../models/Aluno.js')).default;
+        const allStudents = await Aluno.find({ trainerId: personalTrainerId });
+        
+        // Count students with assigned tokens (these are "token-based" students regardless of status)
+        let tokenBasedActiveStudents = 0;
+        let tokenBasedInactiveStudents = 0;
+        let planBasedActiveStudents = 0;
+        let planBasedInactiveStudents = 0;
+        
+        for (const student of allStudents) {
+            const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as mongoose.Types.ObjectId).toString());
+            if (studentToken) {
+                // This student has a token (regardless of status)
+                if (student.status === 'active') {
+                    tokenBasedActiveStudents++;
+                } else {
+                    tokenBasedInactiveStudents++;
+                }
+            } else {
+                // This student does NOT have a token (plan-based)
+                if (student.status === 'active') {
+                    planBasedActiveStudents++;
+                } else {
+                    planBasedInactiveStudents++;
+                }
+            }
+        }
+        
+        // CRITICAL: Plan-based active students should NOT include ANY students with tokens
+        // This ensures that deactivating a token-based student doesn't free up plan slots
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED student breakdown:`, {
+            totalActiveStudents: status.alunosAtivos,
+            tokenBasedActiveStudents,
+            tokenBasedInactiveStudents,
+            planBasedActiveStudents,
+            planBasedInactiveStudents,
+            totalStudentsWithTokens: tokenBasedActiveStudents + tokenBasedInactiveStudents,
+            totalPlanBasedStudents: planBasedActiveStudents + planBasedInactiveStudents,
+            verification: {
+                activeStudentsMatch: status.alunosAtivos === (tokenBasedActiveStudents + planBasedActiveStudents),
+                totalStudentsMatch: allStudents.length === (tokenBasedActiveStudents + tokenBasedInactiveStudents + planBasedActiveStudents + planBasedInactiveStudents)
+            }
+        });
+        
+        // Calculate available slots
+        // 1. Plan-based slots: plan limit minus ALL plan-based students (active + inactive) - PERMANENT CONSUMPTION
+        const totalPlanBasedStudents = planBasedActiveStudents + planBasedInactiveStudents;
+        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - totalPlanBasedStudents);
+        
+        // 2. Token-based slots: only unassigned tokens (permanently assigned tokens don't free up)
+        const tokenBasedSlots = tokenStatus.availableTokens;
+        
+        const availableSlots = planBasedSlots + tokenBasedSlots;
+        
+        // Current limit includes all valid capacity (plan + all valid tokens)
+        const currentLimit = planLimit + tokenStatus.totalTokens;
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 CRITICAL FIX: Plan slots now permanently consumed like tokens:`, {
+            planLimit,
+            isExpired,
+            activeStudents: status.alunosAtivos,
+            planBasedActiveStudents,
+            planBasedInactiveStudents,
+            totalPlanBasedStudents,
+            tokenBasedActiveStudents,
+            tokenBasedInactiveStudents,
+            planBasedSlots: planBasedSlots,
+            tokenBasedSlots: tokenBasedSlots,
+            totalAvailableSlots: availableSlots,
+            currentLimit,
+            canActivate: availableSlots >= quantidadeDesejada,
+            criticalFix: "PERMANENT PLAN CONSUMPTION: Plan slots permanently consumed by ALL plan-based students (active + inactive), matching token behavior"
+        });
         
         return {
             canActivate: availableSlots >= quantidadeDesejada,
-            currentLimit: status.limiteAtual,
+            currentLimit,
             activeStudents: status.alunosAtivos,
             availableSlots
         };
     }
 
     /**
-     * Get active tokens for a personal trainer
+     * Get available (unassigned) tokens for a personal trainer
+     * Updated to use new token assignment logic
      */
     async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
         try {
-            // Validate input
-            if (!personalTrainerId) {
-                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
-                return 0;
-            }
-
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
-            });
-
-            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            // Import the new TokenAssignmentService
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
             
-            if (total > 0) {
-                console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
-            }
+            // Use the new service to get available tokens count
+            const availableTokens = await TokenAssignmentService.getAvailableTokensCount(personalTrainerId);
+            console.log(`[PlanoService] 💯 Available (unassigned) tokens for ${personalTrainerId}: ${availableTokens}`);
             
-            return total;
+            return availableTokens;
         } catch (error) {
             console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
             return 0; // Return 0 instead of throwing to prevent cascade failures

@@ -257,6 +257,9 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
         variant: 'default',
       });
 
+      // Trigger student limit refresh across all tabs
+      localStorage.setItem('studentLimitRefresh', Date.now().toString());
+
       // Refresh data to get updated state
       await fetchData();
 
@@ -291,6 +294,12 @@ export function usePersonalTrainers(): UsePlanManagementReturn {
         description: `${data.quantidade} tokens adicionados com sucesso.`,
         variant: 'default',
       });
+
+      // Wait a moment for database transaction to complete before triggering refresh
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Trigger student limit refresh across all tabs
+      localStorage.setItem('studentLimitRefresh', Date.now().toString());
 
       // Refresh data to get updated state
       await fetchData();
