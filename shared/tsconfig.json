@@ -10,14 +10,18 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": "..",
+    "baseUrl": ".",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "typeRoots": [
+      "../node_modules/@types"
+    ],
     "paths": {
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./*"]
     }
   },
   "include": ["./**/*.ts"],
+  "exclude": ["../node_modules", "./dist", "./node_modules"],
   "references": []
 }
