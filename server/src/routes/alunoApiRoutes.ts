@@ -12,7 +12,6 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanActivateStudent, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
-import { assignTokenToStudent } from '../../middlewares/assignTokenToStudent.js';
 
 const router = express.Router();
 
