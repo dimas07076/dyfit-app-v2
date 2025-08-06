@@ -1231,4 +1231,167 @@ router.post('/simulate-fraud-scenario', authenticateToken, async (req: Request, 
     }
 });
 
+/**
+ * POST /api/student-limit/test-plan-permanent-consumption
+ * Test endpoint to verify permanent plan consumption behavior
+ * ADMIN ONLY - FOR TESTING PURPOSES
+ */
+router.post('/test-plan-permanent-consumption', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        // Only allow admins to run this test
+        if (req.user?.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Apenas administradores podem executar este teste',
+                code: 'ADMIN_ONLY'
+            });
+        }
+        
+        const { personalTrainerId } = req.body;
+        
+        if (!personalTrainerId) {
+            return res.status(400).json({
+                success: false,
+                message: 'personalTrainerId é obrigatório',
+                code: 'MISSING_PARAM'
+            });
+        }
+        
+        console.log(`[StudentLimitRoutes] 🧪 Testing plan permanent consumption for personal: ${personalTrainerId}`);
+        
+        // Import required services and models
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        // Get current status
+        const initialStatus = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        console.log(`[PlanTest] 📊 Initial status:`, initialStatus);
+        
+        // Get all students for this personal trainer
+        const allStudents = await Aluno.find({ trainerId: personalTrainerId });
+        
+        // Analyze each student to determine if they're plan-based or token-based
+        const studentAnalysis = [];
+        for (const student of allStudents) {
+            const assignedToken = await TokenAssignmentService.getStudentAssignedToken((student._id as any).toString());
+            studentAnalysis.push({
+                id: (student._id as any).toString(),
+                nome: student.nome,
+                email: student.email,
+                status: student.status,
+                type: assignedToken ? 'token-based' : 'plan-based',
+                tokenId: assignedToken?._id?.toString() || null,
+                createdAt: student.createdAt
+            });
+        }
+        
+        // Count plan-based vs token-based students
+        const tokenBasedActive = studentAnalysis.filter(s => s.type === 'token-based' && s.status === 'active').length;
+        const tokenBasedInactive = studentAnalysis.filter(s => s.type === 'token-based' && s.status === 'inactive').length;
+        const planBasedActive = studentAnalysis.filter(s => s.type === 'plan-based' && s.status === 'active').length;
+        const planBasedInactive = studentAnalysis.filter(s => s.type === 'plan-based' && s.status === 'inactive').length;
+        
+        // Get plan info
+        const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+        const planLimit = planStatus.plano?.limiteAlunos || 0;
+        const isExpired = planStatus.isExpired;
+        
+        // Calculate expected available slots according to permanent consumption rule
+        const totalPlanBasedStudents = planBasedActive + planBasedInactive;
+        const expectedPlanSlots = isExpired ? 0 : Math.max(0, planLimit - totalPlanBasedStudents);
+        
+        // Get token status
+        const tokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        const expectedTokenSlots = tokenStatus.availableTokens;
+        
+        const expectedTotalSlots = expectedPlanSlots + expectedTokenSlots;
+        
+        // Verify if the calculation matches our expectation
+        const calculationCorrect = initialStatus.availableSlots === expectedTotalSlots;
+        
+        console.log(`[PlanTest] 🔍 Plan permanent consumption analysis:`, {
+            personalTrainerId,
+            planInfo: {
+                planName: planStatus.plano?.nome || 'No Plan',
+                planLimit,
+                isExpired
+            },
+            studentBreakdown: {
+                tokenBasedActive,
+                tokenBasedInactive,
+                planBasedActive,
+                planBasedInactive,
+                totalPlanBased: totalPlanBasedStudents,
+                totalStudents: allStudents.length
+            },
+            slotCalculation: {
+                actualAvailableSlots: initialStatus.availableSlots,
+                expectedPlanSlots,
+                expectedTokenSlots,
+                expectedTotalSlots,
+                calculationCorrect,
+                permanentConsumptionWorking: calculationCorrect
+            }
+        });
+        
+        const result = {
+            timestamp: new Date().toISOString(),
+            personalTrainerId,
+            testResult: calculationCorrect ? 'PASSED' : 'FAILED',
+            planInfo: {
+                planName: planStatus.plano?.nome || 'No Plan',
+                planLimit,
+                isExpired
+            },
+            studentBreakdown: {
+                tokenBasedActive,
+                tokenBasedInactive,
+                planBasedActive,
+                planBasedInactive,
+                totalPlanBased: totalPlanBasedStudents,
+                totalTokenBased: tokenBasedActive + tokenBasedInactive,
+                totalStudents: allStudents.length
+            },
+            slotCalculation: {
+                actualAvailableSlots: initialStatus.availableSlots,
+                expectedCalculation: {
+                    planSlots: expectedPlanSlots,
+                    tokenSlots: expectedTokenSlots,
+                    totalSlots: expectedTotalSlots
+                },
+                explanation: {
+                    planSlots: `${planLimit} (plan limit) - ${totalPlanBasedStudents} (total plan-based students) = ${expectedPlanSlots}`,
+                    tokenSlots: `${tokenStatus.availableTokens} (available tokens only)`,
+                    totalSlots: `${expectedPlanSlots} (plan) + ${expectedTokenSlots} (tokens) = ${expectedTotalSlots}`
+                },
+                permanentConsumptionImplemented: calculationCorrect
+            },
+            students: studentAnalysis,
+            recommendations: calculationCorrect ? 
+                ['✅ Plan permanent consumption is working correctly!'] :
+                [
+                    '❌ Plan permanent consumption is NOT working correctly',
+                    'Expected plan slots to be calculated as: plan limit - ALL plan-based students (active + inactive)',
+                    'But got different result. Check PlanoService.canActivateMoreStudents() logic.'
+                ]
+        };
+        
+        return res.json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in plan permanent consumption test:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro no teste de consumo permanente de plano',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

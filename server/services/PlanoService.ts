@@ -298,8 +298,9 @@ export class PlanoService {
         });
         
         // Calculate available slots
-        // 1. Plan-based slots: plan limit minus plan-based active students (only if plan not expired)
-        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - planBasedActiveStudents);
+        // 1. Plan-based slots: plan limit minus ALL plan-based students (active + inactive) - PERMANENT CONSUMPTION
+        const totalPlanBasedStudents = planBasedActiveStudents + planBasedInactiveStudents;
+        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - totalPlanBasedStudents);
         
         // 2. Token-based slots: only unassigned tokens (permanently assigned tokens don't free up)
         const tokenBasedSlots = tokenStatus.availableTokens;
@@ -309,19 +310,21 @@ export class PlanoService {
         // Current limit includes all valid capacity (plan + all valid tokens)
         const currentLimit = planLimit + tokenStatus.totalTokens;
         
-        console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED slot calculation breakdown:`, {
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 CRITICAL FIX: Plan slots now permanently consumed like tokens:`, {
             planLimit,
             isExpired,
             activeStudents: status.alunosAtivos,
             planBasedActiveStudents,
+            planBasedInactiveStudents,
+            totalPlanBasedStudents,
             tokenBasedActiveStudents,
             tokenBasedInactiveStudents,
-            planBasedSlots,
+            planBasedSlots: planBasedSlots,
             tokenBasedSlots: tokenBasedSlots,
             totalAvailableSlots: availableSlots,
             currentLimit,
             canActivate: availableSlots >= quantidadeDesejada,
-            criticalFix: "Plan-based students now properly excludes ALL students with tokens, preventing phantom slots"
+            criticalFix: "PERMANENT PLAN CONSUMPTION: Plan slots permanently consumed by ALL plan-based students (active + inactive), matching token behavior"
         });
         
         return {
