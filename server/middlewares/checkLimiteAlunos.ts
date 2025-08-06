@@ -2,10 +2,11 @@
 import { Request, Response, NextFunction } from 'express';
 import PlanoService from '../services/PlanoService.js';
 import StudentLimitService from '../services/StudentLimitService.js';
+import StudentResourceValidationService from '../services/StudentResourceValidationService.js';
 
 /**
  * Enhanced middleware to check if personal trainer can activate more students
- * Uses StudentLimitService for comprehensive validation
+ * Uses unified StudentResourceValidationService for comprehensive validation
  */
 export const checkLimiteAlunos = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -37,16 +38,17 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
         const quantidadeDesejada = req.body.quantidade || 1;
         console.log(`[checkLimiteAlunos] 🔢 Validating activation for quantity: ${quantidadeDesejada}`);
 
-        const validation = await StudentLimitService.validateStudentActivation(personalTrainerId, quantidadeDesejada);
+        // Use new unified validation service
+        const validation = await StudentResourceValidationService.validateStudentCreation(personalTrainerId, quantidadeDesejada);
         
-        console.log(`[checkLimiteAlunos] 📊 Validation result:`, {
+        console.log(`[checkLimiteAlunos] 📊 Unified validation result:`, {
             isValid: validation.isValid,
             message: validation.message,
             errorCode: validation.errorCode,
+            resourceType: validation.resourceType,
             currentLimit: validation.status.currentLimit,
             activeStudents: validation.status.activeStudents,
-            availableSlots: validation.status.availableSlots,
-            tokensAvulsos: validation.status.planInfo?.tokensAvulsos
+            availableSlots: validation.status.availableSlots
         });
 
         if (!validation.isValid) {
@@ -60,14 +62,17 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
                     activeStudents: validation.status.activeStudents,
                     availableSlots: validation.status.availableSlots,
                     requestedQuantity: quantidadeDesejada,
-                    recommendations: validation.status.recommendations
+                    recommendations: validation.status.recommendations,
+                    resourceType: validation.resourceType,
+                    planInfo: validation.status.planInfo,
+                    tokenInfo: validation.status.tokenInfo
                 }
             });
         }
 
         console.log(`[checkLimiteAlunos] ✅ Validation passed, allowing request`);
-        // Add status to request for potential use in controller
-        (req as any).studentLimitStatus = validation.status;
+        // Add validation result to request for potential use in controller
+        (req as any).resourceValidation = validation;
         next();
     } catch (error) {
         console.error('[checkLimiteAlunos] ❌ Error in middleware:', error);
@@ -99,7 +104,8 @@ export const checkCanActivateStudent = async (req: Request, res: Response, next:
             return next();
         }
 
-        const validation = await StudentLimitService.validateStudentActivation(personalTrainerId, 1);
+        // Use unified validation service
+        const validation = await StudentResourceValidationService.validateStudentCreation(personalTrainerId, 1);
 
         if (!validation.isValid) {
             return res.status(403).json({
@@ -110,13 +116,16 @@ export const checkCanActivateStudent = async (req: Request, res: Response, next:
                     currentLimit: validation.status.currentLimit,
                     activeStudents: validation.status.activeStudents,
                     availableSlots: validation.status.availableSlots,
-                    recommendations: validation.status.recommendations
+                    recommendations: validation.status.recommendations,
+                    resourceType: validation.resourceType,
+                    planInfo: validation.status.planInfo,
+                    tokenInfo: validation.status.tokenInfo
                 }
             });
         }
 
-        // Add status to request for potential use in controller
-        (req as any).studentLimitStatus = validation.status;
+        // Add validation result to request for potential use in controller
+        (req as any).resourceValidation = validation;
         next();
     } catch (error) {
         console.error('Error in checkCanActivateStudent middleware:', error);
@@ -158,16 +167,17 @@ export const checkCanSendInvite = async (req: Request, res: Response, next: Next
         }
 
         console.log(`[checkCanSendInvite] 📧 Validating invite capability`);
-        const validation = await StudentLimitService.validateSendInvite(personalTrainerId);
+        // Use unified validation service
+        const validation = await StudentResourceValidationService.validateSendInvite(personalTrainerId);
         
-        console.log(`[checkCanSendInvite] 📊 Validation result:`, {
+        console.log(`[checkCanSendInvite] 📊 Unified validation result:`, {
             isValid: validation.isValid,
             message: validation.message,
             errorCode: validation.errorCode,
+            resourceType: validation.resourceType,
             currentLimit: validation.status.currentLimit,
             activeStudents: validation.status.activeStudents,
-            availableSlots: validation.status.availableSlots,
-            tokensAvulsos: validation.status.planInfo?.tokensAvulsos
+            availableSlots: validation.status.availableSlots
         });
 
         if (!validation.isValid) {
@@ -180,14 +190,17 @@ export const checkCanSendInvite = async (req: Request, res: Response, next: Next
                     currentLimit: validation.status.currentLimit,
                     activeStudents: validation.status.activeStudents,
                     availableSlots: validation.status.availableSlots,
-                    recommendations: validation.status.recommendations
+                    recommendations: validation.status.recommendations,
+                    resourceType: validation.resourceType,
+                    planInfo: validation.status.planInfo,
+                    tokenInfo: validation.status.tokenInfo
                 }
             });
         }
 
         console.log(`[checkCanSendInvite] ✅ Validation passed, allowing invite`);
-        // Add status to request for potential use in controller
-        (req as any).studentLimitStatus = validation.status;
+        // Add validation result to request for potential use in controller
+        (req as any).resourceValidation = validation;
         next();
     } catch (error) {
         console.error('[checkCanSendInvite] ❌ Error in middleware:', error);
