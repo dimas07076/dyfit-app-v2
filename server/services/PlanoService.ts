@@ -247,22 +247,58 @@ export class PlanoService {
             oldLimitCalculation: status.limiteAtual
         });
         
-        // NEW LOGIC: Available slots = only unassigned tokens + plan slots not occupied by active students
+        // CORRECTED LOGIC: Available slots = only unassigned tokens (plan slots are irrelevant with permanent token assignment)
         const planLimit = status.plano?.limiteAlunos || 0;
         const isExpired = status.isExpired;
         
-        // If plan is expired, only tokens can provide slots
-        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - status.alunosAtivos);
-        const tokenBasedSlots = tokenStatus.availableTokens; // Only unassigned tokens
+        // Get all students for this personal trainer to count token-based vs plan-based students
+        const Aluno = (await import('../models/Aluno.js')).default;
+        const allStudents = await Aluno.find({ trainerId: personalTrainerId });
+        
+        // Count students with assigned tokens (these are "token-based" students)
+        let tokenBasedActiveStudents = 0;
+        let tokenBasedInactiveStudents = 0;
+        
+        for (const student of allStudents) {
+            const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as mongoose.Types.ObjectId).toString());
+            if (studentToken) {
+                if (student.status === 'active') {
+                    tokenBasedActiveStudents++;
+                } else {
+                    tokenBasedInactiveStudents++;
+                }
+            }
+        }
+        
+        // Calculate plan-based students (active students minus token-based active students)
+        const planBasedActiveStudents = Math.max(0, status.alunosAtivos - tokenBasedActiveStudents);
+        
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 CORRECTED student breakdown:`, {
+            totalActiveStudents: status.alunosAtivos,
+            tokenBasedActiveStudents,
+            tokenBasedInactiveStudents,
+            planBasedActiveStudents: planBasedActiveStudents,
+            totalStudentsWithTokens: tokenBasedActiveStudents + tokenBasedInactiveStudents
+        });
+        
+        // Calculate available slots
+        // 1. Plan-based slots: plan limit minus plan-based active students (only if plan not expired)
+        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - planBasedActiveStudents);
+        
+        // 2. Token-based slots: only unassigned tokens (permanently assigned tokens don't free up)
+        const tokenBasedSlots = tokenStatus.availableTokens;
         
         const availableSlots = planBasedSlots + tokenBasedSlots;
         
         // Current limit includes all valid capacity (plan + all valid tokens)
         const currentLimit = planLimit + tokenStatus.totalTokens;
         
-        console.log(`[PlanoService.canActivateMoreStudents] 🧮 Slot calculation breakdown:`, {
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 CORRECTED slot calculation breakdown:`, {
             planLimit,
             activeStudents: status.alunosAtivos,
+            planBasedActiveStudents,
+            tokenBasedActiveStudents,
+            tokenBasedInactiveStudents,
             planBasedSlots,
             tokenBasedSlots,
             totalAvailableSlots: availableSlots,

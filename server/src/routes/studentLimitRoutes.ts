@@ -1,5 +1,6 @@
 // server/src/routes/studentLimitRoutes.ts
 import express, { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import StudentLimitService from '../../services/StudentLimitService.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
@@ -469,6 +470,180 @@ router.get('/debug-assignment', authenticateToken, async (req: Request, res: Res
         });
     } catch (error) {
         console.error('❌ Error in debug assignment endpoint:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro interno do servidor',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+/**
+ * GET /api/student-limit/debug-real-time
+ * Real-time debug endpoint to show live token and student status
+ */
+router.get('/debug-real-time', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimitRoutes] 🔧 REAL-TIME DEBUG - Starting analysis for personal: ${personalTrainerId}`);
+        
+        // Import required services
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        const now = new Date();
+        
+        // Get ALL tokens for this personal trainer - no filters
+        const allTokensRaw = await TokenAvulso.find({
+            personalTrainerId: personalTrainerId
+        }).sort({ createdAt: -1 });
+        
+        // Get ALL students for this personal trainer
+        const allStudentsRaw = await Aluno.find({
+            trainerId: personalTrainerId
+        }).select('nome email status createdAt').sort({ createdAt: -1 });
+        
+        // Process tokens
+        const tokenDetails = allTokensRaw.map(token => {
+            const isExpired = token.dataVencimento <= now;
+            const isActive = token.ativo && !isExpired;
+            const isAssigned = !!token.assignedToStudentId;
+            const isAvailable = isActive && !isAssigned;
+            
+            return {
+                tokenId: (token._id as mongoose.Types.ObjectId).toString(),
+                quantidade: token.quantidade,
+                dataVencimento: token.dataVencimento.toISOString(),
+                ativo: token.ativo,
+                isExpired,
+                isActive,
+                assignedToStudentId: token.assignedToStudentId?.toString() || null,
+                dateAssigned: token.dateAssigned?.toISOString() || null,
+                isAssigned,
+                isAvailable,
+                motivoAdicao: token.motivoAdicao,
+                createdAt: token.createdAt.toISOString()
+            };
+        });
+        
+        // Process students
+        const studentDetails = allStudentsRaw.map(student => {
+            const assignedToken = tokenDetails.find(t => t.assignedToStudentId === (student._id as mongoose.Types.ObjectId).toString());
+            
+            return {
+                studentId: (student._id as mongoose.Types.ObjectId).toString(),
+                nome: student.nome,
+                email: student.email,
+                status: student.status,
+                createdAt: student.createdAt.toISOString(),
+                hasAssignedToken: !!assignedToken,
+                assignedTokenId: assignedToken?.tokenId || null,
+                assignedTokenExpired: assignedToken ? assignedToken.isExpired : null
+            };
+        });;
+        
+        // Calculate summaries
+        const activeTokens = tokenDetails.filter(t => t.isActive);
+        const availableTokens = tokenDetails.filter(t => t.isAvailable);
+        const assignedTokens = tokenDetails.filter(t => t.isAssigned && t.isActive);
+        const expiredTokens = tokenDetails.filter(t => t.isExpired);
+        
+        const activeStudents = studentDetails.filter(s => s.status === 'active');
+        const inactiveStudents = studentDetails.filter(s => s.status === 'inactive');
+        const inactiveStudentsWithTokens = inactiveStudents.filter(s => s.hasAssignedToken);
+        
+        // Get service calculations
+        const tokenAssignmentStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+        const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+        const canActivateStatus = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        
+        // Calculate totals
+        const totalAvailableQuantity = availableTokens.reduce((sum, t) => sum + t.quantidade, 0);
+        const totalAssignedQuantity = assignedTokens.reduce((sum, t) => sum + t.quantidade, 0);
+        const totalActiveQuantity = activeTokens.reduce((sum, t) => sum + t.quantidade, 0);
+        
+        console.log(`[StudentLimitRoutes] 🔧 REAL-TIME DEBUG - Analysis complete:`, {
+            totalTokenRecords: allTokensRaw.length,
+            totalStudents: allStudentsRaw.length,
+            availableTokens: totalAvailableQuantity,
+            assignedTokens: totalAssignedQuantity,
+            activeStudents: activeStudents.length,
+            canActivate: canActivateStatus.canActivate,
+            availableSlots: canActivateStatus.availableSlots
+        });
+        
+        return res.json({
+            success: true,
+            data: {
+                timestamp: now.toISOString(),
+                personalTrainerId,
+                summary: {
+                    totalTokenRecords: allTokensRaw.length,
+                    totalStudents: allStudentsRaw.length,
+                    activeStudents: activeStudents.length,
+                    inactiveStudents: inactiveStudents.length,
+                    inactiveStudentsWithTokens: inactiveStudentsWithTokens.length
+                },
+                tokenSummary: {
+                    totalTokenRecords: allTokensRaw.length,
+                    activeTokenRecords: activeTokens.length,
+                    availableTokenRecords: availableTokens.length,
+                    assignedTokenRecords: assignedTokens.length,
+                    expiredTokenRecords: expiredTokens.length,
+                    totalAvailableQuantity,
+                    totalAssignedQuantity,
+                    totalActiveQuantity
+                },
+                serviceSummary: {
+                    tokenAssignmentStatus: {
+                        availableTokens: tokenAssignmentStatus.availableTokens,
+                        consumedTokens: tokenAssignmentStatus.consumedTokens,
+                        totalTokens: tokenAssignmentStatus.totalTokens
+                    },
+                    planStatus: {
+                        planName: planStatus.plano?.nome || 'No Plan',
+                        planLimit: planStatus.plano?.limiteAlunos || 0,
+                        totalLimit: planStatus.limiteAtual,
+                        activeStudents: planStatus.alunosAtivos,
+                        isExpired: planStatus.isExpired
+                    },
+                    canActivateStatus: {
+                        canActivate: canActivateStatus.canActivate,
+                        currentLimit: canActivateStatus.currentLimit,
+                        activeStudents: canActivateStatus.activeStudents,
+                        availableSlots: canActivateStatus.availableSlots
+                    }
+                },
+                detailedBreakdown: {
+                    tokens: tokenDetails,
+                    students: studentDetails,
+                    inactiveStudentsWithTokens: inactiveStudentsWithTokens
+                },
+                validation: {
+                    serviceVsRawTokensMatch: totalAvailableQuantity === tokenAssignmentStatus.availableTokens,
+                    serviceVsRawAssignedMatch: totalAssignedQuantity === tokenAssignmentStatus.consumedTokens,
+                    expectedBehavior: {
+                        tokensShoudRemainAssignedWhenStudentInactive: true,
+                        inactiveStudentsWithTokensCount: inactiveStudentsWithTokens.length,
+                        shouldNotIncreaseAvailableSlots: 'When student goes inactive, assigned tokens should NOT become available'
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error in real-time debug endpoint:', error);
         return res.status(500).json({
             success: false,
             message: 'Erro interno do servidor',

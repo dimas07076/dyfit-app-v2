@@ -145,6 +145,9 @@ export class TokenAssignmentService {
         try {
             const now = new Date();
             
+            console.log(`[TokenAssignment] 🔍 DETAILED: Getting available tokens for ${personalTrainerId}`);
+            console.log(`[TokenAssignment] 🔍 DETAILED: Current time: ${now.toISOString()}`);
+            
             const availableTokens = await TokenAvulso.find({
                 personalTrainerId: personalTrainerId,
                 ativo: true,
@@ -152,9 +155,51 @@ export class TokenAssignmentService {
                 assignedToStudentId: null
             });
             
-            const totalQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            console.log(`[TokenAssignment] 🔍 DETAILED: Query for available tokens found ${availableTokens.length} records`);
             
-            console.log(`[TokenAssignment] 📊 Available tokens for ${personalTrainerId}: ${totalQuantity}`);
+            // Also get assigned tokens for comparison
+            const assignedTokens = await TokenAvulso.find({
+                personalTrainerId: personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: now },
+                assignedToStudentId: { $ne: null }
+            });
+            
+            console.log(`[TokenAssignment] 🔍 DETAILED: Query for assigned tokens found ${assignedTokens.length} records`);
+            
+            // Log details of each token for debugging
+            availableTokens.forEach((token, index) => {
+                console.log(`[TokenAssignment] 🔍 DETAILED: Available token ${index + 1}:`, {
+                    id: (token._id as mongoose.Types.ObjectId).toString(),
+                    quantidade: token.quantidade,
+                    dataVencimento: token.dataVencimento.toISOString(),
+                    assignedToStudentId: token.assignedToStudentId,
+                    dateAssigned: token.dateAssigned,
+                    isAssigned: !!token.assignedToStudentId
+                });
+            });
+            
+            assignedTokens.forEach((token, index) => {
+                console.log(`[TokenAssignment] 🔍 DETAILED: Assigned token ${index + 1}:`, {
+                    id: (token._id as mongoose.Types.ObjectId).toString(),
+                    quantidade: token.quantidade,
+                    dataVencimento: token.dataVencimento.toISOString(),
+                    assignedToStudentId: token.assignedToStudentId?.toString(),
+                    dateAssigned: token.dateAssigned?.toISOString()
+                });
+            });
+            
+            const totalQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            const assignedQuantity = assignedTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            
+            console.log(`[TokenAssignment] 📊 DETAILED: Token calculation summary for ${personalTrainerId}:`, {
+                availableTokensCount: availableTokens.length,
+                availableQuantity: totalQuantity,
+                assignedTokensCount: assignedTokens.length,
+                assignedQuantity: assignedQuantity,
+                totalQuantity: totalQuantity + assignedQuantity
+            });
+            
             return totalQuantity;
             
         } catch (error) {
@@ -238,6 +283,8 @@ export class TokenAssignmentService {
      */
     async getStudentAssignedToken(studentId: string): Promise<ITokenAvulso | null> {
         try {
+            console.log(`[TokenAssignment] 🔍 DETAILED: Checking assigned token for student ${studentId}`);
+            
             const assignedToken = await TokenAvulso.findOne({
                 assignedToStudentId: studentId,
                 ativo: true
@@ -246,12 +293,19 @@ export class TokenAssignmentService {
             if (assignedToken) {
                 const now = new Date();
                 const isExpired = assignedToken.dataVencimento <= now;
-                console.log(`[TokenAssignment] 🔍 Student ${studentId} has assigned token ${assignedToken._id}, expired: ${isExpired}`);
+                console.log(`[TokenAssignment] 🔍 DETAILED: Student ${studentId} has assigned token:`, {
+                    tokenId: (assignedToken._id as mongoose.Types.ObjectId).toString(),
+                    quantidade: assignedToken.quantidade,
+                    dataVencimento: assignedToken.dataVencimento.toISOString(),
+                    isExpired: isExpired,
+                    dateAssigned: assignedToken.dateAssigned?.toISOString(),
+                    personalTrainerId: assignedToken.personalTrainerId.toString()
+                });
                 
                 return assignedToken;
             }
             
-            console.log(`[TokenAssignment] 🔍 Student ${studentId} has no assigned token`);
+            console.log(`[TokenAssignment] 🔍 DETAILED: Student ${studentId} has no assigned token`);
             return null;
             
         } catch (error) {

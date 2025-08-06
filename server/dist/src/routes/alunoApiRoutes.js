@@ -158,23 +158,45 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
         const statusAnterior = alunoExistente.status;
-        console.log(`[AlunoUpdate] 🔄 Student ${alunoId} status change: ${statusAnterior} → ${status}`);
-        // Log token assignment status for debugging
+        console.log(`[AlunoUpdate] 🔄 DETAILED: Student ${alunoId} status change analysis:`, {
+            studentId: alunoId,
+            studentName: alunoExistente.nome,
+            studentEmail: alunoExistente.email,
+            statusChange: `${statusAnterior} → ${status}`,
+            personalTrainerId: trainerId
+        });
+        // Get comprehensive token assignment status for this student BEFORE update
         if (statusAnterior !== status) {
             const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
             const assignedToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
-            console.log(`[AlunoUpdate] 🎫 Student ${alunoId} token assignment status:`, {
+            console.log(`[AlunoUpdate] 🎫 DETAILED: Pre-update token analysis for student ${alunoId}:`, {
                 hasAssignedToken: !!assignedToken,
-                tokenId: assignedToken?._id,
+                tokenId: assignedToken?._id?.toString(),
+                tokenQuantity: assignedToken?.quantidade,
                 tokenExpired: assignedToken ? assignedToken.dataVencimento <= new Date() : null,
+                tokenExpirationDate: assignedToken?.dataVencimento?.toISOString(),
+                dateAssigned: assignedToken?.dateAssigned?.toISOString(),
                 statusChange: `${statusAnterior} → ${status}`
             });
+            // Get personal trainer's token status BEFORE update
+            const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+            console.log(`[AlunoUpdate] 🏋️ DETAILED: Personal trainer token status BEFORE student update:`, {
+                personalTrainerId: trainerId,
+                availableTokens: tokenStatusBefore.availableTokens,
+                consumedTokens: tokenStatusBefore.consumedTokens,
+                totalTokens: tokenStatusBefore.totalTokens,
+                consumedTokensCount: tokenStatusBefore.consumedTokenDetails.length
+            });
             if (status === 'inactive' && assignedToken) {
-                console.log(`[AlunoUpdate] ⚠️ IMPORTANT: Student ${alunoId} is being INACTIVATED but their token ${assignedToken._id} remains PERMANENTLY ASSIGNED (as designed)`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL: Student ${alunoId} (${alunoExistente.nome}) is being INACTIVATED but should keep token ${assignedToken._id} PERMANENTLY ASSIGNED`);
+                console.log(`[AlunoUpdate] ⚠️ CRITICAL: This token should NOT become available for reassignment`);
             }
             if (status === 'active' && statusAnterior === 'inactive' && assignedToken) {
                 const isExpired = assignedToken.dataVencimento <= new Date();
-                console.log(`[AlunoUpdate] ✅ Student ${alunoId} is being REACTIVATED with existing token ${assignedToken._id} (expired: ${isExpired})`);
+                console.log(`[AlunoUpdate] ✅ REACTIVATION: Student ${alunoId} (${alunoExistente.nome}) being REACTIVATED with existing token ${assignedToken._id} (expired: ${isExpired})`);
+            }
+            if (status === 'active' && statusAnterior === 'inactive' && !assignedToken) {
+                console.log(`[AlunoUpdate] 🆕 NEW TOKEN NEEDED: Student ${alunoId} (${alunoExistente.nome}) being activated without existing token - new token assignment required`);
             }
         }
         // Verificar se email já existe (exceto para este aluno)
@@ -209,11 +231,42 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
         // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
         // Log final status for debugging
-        console.log(`[AlunoUpdate] ✅ Student ${alunoId} successfully updated:`, {
+        console.log(`[AlunoUpdate] ✅ DETAILED: Student ${alunoId} successfully updated:`, {
             nome: alunoAtualizado?.nome,
+            email: alunoAtualizado?.email,
             statusFinal: alunoAtualizado?.status,
             statusChange: statusAnterior !== alunoAtualizado?.status ? `${statusAnterior} → ${alunoAtualizado?.status}` : 'No change'
         });
+        // Get comprehensive token assignment status for this student AFTER update
+        if (statusAnterior !== alunoAtualizado?.status) {
+            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+            const assignedTokenAfter = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+            console.log(`[AlunoUpdate] 🎫 DETAILED: Post-update token analysis for student ${alunoId}:`, {
+                hasAssignedToken: !!assignedTokenAfter,
+                tokenId: assignedTokenAfter?._id?.toString(),
+                tokenQuantity: assignedTokenAfter?.quantidade,
+                tokenExpired: assignedTokenAfter ? assignedTokenAfter.dataVencimento <= new Date() : null,
+                tokenExpirationDate: assignedTokenAfter?.dataVencimento?.toISOString(),
+                dateAssigned: assignedTokenAfter?.dateAssigned?.toISOString(),
+                finalStatus: alunoAtualizado?.status
+            });
+            // Get personal trainer's token status AFTER update
+            const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+            console.log(`[AlunoUpdate] 🏋️ DETAILED: Personal trainer token status AFTER student update:`, {
+                personalTrainerId: trainerId,
+                availableTokens: tokenStatusAfter.availableTokens,
+                consumedTokens: tokenStatusAfter.consumedTokens,
+                totalTokens: tokenStatusAfter.totalTokens,
+                consumedTokensCount: tokenStatusAfter.consumedTokenDetails.length
+            });
+            // Check if there was any unexpected change in token availability
+            if (alunoAtualizado?.status === 'inactive' && assignedTokenAfter) {
+                console.log(`[AlunoUpdate] ✅ VERIFICATION: Student ${alunoId} is inactive but token ${assignedTokenAfter._id} remains assigned - this is CORRECT behavior`);
+            }
+            else if (alunoAtualizado?.status === 'inactive' && !assignedTokenAfter) {
+                console.log(`[AlunoUpdate] ⚠️ WARNING: Student ${alunoId} is inactive but has no assigned token - this may indicate a problem`);
+            }
+        }
         res.status(200).json({
             mensagem: "Aluno atualizado com sucesso!",
             aluno: alunoAtualizado
