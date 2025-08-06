@@ -356,7 +356,7 @@ export class PlanoService {
     }
 
     /**
-     * Assign a plan to a personal trainer
+     * Assign a plan to a personal trainer with transition logic
      */
     async assignPlanToPersonal(
         personalTrainerId: string,
@@ -365,8 +365,19 @@ export class PlanoService {
         customDuration?: number,
         motivo?: string
     ): Promise<IPersonalPlano> {
-        // Import PersonalTrainer model
+        // Import PersonalTrainer model and PlanTransitionService
         const PersonalTrainer = (await import('../models/PersonalTrainer.js')).default;
+        const PlanTransitionService = (await import('./PlanTransitionService.js')).default;
+        
+        console.log(`[PlanoService] 🚀 Assigning plan ${planoId} to personal ${personalTrainerId}`);
+        
+        // Process plan transition first (this handles student reactivation logic)
+        const transitionResult = await PlanTransitionService.processPlanTransition(
+            personalTrainerId,
+            planoId
+        );
+        
+        console.log(`[PlanoService] 📊 Transition result:`, transitionResult);
         
         // Deactivate current plan
         await PersonalPlano.updateMany(
@@ -404,6 +415,11 @@ export class PlanoService {
             dataFimAssinatura: dataVencimento,
             limiteAlunos: plano.limiteAlunos
         });
+
+        console.log(`[PlanoService] ✅ Plan assigned successfully. Transition: ${transitionResult.transitionType}, Students reactivated: ${transitionResult.studentsReactivated}`);
+        
+        // Return enhanced result with transition info
+        (savedPersonalPlano as any).transitionResult = transitionResult;
 
         return savedPersonalPlano;
     }

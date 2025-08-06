@@ -133,3 +133,60 @@ export interface CleanupResult {
     plansDeactivated: number;
     tokensDeactivated: number;
 }
+
+// New interfaces for plan transition functionality
+
+export interface StudentPlanHistory {
+    _id: string;
+    personalTrainerId: string;
+    studentId: string;
+    previousPlanId: string;
+    tokenId?: string;
+    dateActivated: Date;
+    dateDeactivated: Date;
+    reason: 'plan_expired' | 'manual_deactivation' | 'plan_changed' | 'token_expired';
+    wasActive: boolean;
+    canBeReactivated: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface PlanTransitionType {
+    type: 'renewal' | 'upgrade' | 'downgrade' | 'first_time';
+    currentPlan: Plano | null;
+    newPlan: Plano;
+    limitDifference: number; // positive for upgrade, negative for downgrade, 0 for renewal
+}
+
+export interface EligibleStudentForReactivation {
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    dateDeactivated: Date;
+    previousPlanName: string;
+    hasAssignedToken: boolean;
+    tokenId?: string;
+}
+
+export interface PlanTransitionResult {
+    success: boolean;
+    transitionType: PlanTransitionType['type'];
+    studentsReactivated: number;
+    studentsRequiringManualSelection: number;
+    availableSlots: number;
+    eligibleStudents?: EligibleStudentForReactivation[];
+    message: string;
+}
+
+export interface ManualReactivationRequest {
+    selectedStudentIds: string[];
+    personalTrainerId: string;
+    newPlanId: string;
+}
+
+export interface ManualReactivationResult {
+    success: boolean;
+    studentsReactivated: number;
+    errors: string[];
+    message: string;
+}
