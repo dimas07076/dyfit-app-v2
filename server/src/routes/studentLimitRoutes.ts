@@ -1030,4 +1030,205 @@ router.post('/verify-token-binding', authenticateToken, async (req: Request, res
     }
 });
 
+/**
+ * POST /api/student-limit/simulate-fraud-scenario
+ * Simulate the exact fraud scenario described by the user
+ */
+router.post('/simulate-fraud-scenario', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        await dbConnect();
+        
+        const personalTrainerId = req.user?.id;
+        if (!personalTrainerId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Usuário não autenticado',
+                code: 'UNAUTHORIZED'
+            });
+        }
+
+        console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - Starting for personal: ${personalTrainerId}`);
+        
+        // Import required services
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        const PlanoService = (await import('../../services/PlanoService.js')).default;
+        const Aluno = (await import('../../models/Aluno.js')).default;
+        
+        const simulation = {
+            timestamp: new Date().toISOString(),
+            personalTrainerId,
+            scenario: 'Personal trainer has 2 tokens, assigns to 2 students, deactivates 1 student',
+            steps: [] as any[],
+            fraudAnalysis: null as any
+        };
+        
+        // Helper function to capture current state
+        const captureState = async (stepName: string) => {
+            const tokenStatus = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
+            const canActivate = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+            const students = await Aluno.find({ trainerId: personalTrainerId }).select('nome email status');
+            
+            const studentsWithTokens = [];
+            for (const student of students) {
+                const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as any).toString());
+                studentsWithTokens.push({
+                    id: (student._id as any).toString(),
+                    name: student.nome,
+                    status: student.status,
+                    hasToken: !!studentToken,
+                    tokenId: studentToken?._id?.toString()
+                });
+            }
+            
+            const state = {
+                stepName,
+                timestamp: new Date().toISOString(),
+                tokens: {
+                    available: tokenStatus.availableTokens,
+                    consumed: tokenStatus.consumedTokens,
+                    total: tokenStatus.totalTokens
+                },
+                slots: {
+                    canActivate: canActivate.canActivate,
+                    availableSlots: canActivate.availableSlots,
+                    currentLimit: canActivate.currentLimit,
+                    activeStudents: canActivate.activeStudents
+                },
+                students: studentsWithTokens,
+                analysis: {
+                    totalStudents: students.length,
+                    activeStudents: students.filter(s => s.status === 'active').length,
+                    inactiveStudents: students.filter(s => s.status === 'inactive').length,
+                    studentsWithTokens: studentsWithTokens.filter(s => s.hasToken).length,
+                    fraudPossible: canActivate.availableSlots > tokenStatus.availableTokens
+                }
+            };
+            
+            console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - ${stepName}:`, state);
+            simulation.steps.push(state);
+            return state;
+        };
+        
+        // Step 1: Initial state
+        await captureState('1. Initial State');
+        
+        // Step 2: Check if we have enough students to simulate
+        const allStudents = await Aluno.find({ trainerId: personalTrainerId }).select('nome email status');
+        
+        if (allStudents.length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Insufficient students to simulate scenario. Need at least 2 students.',
+                code: 'INSUFFICIENT_DATA',
+                data: { currentStudents: allStudents.length }
+            });
+        }
+        
+        // Find students to use for simulation
+        const activeStudents = allStudents.filter(s => s.status === 'active');
+        const inactiveStudents = allStudents.filter(s => s.status === 'inactive');
+        
+        let student1, student2;
+        
+        if (activeStudents.length >= 2) {
+            student1 = activeStudents[0];
+            student2 = activeStudents[1];
+        } else if (activeStudents.length === 1 && inactiveStudents.length >= 1) {
+            student1 = activeStudents[0];
+            student2 = inactiveStudents[0];
+            // Activate the second student for simulation
+            await Aluno.findByIdAndUpdate(student2._id, { status: 'active' });
+        } else {
+            // Activate two students for simulation
+            student1 = allStudents[0];
+            student2 = allStudents[1];
+            await Aluno.findByIdAndUpdate(student1._id, { status: 'active' });
+            await Aluno.findByIdAndUpdate(student2._id, { status: 'active' });
+        }
+        
+        // Step 3: Ensure both students are active and have tokens
+        await captureState('2. After ensuring 2 active students');
+        
+        const student1Id = (student1._id as any).toString();
+        const student2Id = (student2._id as any).toString();
+        
+        // Check if students need token assignment
+        let student1Token = await TokenAssignmentService.getStudentAssignedToken(student1Id);
+        let student2Token = await TokenAssignmentService.getStudentAssignedToken(student2Id);
+        
+        if (!student1Token) {
+            const assignment1 = await TokenAssignmentService.assignTokenToStudent(personalTrainerId, student1Id, 1);
+            console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - Assigned token to student 1:`, assignment1);
+            student1Token = await TokenAssignmentService.getStudentAssignedToken(student1Id);
+        }
+        
+        if (!student2Token) {
+            const assignment2 = await TokenAssignmentService.assignTokenToStudent(personalTrainerId, student2Id, 1);
+            console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - Assigned token to student 2:`, assignment2);
+            student2Token = await TokenAssignmentService.getStudentAssignedToken(student2Id);
+        }
+        
+        // Step 4: State after both students have tokens
+        await captureState('3. After both students have tokens');
+        
+        // Step 5: CRITICAL TEST - Deactivate student 1
+        console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - CRITICAL: Deactivating student 1 (${student1.nome})`);
+        await Aluno.findByIdAndUpdate(student1Id, { status: 'inactive' });
+        
+        // Step 6: Check state after deactivation - THIS IS THE CRITICAL STEP
+        const postDeactivationState = await captureState('4. CRITICAL: After deactivating student 1');
+        
+        // Check if token remains assigned
+        const student1TokenAfterDeactivation = await TokenAssignmentService.getStudentAssignedToken(student1Id);
+        
+        console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - Token check after deactivation:`, {
+            student1Id,
+            student1Name: student1.nome,
+            tokenStillAssigned: !!student1TokenAfterDeactivation,
+            tokenId: student1TokenAfterDeactivation?._id?.toString(),
+            fraudIssue: postDeactivationState.analysis.fraudPossible,
+            availableSlots: postDeactivationState.slots.availableSlots,
+            availableTokens: postDeactivationState.tokens.available
+        });
+        
+        // Step 7: Try to add a third student (this should fail if tokens are properly bound)
+        console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - Checking if can add 3rd student (should be blocked)`);
+        const canAddThirdStudent = await PlanoService.canActivateMoreStudents(personalTrainerId, 1);
+        
+        await captureState('5. Final state - checking fraud possibility');
+        
+        simulation.fraudAnalysis = {
+            tokenRemainsAssignedAfterDeactivation: !!student1TokenAfterDeactivation,
+            canAddThirdStudentWhenShouldNot: canAddThirdStudent.canActivate,
+            fraudScenarioPossible: canAddThirdStudent.canActivate && postDeactivationState.tokens.available === 0,
+            expectedBehavior: {
+                tokenShouldRemainAssigned: true,
+                canAddThirdStudent: false,
+                availableSlotsShouldBe: 0
+            },
+            actualBehavior: {
+                tokenRemainsAssigned: !!student1TokenAfterDeactivation,
+                canAddThirdStudent: canAddThirdStudent.canActivate,
+                availableSlots: canAddThirdStudent.availableSlots
+            },
+            issue: canAddThirdStudent.canActivate ? 'FRAUD POSSIBLE: Can add 3rd student despite no available tokens' : 'CORRECT: Cannot add 3rd student'
+        };
+        
+        console.log(`[StudentLimitRoutes] 🚨 FRAUD SIMULATION - FINAL ANALYSIS:`, simulation.fraudAnalysis);
+        
+        return res.json({
+            success: true,
+            data: simulation
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in fraud scenario simulation:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Erro na simulação do cenário de fraude',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 export default router;

@@ -11,7 +11,6 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
-import { assignTokenToStudent } from '../../middlewares/assignTokenToStudent.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
@@ -64,7 +63,7 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     }
 });
 // POST /api/aluno/gerenciar - Criar um novo aluno
-router.post("/gerenciar", authenticateToken, checkLimiteAlunos, assignTokenToStudent, async (req, res, next) => {
+router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -95,11 +94,63 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, assignTokenToStu
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
-        // Set student ID for token assignment middleware
-        res.locals.createdStudentId = novoAluno._id.toString();
+        // CRITICAL FIX: Assign token AFTER student is created
+        const studentId = novoAluno._id.toString();
+        console.log(`[AlunoCreation] 🎯 CRITICAL FIX: Assigning token to newly created student ${studentId} for personal ${trainerId}`);
+        // Import and use TokenAssignmentService directly
+        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        // Get token status BEFORE assignment
+        const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+        console.log(`[AlunoCreation] 📊 Token status BEFORE assignment:`, {
+            available: tokenStatusBefore.availableTokens,
+            consumed: tokenStatusBefore.consumedTokens,
+            total: tokenStatusBefore.totalTokens
+        });
+        // Assign token to the new student
+        const assignmentResult = await TokenAssignmentService.assignTokenToStudent(trainerId, studentId, 1 // One token per student
+        );
+        // Get token status AFTER assignment
+        const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+        console.log(`[AlunoCreation] 📊 Token assignment result and status AFTER:`, {
+            assignmentSuccess: assignmentResult.success,
+            assignmentMessage: assignmentResult.message,
+            assignedTokenId: assignmentResult.assignedToken?._id?.toString(),
+            tokenStatusAfter: {
+                available: tokenStatusAfter.availableTokens,
+                consumed: tokenStatusAfter.consumedTokens,
+                total: tokenStatusAfter.totalTokens
+            },
+            change: {
+                availableDecreased: tokenStatusBefore.availableTokens - tokenStatusAfter.availableTokens,
+                consumedIncreased: tokenStatusAfter.consumedTokens - tokenStatusBefore.consumedTokens
+            }
+        });
+        // Verify the token was actually assigned
+        const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+        console.log(`[AlunoCreation] 🔍 Final verification:`, {
+            studentHasToken: !!verificationToken,
+            tokenId: verificationToken?._id?.toString(),
+            tokenPermanentlyBound: !!verificationToken?.assignedToStudentId,
+            assignmentVerified: verificationToken?.assignedToStudentId?.toString() === studentId
+        });
+        if (!assignmentResult.success) {
+            console.warn(`[AlunoCreation] ⚠️ Token assignment failed for student ${studentId}: ${assignmentResult.message}`);
+            // For now, don't fail the student creation, but log the issue
+        }
+        else if (!verificationToken) {
+            console.error(`[AlunoCreation] ❌ CRITICAL: Token assignment reported success but verification failed for student ${studentId}`);
+        }
+        else {
+            console.log(`[AlunoCreation] ✅ CRITICAL FIX VERIFIED: Token successfully assigned and verified for student ${studentId}`);
+        }
         res.status(201).json({
             mensagem: "Aluno criado com sucesso!",
-            aluno: alunoResponse
+            aluno: alunoResponse,
+            tokenAssignment: {
+                success: assignmentResult.success,
+                message: assignmentResult.message,
+                tokenAssigned: !!verificationToken
+            }
         });
     }
     catch (error) {
@@ -133,7 +184,7 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     }
 });
 // PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
-router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assignTokenToStudent, async (req, res, next) => {
+router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     const alunoId = req.params.id;
@@ -235,6 +286,70 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, assign
         }
         // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
+        // CRITICAL FIX: Handle token assignment for status changes
+        if (statusAnterior !== alunoAtualizado?.status) {
+            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+            if (alunoAtualizado?.status === 'active' && statusAnterior === 'inactive') {
+                console.log(`[AlunoUpdate] 🔄 CRITICAL FIX: Student being ACTIVATED, checking token assignment`);
+                // Check if student has existing token
+                const existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+                if (existingToken && existingToken.dataVencimento > new Date()) {
+                    console.log(`[AlunoUpdate] ♻️ REACTIVATION: Student ${alunoId} has valid existing token ${existingToken._id}, reusing it`);
+                }
+                else {
+                    console.log(`[AlunoUpdate] 🆕 NEW TOKEN NEEDED: Student ${alunoId} needs new token assignment`);
+                    // Get token status before assignment
+                    const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+                    // Assign new token
+                    const assignmentResult = await TokenAssignmentService.assignTokenToStudent(trainerId, alunoId, 1);
+                    // Get token status after assignment
+                    const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+                    console.log(`[AlunoUpdate] 📊 ACTIVATION token assignment:`, {
+                        assignmentSuccess: assignmentResult.success,
+                        assignmentMessage: assignmentResult.message,
+                        tokenChange: {
+                            availableBefore: tokenStatusBefore.availableTokens,
+                            availableAfter: tokenStatusAfter.availableTokens,
+                            consumedBefore: tokenStatusBefore.consumedTokens,
+                            consumedAfter: tokenStatusAfter.consumedTokens
+                        }
+                    });
+                    if (!assignmentResult.success) {
+                        console.warn(`[AlunoUpdate] ⚠️ Token assignment failed during activation: ${assignmentResult.message}`);
+                    }
+                }
+            }
+            else if (alunoAtualizado?.status === 'inactive' && statusAnterior === 'active') {
+                console.log(`[AlunoUpdate] 🔄 CRITICAL VERIFICATION: Student being DEACTIVATED - token should remain PERMANENTLY ASSIGNED`);
+                // Verify token remains assigned after deactivation
+                const assignedTokenAfter = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+                const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+                console.log(`[AlunoUpdate] 🔍 DEACTIVATION verification:`, {
+                    studentId: alunoId,
+                    studentName: alunoAtualizado?.nome,
+                    tokenStillAssigned: !!assignedTokenAfter,
+                    tokenId: assignedTokenAfter?._id?.toString(),
+                    tokenPermanentlyBound: !!assignedTokenAfter?.assignedToStudentId,
+                    currentTokenStatus: {
+                        available: tokenStatusAfter.availableTokens,
+                        consumed: tokenStatusAfter.consumedTokens,
+                        total: tokenStatusAfter.totalTokens
+                    },
+                    criticalCheck: assignedTokenAfter?.assignedToStudentId?.toString() === alunoId ?
+                        'CORRECT: Token remains permanently assigned' :
+                        'ERROR: Token assignment lost!'
+                });
+                if (!assignedTokenAfter) {
+                    console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Student ${alunoId} was deactivated but lost their token assignment!`);
+                }
+                else if (assignedTokenAfter.assignedToStudentId?.toString() !== alunoId) {
+                    console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Token ${assignedTokenAfter._id} is not properly bound to student ${alunoId}!`);
+                }
+                else {
+                    console.log(`[AlunoUpdate] ✅ DEACTIVATION CORRECT: Token ${assignedTokenAfter._id} remains permanently assigned to student ${alunoId}`);
+                }
+            }
+        }
         // Log final status for debugging
         console.log(`[AlunoUpdate] ✅ DETAILED: Student ${alunoId} successfully updated:`, {
             nome: alunoAtualizado?.nome,
