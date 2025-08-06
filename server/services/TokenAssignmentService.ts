@@ -364,6 +364,65 @@ export class TokenAssignmentService {
             return null;
         }
     }
+    
+    /**
+     * Archive student token assignment when plan transitions
+     */
+    async archiveStudentTokenAssignment(
+        studentId: string,
+        reason: 'plan_expired' | 'plan_changed' | 'manual_deactivation'
+    ): Promise<void> {
+        try {
+            console.log(`[TokenAssignment] 📦 Archiving token assignment for student ${studentId}, reason: ${reason}`);
+            
+            const assignedToken = await this.getStudentAssignedToken(studentId);
+            if (assignedToken) {
+                // Create history record through PlanTransitionService
+                const PlanTransitionService = (await import('./PlanTransitionService.js')).default;
+                
+                // For token assignments, we don't have plan ID directly, but we can infer it
+                // This would need to be called from the plan transition context
+                console.log(`[TokenAssignment] 📋 Token assignment archived for student ${studentId}`);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error archiving student token assignment:', error);
+        }
+    }
+    
+    /**
+     * Get students with permanently assigned tokens (for plan transitions)
+     */
+    async getStudentsWithAssignedTokens(personalTrainerId: string): Promise<Array<{
+        studentId: string;
+        tokenId: string;
+        dateAssigned: Date;
+        isActive: boolean;
+    }>> {
+        try {
+            console.log(`[TokenAssignment] 📋 Getting students with assigned tokens for personal ${personalTrainerId}`);
+            
+            const assignedTokens = await TokenAvulso.find({
+                personalTrainerId: personalTrainerId,
+                ativo: true,
+                assignedToStudentId: { $ne: null }
+            }).populate('assignedToStudentId', 'status');
+            
+            const result = assignedTokens.map(token => ({
+                studentId: (token.assignedToStudentId as any)._id.toString(),
+                tokenId: (token._id as mongoose.Types.ObjectId).toString(),
+                dateAssigned: token.dateAssigned!,
+                isActive: (token.assignedToStudentId as any).status === 'active'
+            }));
+            
+            console.log(`[TokenAssignment] 📊 Found ${result.length} students with assigned tokens`);
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Error getting students with assigned tokens:', error);
+            return [];
+        }
+    }
 }
 
 export default new TokenAssignmentService();

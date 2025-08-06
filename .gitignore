@@ -6,5 +6,9 @@ node_modules/
 
 # Ignorar diretórios de build do servidor e arquivos compilados
 /server/dist
-/shared/distshared/dist/
-shared/dist
+/shared/dist
+shared/dist/
+
+# Shared module dependencies (should use root dependencies)
+shared/node_modules/
+shared/package-lock.json

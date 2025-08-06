@@ -1,15 +1,24 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",                  // ALTERADO
-    "moduleResolution": "node",             // ALTERADO
+    "module": "ESNext",
+    "moduleResolution": "node",
     "composite": true,
     "declaration": true,
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "paths": {
+      "@shared/*": ["./*"]
+    }
   },
-  "include": ["**/*.ts"]
+  "include": ["types/**/*.ts"],
+  "exclude": ["node_modules", "./dist", "schema.ts"],
+  "references": []
 }
