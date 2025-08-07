@@ -157,28 +157,77 @@ export class TokenService {
     
     /**
      * Get token details for a specific student
+     * Enhanced to check both Token and TokenAvulso models for dual compatibility
      */
     async getStudentTokenDetails(studentId: string): Promise<TokenDetails | null> {
         try {
-            const token = await Token.findOne({
-                alunoId: studentId,
-                ativo: true
-            }).populate('alunoId', 'nome');
+            console.log(`[TokenService] 🔍 Getting token details for student ${studentId}`);
             
-            if (!token) {
+            // Check both legacy TokenAvulso and new Token models
+            const [legacyToken, newToken] = await Promise.all([
+                import('../models/TokenAvulso.js').then(module => 
+                    module.default.findOne({
+                        assignedToStudentId: studentId,
+                        ativo: true
+                    }).populate('assignedToStudentId', 'nome')
+                ),
+                Token.findOne({
+                    alunoId: studentId,
+                    ativo: true
+                }).populate('alunoId', 'nome')
+            ]);
+            
+            // Prefer legacy token if both exist (consistency with assignment logic)
+            const assignedToken = legacyToken || newToken;
+            
+            if (!assignedToken) {
+                console.log(`[TokenService] ℹ️ No token found for student ${studentId} in either model`);
                 return null;
             }
             
-            return {
-                id: token.id,
-                tipo: token.tipo,
-                dataExpiracao: token.dataExpiracao,
-                status: token.status,
-                alunoId: studentId,
-                alunoNome: (token.alunoId as any)?.nome,
-                planoId: token.planoId?.toString(),
-                quantidade: token.quantidade
-            };
+            const isLegacyToken = !!legacyToken;
+            
+            // Convert to standardized TokenDetails format
+            let tokenDetails: TokenDetails;
+            
+            if (isLegacyToken) {
+                // Handle TokenAvulso model
+                const legacyTokenData = assignedToken as any;
+                tokenDetails = {
+                    id: (legacyTokenData._id as mongoose.Types.ObjectId).toString(),
+                    tipo: 'avulso', // Legacy tokens are typically standalone
+                    dataExpiracao: legacyTokenData.dataVencimento,
+                    status: legacyTokenData.dataVencimento <= new Date() ? 'Expirado' : 'Ativo',
+                    alunoId: studentId,
+                    alunoNome: legacyTokenData.assignedToStudentId?.nome,
+                    planoId: undefined, // Legacy tokens typically don't have planoId
+                    quantidade: legacyTokenData.quantidade
+                };
+            } else {
+                // Handle new Token model
+                const newTokenData = assignedToken as any;
+                tokenDetails = {
+                    id: newTokenData.id,
+                    tipo: newTokenData.tipo,
+                    dataExpiracao: newTokenData.dataExpiracao,
+                    status: newTokenData.status || 'Ativo',
+                    alunoId: studentId,
+                    alunoNome: newTokenData.alunoId?.nome,
+                    planoId: newTokenData.planoId?.toString(),
+                    quantidade: newTokenData.quantidade
+                };
+            }
+            
+            console.log(`[TokenService] ✅ Found token for student ${studentId}:`, {
+                tokenModel: isLegacyToken ? 'TokenAvulso' : 'Token',
+                tokenId: tokenDetails.id,
+                tipo: tokenDetails.tipo,
+                dataExpiracao: tokenDetails.dataExpiracao,
+                status: tokenDetails.status,
+                quantidade: tokenDetails.quantidade
+            });
+            
+            return tokenDetails;
             
         } catch (error) {
             console.error('❌ Error getting student token details:', error);
