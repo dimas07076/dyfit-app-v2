@@ -224,14 +224,47 @@ export class StudentResourceValidationService {
             const planInfo = validation.status.planInfo;
             
             if (planInfo && planInfo.planSlotsAvailable > 0 && !planInfo.isExpired) {
-                // Use plan slot - no additional tracking needed as PlanoService logic handles this
-                console.log(`[StudentResourceValidation] 📋 Using plan slot for student ${studentId}`);
-                return {
-                    success: true,
-                    message: 'Plan slot assigned to student',
-                    resourceType: 'plan',
-                    assignedResourceId: planInfo.personalPlano?._id?.toString()
-                };
+                // Use plan slot - create a Token record with tipo: 'plano' for proper tracking and display
+                console.log(`[StudentResourceValidation] 📋 Using plan slot for student ${studentId}, creating plan token`);
+                
+                const Token = (await import('../models/Token.js')).default;
+                
+                try {
+                    // Create a plan token record for this student
+                    const planToken = new Token({
+                        tipo: 'plano',
+                        personalTrainerId: personalTrainerId,
+                        alunoId: new (await import('mongoose')).default.Types.ObjectId(studentId),
+                        planoId: planInfo.personalPlano?._id,
+                        dataExpiracao: planInfo.personalPlano?.dataVencimento,
+                        ativo: true,
+                        quantidade: 1,
+                        dateAssigned: new Date(),
+                        adicionadoPorAdmin: planInfo.personalPlano?.atribuidoPorAdmin || new (await import('mongoose')).default.Types.ObjectId(personalTrainerId),
+                        motivoAdicao: `Token de plano atribuído automaticamente - ${planInfo.plano?.nome || 'Plano'}`
+                    });
+                    
+                    await planToken.save();
+                    
+                    console.log(`[StudentResourceValidation] ✅ Created plan token ${planToken.id} for student ${studentId}`);
+                    
+                    return {
+                        success: true,
+                        message: 'Plan token created and assigned to student',
+                        resourceType: 'plan',
+                        assignedResourceId: planToken.id
+                    };
+                } catch (tokenCreationError) {
+                    console.error(`[StudentResourceValidation] ❌ Error creating plan token for student ${studentId}:`, tokenCreationError);
+                    
+                    // Fallback to traditional plan assignment without token creation
+                    return {
+                        success: true,
+                        message: 'Plan slot assigned to student (token creation failed)',
+                        resourceType: 'plan',
+                        assignedResourceId: planInfo.personalPlano?._id?.toString()
+                    };
+                }
             } else if (validation.status.tokenInfo.availableTokens > 0) {
                 // Use token - assign token to student
                 console.log(`[StudentResourceValidation] 🎫 Using token for student ${studentId}`);
