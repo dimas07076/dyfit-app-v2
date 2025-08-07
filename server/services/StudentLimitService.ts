@@ -19,7 +19,12 @@ export interface StudentLimitStatus {
         totalTokens: number;
     };
     limitExceeded: boolean;
-    blockedActions: {
+    /**
+     * Indicates which actions the personal trainer is allowed to perform
+     * based on the current quota status. These flags are `true` when the
+     * action is permitted and `false` when it should be blocked.
+     */
+    actionPermissions: {
         canActivateStudents: boolean;
         canSendInvites: boolean;
     };
@@ -122,7 +127,7 @@ export class StudentLimitService {
                     totalTokens: tokenAssignmentStatus.totalTokens,
                 },
                 limitExceeded,
-                blockedActions: {
+                actionPermissions: {
                     canActivateStudents: canActivateStatus.canActivate,
                     canSendInvites: canActivateStatus.canActivate, // Same logic for now
                 },
@@ -148,7 +153,7 @@ export class StudentLimitService {
                     totalTokens: 0,
                 },
                 limitExceeded: true,
-                blockedActions: {
+                actionPermissions: {
                     canActivateStudents: false,
                     canSendInvites: false,
                 },
