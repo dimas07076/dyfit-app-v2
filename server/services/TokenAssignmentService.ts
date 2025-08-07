@@ -1,6 +1,6 @@
 // server/services/TokenAssignmentService.ts
 import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
-import Aluno from '../models/Aluno.js';
+import TokenAssignment from '../models/TokenAssignment.js';
 import mongoose from 'mongoose';
 
 export interface TokenAssignmentResult {
@@ -16,6 +16,7 @@ export interface TokenAssignmentStatus {
     totalTokens: number;
     consumedTokenDetails: Array<{
         tokenId: string;
+        type: 'plano' | 'avulso';
         quantidade: number;
         dataVencimento: Date;
         dateAssigned: Date;
@@ -89,7 +90,7 @@ export class TokenAssignmentService {
                     errorCode: 'NO_SUITABLE_TOKEN'
                 };
             }
-            
+
             // Assign the token to the student
             if (assignedToken.quantidade === requiredTokens) {
                 // Assign entire token to student
@@ -121,7 +122,25 @@ export class TokenAssignmentService {
                 
                 console.log(`[TokenAssignment] ✅ Split token: reduced original token to ${originalQuantity - requiredTokens}, created new assigned token ${assignedToken._id} (quantity: ${requiredTokens}) for student ${studentId}`);
             }
-            
+
+            // Persist token assignment record for tracking
+            try {
+                const existingAssignment = await TokenAssignment.findOne({ studentId });
+                if (!existingAssignment) {
+                    await TokenAssignment.create({
+                        tokenId: (assignedToken._id as mongoose.Types.ObjectId).toString(),
+                        studentId: new mongoose.Types.ObjectId(studentId),
+                        personalTrainerId: new mongoose.Types.ObjectId(personalTrainerId),
+                        type: 'avulso',
+                        validUntil: assignedToken.dataVencimento,
+                        assignedAt: now
+                    });
+                    console.log(`[TokenAssignment] 📝 Created assignment record for student ${studentId}`);
+                }
+            } catch (err) {
+                console.error('[TokenAssignment] ⚠️ Failed to persist assignment record:', err);
+            }
+
             return {
                 success: true,
                 message: `Token atribuído com sucesso ao aluno`,
@@ -264,28 +283,29 @@ export class TokenAssignmentService {
      */
     async getConsumedTokensWithDetails(personalTrainerId: string): Promise<TokenAssignmentStatus['consumedTokenDetails']> {
         try {
-            const consumedTokens = await TokenAvulso.find({
-                personalTrainerId: personalTrainerId,
-                ativo: true,
-                assignedToStudentId: { $ne: null }
-            }).populate('assignedToStudentId', 'nome email status').sort({ dateAssigned: -1 });
-            
-            const result = consumedTokens.map(token => ({
-                tokenId: (token._id as mongoose.Types.ObjectId).toString(),
-                quantidade: token.quantidade,
-                dataVencimento: token.dataVencimento,
-                dateAssigned: token.dateAssigned!,
+            const assignments = await TokenAssignment.find({
+                personalTrainerId: personalTrainerId
+            })
+                .populate('studentId', 'nome email status')
+                .sort({ assignedAt: -1 });
+
+            const result = assignments.map(assignment => ({
+                tokenId: assignment.tokenId,
+                type: assignment.type,
+                quantidade: 1,
+                dataVencimento: assignment.validUntil,
+                dateAssigned: assignment.assignedAt,
                 assignedStudent: {
-                    id: (token.assignedToStudentId as any)._id.toString(),
-                    nome: (token.assignedToStudentId as any).nome,
-                    email: (token.assignedToStudentId as any).email,
-                    status: (token.assignedToStudentId as any).status
+                    id: (assignment.studentId as any)._id.toString(),
+                    nome: (assignment.studentId as any).nome,
+                    email: (assignment.studentId as any).email,
+                    status: (assignment.studentId as any).status
                 }
             }));
-            
+
             console.log(`[TokenAssignment] 📋 Found ${result.length} consumed tokens for ${personalTrainerId}`);
             return result;
-            
+
         } catch (error) {
             console.error('❌ Error getting consumed tokens details:', error);
             return [];
@@ -301,8 +321,8 @@ export class TokenAssignmentService {
                 this.getAvailableTokensCount(personalTrainerId),
                 this.getConsumedTokensWithDetails(personalTrainerId)
             ]);
-            
-            const consumedTokens = consumedTokenDetails.reduce((sum, token) => sum + token.quantidade, 0);
+
+            const consumedTokens = consumedTokenDetails.length;
             const totalTokens = availableTokens + consumedTokens;
             
             console.log(`[TokenAssignment] 📊 Token status for ${personalTrainerId}:`, {

@@ -95,8 +95,8 @@ export const ConsumedTokensDisplay: React.FC<ConsumedTokensDisplayProps> = ({
                             <h4 className="font-medium text-sm">Tokens Atribuídos aos Alunos</h4>
                             
                             {consumedTokenDetails.map((token, index) => (
-                                <div 
-                                    key={token.tokenId} 
+                                <div
+                                    key={token.tokenId}
                                     className="border rounded-lg p-3 space-y-2 bg-gray-50"
                                 >
                                     <div className="flex items-center justify-between">
@@ -105,7 +105,7 @@ export const ConsumedTokensDisplay: React.FC<ConsumedTokensDisplayProps> = ({
                                             <span className="font-medium text-sm">
                                                 {token.assignedStudent.nome}
                                             </span>
-                                            <Badge 
+                                            <Badge
                                                 variant={token.assignedStudent.status === 'active' ? 'default' : 'secondary'}
                                                 className="text-xs"
                                             >
@@ -119,7 +119,14 @@ export const ConsumedTokensDisplay: React.FC<ConsumedTokensDisplayProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    
+
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <span>ID: {token.tokenId}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                            {token.type === 'plano' ? 'Plano' : 'Avulso'}
+                                        </Badge>
+                                    </div>
+
                                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                         <div className="flex items-center gap-1">
                                             <Mail className="h-3 w-3" />

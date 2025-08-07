@@ -19,7 +19,11 @@ export interface StudentLimitStatus {
         totalTokens: number;
     };
     limitExceeded: boolean;
-    blockedActions: {
+    /**
+     * Flags indicating which operations the user is currently allowed to
+     * perform. A value of `true` means the action is permitted.
+     */
+    actionPermissions: {
         canActivateStudents: boolean;
         canSendInvites: boolean;
     };
@@ -56,7 +60,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                     totalTokens: 0,
                 },
                 limitExceeded: true,
-                blockedActions: {
+                actionPermissions: {
                     canActivateStudents: false,
                     canSendInvites: false,
                 },
@@ -97,7 +101,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                         totalTokens: 0,
                     },
                     limitExceeded: true,
-                    blockedActions: {
+                    actionPermissions: {
                         canActivateStudents: false,
                         canSendInvites: false,
                     },
@@ -118,7 +122,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                     totalTokens: 0,
                 },
                 limitExceeded: true,
-                blockedActions: {
+                actionPermissions: {
                     canActivateStudents: false,
                     canSendInvites: false,
                 },
@@ -143,7 +147,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                     totalTokens: 0,
                 },
                 limitExceeded: true,
-                blockedActions: {
+                actionPermissions: {
                     canActivateStudents: false,
                     canSendInvites: false,
                 },
@@ -178,7 +182,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
                 totalTokens: 0,
             },
             limitExceeded: true,
-            blockedActions: {
+            actionPermissions: {
                 canActivateStudents: false,
                 canSendInvites: false,
             },
@@ -311,7 +315,7 @@ export const useStudentLimit = () => {
     }, [status]);
 
     const canSendInvites = useCallback((): boolean => {
-        return status?.blockedActions.canSendInvites ?? false;
+        return status?.actionPermissions.canSendInvites ?? false;
     }, [status]);
 
     const getStatusMessage = useCallback((): string => {
