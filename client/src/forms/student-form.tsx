@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Aluno } from '@/types/aluno';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
-import { useEffect } from 'react';
+import { useEffect, MutableRefObject } from 'react';
 import { formatDateForInput } from '@/utils/dateUtils';
 import { TokenInfoDisplay } from '@/components/TokenInfoDisplay';
 import { useTokenInfo } from '@/hooks/useTokenInfo';
@@ -74,11 +74,34 @@ export interface StudentFormDataProcessed {
     password?: string;
 }
 
-interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; disabled?: boolean; }
+interface StudentFormProps { 
+    onSubmit: (data: StudentFormDataProcessed) => void; 
+    isLoading?: boolean; 
+    initialData?: Aluno; 
+    isEditing?: boolean; 
+    onCancel?: () => void; 
+    disabled?: boolean; 
+    tokenRefreshRef?: MutableRefObject<{ refetch: () => void } | null>;
+}
 
-export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel, disabled = false }: StudentFormProps) {
+export function StudentForm({ 
+    onSubmit: onSubmitProp, 
+    isLoading = false, 
+    initialData, 
+    isEditing = false, 
+    onCancel, 
+    disabled = false, 
+    tokenRefreshRef 
+}: StudentFormProps) {
     // Get token information for the student (only when editing)
-    const { tokenInfo, isLoading: tokenLoading } = useTokenInfo(isEditing ? initialData?._id : undefined);
+    const { tokenInfo, isLoading: tokenLoading, refetch: refetchTokenInfo } = useTokenInfo(isEditing ? initialData?._id : undefined);
+    
+    // Expose refetch function via ref for parent component
+    useEffect(() => {
+        if (tokenRefreshRef && isEditing) {
+            tokenRefreshRef.current = { refetch: refetchTokenInfo };
+        }
+    }, [tokenRefreshRef, isEditing, refetchTokenInfo]);
     
     // Form persistence for new students only
     const persistedForm = useFormPersistence({

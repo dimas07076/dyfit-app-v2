@@ -1,5 +1,5 @@
 // client/src/pages/alunos/edit.tsx
-import React from 'react';
+import React, { useRef } from 'react';
 import { Link, useLocation, useParams } from 'wouter'; 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StudentForm, StudentFormDataProcessed } from '@/forms/student-form';
@@ -17,6 +17,9 @@ const EditStudentPage: React.FC = () => {
     const [, setLocation] = useLocation();
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    
+    // Ref to trigger token info refresh from the StudentForm
+    const tokenRefreshRef = useRef<{ refetch: () => void } | null>(null);
 
     // <<< CORREÇÃO AQUI: Atualizado o caminho da API e a queryKey >>>
     const { data: studentData, isLoading, isError, error } = useQuery<Aluno, Error>({
@@ -31,10 +34,24 @@ const EditStudentPage: React.FC = () => {
             method: 'PUT',
             body: JSON.stringify(updatedData),
         }),
-        onSuccess: (updatedStudent) => {
+        onSuccess: (updatedStudent, variables) => {
             toast({ title: "Sucesso!", description: `${updatedStudent.nome} atualizado com sucesso.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
             queryClient.invalidateQueries({ queryKey: ['aluno', studentId] });
+            
+            // Check if status changed and trigger token info refresh
+            if (studentData?.status !== variables.status) {
+                console.log(`[EditStudentPage] Status changed from ${studentData?.status} to ${variables.status}, refreshing token info`);
+                
+                // Trigger token info refresh after a short delay to allow backend processing
+                setTimeout(() => {
+                    if (tokenRefreshRef.current) {
+                        tokenRefreshRef.current.refetch();
+                        console.log(`[EditStudentPage] Token info refresh triggered`);
+                    }
+                }, 500);
+            }
+            
             setLocation('/alunos');
         },
         onError: (error) => {
@@ -62,6 +79,7 @@ const EditStudentPage: React.FC = () => {
                         isEditing={true}
                         onSubmit={(formData) => mutation.mutate(formData)}
                         isLoading={mutation.isPending}
+                        tokenRefreshRef={tokenRefreshRef}
                     />
                 </CardContent>
             </Card>
