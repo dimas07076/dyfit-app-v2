@@ -1,6 +1,6 @@
 // server/middlewares/assignTokenToStudent.ts
 import { Request, Response, NextFunction } from 'express';
-import TokenAssignmentService from '../services/TokenAssignmentService.js';
+import TokenAssignmentService, { getTokenAssignedStudentId } from '../services/TokenAssignmentService.js';
 import StudentResourceValidationService from '../services/StudentResourceValidationService.js';
 
 /**
@@ -72,8 +72,8 @@ export const assignTokenToStudent = async (req: Request, res: Response, next: Ne
                 console.log(`[assignTokenToStudent] 🔍 ENHANCED: Token assignment verification:`, {
                     tokenWasAssigned: !!verificationToken,
                     tokenId: verificationToken?._id?.toString(),
-                    isPermanentlyBound: !!verificationToken?.assignedToStudentId,
-                    criticalCheck: verificationToken?.assignedToStudentId?.toString() === studentId ? 'CORRECT' : 'ERROR'
+                    isPermanentlyBound: verificationToken ? !!getTokenAssignedStudentId(verificationToken) : false,
+                    criticalCheck: verificationToken ? (getTokenAssignedStudentId(verificationToken)?.toString() === studentId ? 'CORRECT' : 'ERROR') : 'NO_TOKEN'
                 });
             }
         }

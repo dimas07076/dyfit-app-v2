@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import StudentLimitService from '../../services/StudentLimitService.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
+import { getTokenAssignedStudentId, getTokenExpirationDate } from '../../services/TokenAssignmentService.js';
 import dbConnect from '../../lib/dbConnect.js';
 
 const router = express.Router();
@@ -828,7 +829,7 @@ router.post('/test-scenario', authenticateToken, async (req: Request, res: Respo
             results.studentAfter = {
                 hasToken: !!finalStudentToken,
                 tokenId: finalStudentToken?._id?.toString(),
-                tokenPermanentlyBound: !!finalStudentToken?.assignedToStudentId
+                tokenPermanentlyBound: finalStudentToken ? !!getTokenAssignedStudentId(finalStudentToken) : false
             };
         }
         
@@ -938,9 +939,9 @@ router.post('/verify-token-binding', authenticateToken, async (req: Request, res
                     tokenId: (assignedToken._id as any).toString(),
                     quantity: assignedToken.quantidade,
                     assignedDate: assignedToken.dateAssigned?.toISOString(),
-                    expirationDate: assignedToken.dataVencimento.toISOString(),
-                    isExpired: assignedToken.dataVencimento <= new Date(),
-                    isPermanentlyBound: !!assignedToken.assignedToStudentId
+                    expirationDate: getTokenExpirationDate(assignedToken).toISOString(),
+                    isExpired: getTokenExpirationDate(assignedToken) <= new Date(),
+                    isPermanentlyBound: !!getTokenAssignedStudentId(assignedToken)
                 } : null
             };
             

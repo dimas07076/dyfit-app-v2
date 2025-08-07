@@ -1,6 +1,6 @@
 // server/services/StudentResourceValidationService.ts
 import PlanoService from './PlanoService.js';
-import TokenAssignmentService from './TokenAssignmentService.js';
+import TokenAssignmentService, { getTokenExpirationDate } from './TokenAssignmentService.js';
 import mongoose from 'mongoose';
 
 export interface ResourceValidationResult {
@@ -210,7 +210,7 @@ export class StudentResourceValidationService {
 
             // Check if student already has a resource assigned (for reactivation)
             const existingToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
-            if (existingToken && existingToken.dataVencimento > new Date()) {
+            if (existingToken && getTokenExpirationDate(existingToken) > new Date()) {
                 console.log(`[StudentResourceValidation] ♻️ Student ${studentId} already has valid token, no new assignment needed`);
                 return {
                     success: true,

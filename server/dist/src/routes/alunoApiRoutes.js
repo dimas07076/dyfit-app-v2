@@ -11,6 +11,7 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
+import { getTokenAssignedStudentId, getTokenExpirationDate } from '../../services/TokenAssignmentService.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
@@ -114,8 +115,8 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             console.log(`[AlunoCreation] 🔍 ENHANCED: Token assignment verification:`, {
                 studentHasToken: !!verificationToken,
                 tokenId: verificationToken?._id?.toString(),
-                tokenPermanentlyBound: !!verificationToken?.assignedToStudentId,
-                assignmentVerified: verificationToken?.assignedToStudentId?.toString() === studentId
+                tokenPermanentlyBound: verificationToken ? !!getTokenAssignedStudentId(verificationToken) : false,
+                assignmentVerified: verificationToken ? getTokenAssignedStudentId(verificationToken)?.toString() === studentId : false
             });
         }
         if (!assignmentResult.success) {
@@ -276,7 +277,7 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                 console.log(`[AlunoUpdate] 🔄 CRITICAL FIX: Student being ACTIVATED, checking token assignment`);
                 // Check if student has existing token
                 const existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
-                if (existingToken && existingToken.dataVencimento > new Date()) {
+                if (existingToken && getTokenExpirationDate(existingToken) > new Date()) {
                     console.log(`[AlunoUpdate] ♻️ REACTIVATION: Student ${alunoId} has valid existing token ${existingToken._id}, reusing it`);
                 }
                 else {
@@ -306,20 +307,20 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                     studentName: alunoAtualizado?.nome,
                     tokenStillAssigned: !!assignedTokenAfter,
                     tokenId: assignedTokenAfter?._id?.toString(),
-                    tokenPermanentlyBound: !!assignedTokenAfter?.assignedToStudentId,
+                    tokenPermanentlyBound: assignedTokenAfter ? !!getTokenAssignedStudentId(assignedTokenAfter) : false,
                     currentTokenStatus: {
                         available: tokenStatusAfter.availableTokens,
                         consumed: tokenStatusAfter.consumedTokens,
                         total: tokenStatusAfter.totalTokens
                     },
-                    criticalCheck: assignedTokenAfter?.assignedToStudentId?.toString() === alunoId ?
+                    criticalCheck: assignedTokenAfter ? (getTokenAssignedStudentId(assignedTokenAfter)?.toString() === alunoId ?
                         'CORRECT: Token remains permanently assigned' :
-                        'ERROR: Token assignment lost!'
+                        'ERROR: Token assignment lost!') : 'NO_TOKEN'
                 });
                 if (!assignedTokenAfter) {
                     console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Student ${alunoId} was deactivated but lost their token assignment!`);
                 }
-                else if (assignedTokenAfter.assignedToStudentId?.toString() !== alunoId) {
+                else if (getTokenAssignedStudentId(assignedTokenAfter)?.toString() !== alunoId) {
                     console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Token ${assignedTokenAfter._id} is not properly bound to student ${alunoId}!`);
                 }
                 else {
@@ -342,8 +343,8 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                 hasAssignedToken: !!assignedTokenAfter,
                 tokenId: assignedTokenAfter?._id?.toString(),
                 tokenQuantity: assignedTokenAfter?.quantidade,
-                tokenExpired: assignedTokenAfter ? assignedTokenAfter.dataVencimento <= new Date() : null,
-                tokenExpirationDate: assignedTokenAfter?.dataVencimento?.toISOString(),
+                tokenExpired: assignedTokenAfter ? getTokenExpirationDate(assignedTokenAfter) <= new Date() : null,
+                tokenExpirationDate: assignedTokenAfter ? getTokenExpirationDate(assignedTokenAfter).toISOString() : null,
                 dateAssigned: assignedTokenAfter?.dateAssigned?.toISOString(),
                 finalStatus: alunoAtualizado?.status
             });

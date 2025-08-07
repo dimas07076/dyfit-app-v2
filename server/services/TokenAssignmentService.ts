@@ -4,6 +4,38 @@ import Token, { IToken } from '../models/Token.js';
 import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
+// Type guards for dual token model compatibility
+export function isTokenAvulso(token: ITokenAvulso | IToken): token is ITokenAvulso {
+    return 'dataVencimento' in token && 'assignedToStudentId' in token;
+}
+
+export function isToken(token: ITokenAvulso | IToken): token is IToken {
+    return 'dataExpiracao' in token && 'alunoId' in token;
+}
+
+// Utility functions for dual token model access
+export function getTokenExpirationDate(token: ITokenAvulso | IToken): Date {
+    if (isTokenAvulso(token)) {
+        return token.dataVencimento;
+    }
+    return token.dataExpiracao;
+}
+
+export function getTokenAssignedStudentId(token: ITokenAvulso | IToken): mongoose.Types.ObjectId | undefined {
+    if (isTokenAvulso(token)) {
+        return token.assignedToStudentId || undefined;
+    }
+    return token.alunoId || undefined;
+}
+
+export function setTokenAssignedStudentId(token: ITokenAvulso | IToken, studentId: mongoose.Types.ObjectId | null): void {
+    if (isTokenAvulso(token)) {
+        token.assignedToStudentId = studentId || undefined;
+    } else {
+        token.alunoId = studentId || undefined;
+    }
+}
+
 export interface TokenAssignmentResult {
     success: boolean;
     message: string;
