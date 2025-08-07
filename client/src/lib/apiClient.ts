@@ -251,6 +251,21 @@ const fetchWithAuthInternal = async <T = any>(
       const errorCode = data?.code; // Captura o código de erro enviado pelo backend
 
       if (response.status === 401 || response.status === 403) {
+          // Check if 403 is a business logic error that shouldn't trigger auth-failed
+          const isBusinessLogicError = response.status === 403 && errorCode && [
+            'STUDENT_LIMIT_EXCEEDED',
+            'STUDENT_NOT_FOUND', 
+            'VALIDATION_SERVICE_ERROR',
+            'INSUFFICIENT_TOKENS',
+            'NO_SUITABLE_TOKEN',
+            'INTERNAL_ERROR'
+          ].includes(errorCode);
+          
+          // For business logic 403 errors, throw regular Error instead of AuthError
+          if (isBusinessLogicError) {
+            throw new Error(errorMessage);
+          }
+          
           // Tentar renovar o token apenas em caso de 401 (não 403, que é falta de permissão)
           if (response.status === 401 && !isPublicAuthRoute) {
               // Se já estamos renovando, adiciona à fila
@@ -355,7 +370,7 @@ const fetchWithAuthInternal = async <T = any>(
                   throw refreshError;
               }
           } else {
-              // Para 403 ou rotas públicas, comportamento original
+              // Para 403 de autorização real ou rotas públicas, comportamento original
               window.dispatchEvent(new CustomEvent('auth-failed', { 
                 detail: { 
                   status: response.status,
