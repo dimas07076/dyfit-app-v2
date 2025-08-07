@@ -308,9 +308,8 @@ export class PlanoService {
         });
         
         // Calculate available slots
-        // 1. Plan-based slots: plan limit minus ALL plan-based students (active + inactive) - PERMANENT CONSUMPTION
-        const totalPlanBasedStudents = planBasedActiveStudents + planBasedInactiveStudents;
-        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - totalPlanBasedStudents);
+        // 1. Plan-based slots: plan limit minus ACTIVE plan-based students only (inactive students free up plan slots)
+        const planBasedSlots = isExpired ? 0 : Math.max(0, planLimit - planBasedActiveStudents);
         
         // 2. Token-based slots: only unassigned tokens (permanently assigned tokens don't free up)
         const tokenBasedSlots = tokenStatus.availableTokens;
@@ -320,13 +319,12 @@ export class PlanoService {
         // Current limit includes all valid capacity (plan + all valid tokens)
         const currentLimit = planLimit + tokenStatus.totalTokens;
         
-        console.log(`[PlanoService.canActivateMoreStudents] 🧮 CRITICAL FIX: Plan slots now permanently consumed like tokens:`, {
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED LOGIC: Plan slots freed when students become inactive:`, {
             planLimit,
             isExpired,
             activeStudents: status.alunosAtivos,
             planBasedActiveStudents,
             planBasedInactiveStudents,
-            totalPlanBasedStudents,
             tokenBasedActiveStudents,
             tokenBasedInactiveStudents,
             planBasedSlots: planBasedSlots,
@@ -334,7 +332,7 @@ export class PlanoService {
             totalAvailableSlots: availableSlots,
             currentLimit,
             canActivate: availableSlots >= quantidadeDesejada,
-            criticalFix: "PERMANENT PLAN CONSUMPTION: Plan slots permanently consumed by ALL plan-based students (active + inactive), matching token behavior"
+            criticalFix: "CORRECT LOGIC: Plan slots only consumed by ACTIVE plan-based students (inactive students free up slots). Tokens remain permanently assigned."
         });
         
         return {

@@ -1,0 +1,326 @@
+index-CqONZfT8.js:244 [AppContent] Location changed: /
+index-CqONZfT8.js:244 [AppContent] User: not authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:243 [WorkoutPlayerContext] CONTEXT_INIT: Contexto está sendo montado.
+index-CqONZfT8.js:243 [WorkoutPlayerContext] CONTEXT_INIT: Nenhuma sessão ativa encontrada no localStorage.
+index-CqONZfT8.js:243 [WorkoutPlayerContext] TIMER_EFFECT: isWorkoutActive mudou para false, session mudou para Nulo, isResting mudou para false.
+index-CqONZfT8.js:243 [WorkoutPlayerContext] TIMER_EFFECT: Timer parado. isWorkoutActive: false, session: Nulo
+index-CqONZfT8.js:199 [AlunoContext] useEffect (montagem inicial): Chamando checkAlunoSession().
+index-CqONZfT8.js:199 [AlunoContext] checkAlunoSession: Verificando sessão do aluno...
+index-CqONZfT8.js:199 [AlunoContext] checkAlunoSession: Token de acesso armazenado: false
+index-CqONZfT8.js:199 [AlunoContext] Nenhum token de acesso encontrado. Tentando renovar com refresh token...
+index-CqONZfT8.js:199 [AlunoContext] refreshAlunoToken: Verificando refresh token. Existe: false
+index-CqONZfT8.js:199 [AlunoContext] Nenhum refresh token de aluno encontrado. Realizando logout.
+index-CqONZfT8.js:199 [AlunoContext] Iniciando logout do aluno...
+index-CqONZfT8.js:199 [AlunoContext] Dados de sessão do aluno removidos do localStorage.
+index-CqONZfT8.js:199 [AlunoContext] Redirecionando para /login (hub) após logout do Aluno.
+index-CqONZfT8.js:199 [AlunoContext] useEffect (intervalo de refresh): Configurando intervalo.
+index-CqONZfT8.js:199 [AlunoContext] useEffect (storage change): Configurando listener.
+index-CqONZfT8.js:199 [AlunoContext] useEffect (auth-failed event): Configurando listener.
+index-CqONZfT8.js:199 [AlunoContext] useEffect (visibility change): Configurando listener.
+index-CqONZfT8.js:199 [UserContext] Event listener para 'auth-failed' adicionado.
+index-CqONZfT8.js:244 [PWA Context] Contexto inicializado e ouvindo pelo evento de instalação.
+index-CqONZfT8.js:244 [AppContent] Location changed: /login
+index-CqONZfT8.js:244 [AppContent] User: not authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [AlunoContext] checkAlunoSession: Verificação de sessão concluída. isLoadingAluno: false
+index-CqONZfT8.js:199 [AlunoContext] useEffect (visibility change): Removendo listener.
+index-CqONZfT8.js:244 [PublicRoutes] Rotas públicas carregadas
+index-CqONZfT8.js:244 [PublicRoutes] URL atual: https://dyfit-c8rm25jzf-dimas-melos-projects-6813c3a9.vercel.app/login
+index-CqONZfT8.js:244 [PublicRoutes] Pathname: /login
+index-CqONZfT8.js:199 [AlunoContext] useEffect (visibility change): Configurando listener.
+index-CqONZfT8.js:244 PWA Service Worker registered: ServiceWorkerRegistration
+index-CqONZfT8.js:244 [AppContent] Location changed: /login/personal
+index-CqONZfT8.js:244 [AppContent] User: not authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:244 [AppContent] Location changed: /
+index-CqONZfT8.js:244 [AppContent] User: not authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:244 [AppContent] Location changed: /login
+index-CqONZfT8.js:244 [AppContent] User: not authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [UserContext] Event listener para 'auth-failed' removido.
+index-CqONZfT8.js:244 [AppContent] Location changed: /login
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [UserContext] Event listener para 'auth-failed' adicionado.
+index-CqONZfT8.js:244 [AppContent] Location changed: /
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [Route Restoration] App focado/visível, executando restauração imediata
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(0)
+index-DJ99ZkPl.js:40 Is Loading: true
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(0)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-DJ99ZkPl.js:40 Executing fetchWithAuth for /api/aluno/gerenciar
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-CqONZfT8.js:244 [Route Restoration] App focado/visível, executando restauração imediata
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos/editar/68932244d2f7243185949ee0
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+hook.js:608 [fetchWithAuth] Erro de rede ou de requisição para a rota '/api/aluno/gerenciar/68932244d2f7243185949ee0': Error: Limite de 1 alunos ativos atingido. Você possui 0 alunos ativos.
+    at kp (index-CqONZfT8.js:199:99124)
+    at async ry (index-CqONZfT8.js:199:101342)
+overrideMethod @ hook.js:608
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+index-CqONZfT8.js:244 [AppContent] Location changed: /meu-plano
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-DJ99ZkPl.js:40 Executing fetchWithAuth for /api/aluno/gerenciar
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos/editar/6892c651a1ab4605805c84aa
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+hook.js:608 [fetchWithAuth] Erro de rede ou de requisição para a rota '/api/aluno/gerenciar/6892c651a1ab4605805c84aa': Error: Limite de 1 alunos ativos atingido. Você possui 0 alunos ativos.
+    at kp (index-CqONZfT8.js:199:99124)
+    at async ry (index-CqONZfT8.js:199:101342)
+overrideMethod @ hook.js:608
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos/editar/68932af572104b2cc4ea6941
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+hook.js:608 [fetchWithAuth] Erro de rede ou de requisição para a rota '/api/aluno/gerenciar/68932af572104b2cc4ea6941': Error: Limite de 1 alunos ativos atingido. Você possui 0 alunos ativos.
+    at kp (index-CqONZfT8.js:199:99124)
+    at async ry (index-CqONZfT8.js:199:101342)
+overrideMethod @ hook.js:608
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-DJ99ZkPl.js:40 Executing fetchWithAuth for /api/aluno/gerenciar
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos/editar/68932244d2f7243185949ee0
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+hook.js:608 [fetchWithAuth] Erro de rede ou de requisição para a rota '/api/aluno/gerenciar/68932244d2f7243185949ee0': Error: Limite de 1 alunos ativos atingido. Você possui 0 alunos ativos.
+    at kp (index-CqONZfT8.js:199:99124)
+    at async ry (index-CqONZfT8.js:199:101342)
+overrideMethod @ hook.js:608
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /meu-plano
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:244 [Route Restoration] App focado/visível, executando restauração imediata
+index-CqONZfT8.js:244 [Route Restoration] App focado/visível, executando restauração imediata
+index-CqONZfT8.js:244 [Route Restoration] App focado/visível, executando restauração imediata
+index-CqONZfT8.js:199 [AlunoContext] App tornou-se visível. Tempo desde última validação (ms): 158536
+index-CqONZfT8.js:199 [AlunoContext] App tornou-se visível. Token atual: false
+index-CqONZfT8.js:199 [AlunoContext] App tornou-se visível, mas sem token de acesso. Tentando renovar com refresh token...
+index-CqONZfT8.js:199 [AlunoContext] refreshAlunoToken: Verificando refresh token. Existe: false
+index-CqONZfT8.js:199 [AlunoContext] Nenhum refresh token de aluno encontrado. Realizando logout.
+index-CqONZfT8.js:199 [AlunoContext] Iniciando logout do aluno...
+index-CqONZfT8.js:199 [AlunoContext] Dados de sessão do aluno removidos do localStorage.
+index-CqONZfT8.js:199 [AlunoContext] Redirecionando para /login (hub) após logout do Aluno.
+index-CqONZfT8.js:244 [AppContent] Location changed: /login
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-CqONZfT8.js:244 [AppContent] Location changed: /meu-plano
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+index-DJ99ZkPl.js:40 Fetching students data...
+index-DJ99ZkPl.js:40 Students data: Array(3)
+index-DJ99ZkPl.js:40 Is Loading: false
+index-DJ99ZkPl.js:40 Is Error: false
+index-DJ99ZkPl.js:40 Filtered students: Array(3)
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Rendering component, variant: compact
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔧 [StudentLimitIndicator] Hook result: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+index-DJ99ZkPl.js:40 Executing fetchWithAuth for /api/aluno/gerenciar
+index-CqONZfT8.js:199 [validateAndCleanStorage] Validando storage para personalAdmin...
+index-CqONZfT8.js:199 [validateAndCleanStorage] Storage para personalAdmin validado com sucesso.
+index-CqONZfT8.js:244 [AppContent] Location changed: /alunos
+index-CqONZfT8.js:244 [AppContent] User: authenticated
+index-CqONZfT8.js:244 [AppContent] Aluno: not authenticated
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: Object
+StudentLimitIndicator-DUQ4PqXJ.js:1 🔍 [StudentLimit] Fetching student limit status...
+StudentLimitIndicator-DUQ4PqXJ.js:1 📡 [StudentLimit] Response status: 200
+StudentLimitIndicator-DUQ4PqXJ.js:1 📋 [StudentLimit] Raw response data: {success: true, data: {…}}
+StudentLimitIndicator-DUQ4PqXJ.js:1 ✅ [StudentLimit] Successfully fetched status: {canActivate: false, currentLimit: 1, activeStudents: 0, availableSlots: 0, tokensAvulsos: 0, …}
