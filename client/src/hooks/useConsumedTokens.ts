@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 export interface ConsumedTokenDetail {
     tokenId: string;
+    type: 'plano' | 'avulso';
     quantidade: number;
     dataVencimento: Date;
     dateAssigned: Date;
