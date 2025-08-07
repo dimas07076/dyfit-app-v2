@@ -1,12 +1,13 @@
 // server/services/TokenAssignmentService.ts
 import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
+import Token, { IToken } from '../models/Token.js';
 import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
 export interface TokenAssignmentResult {
     success: boolean;
     message: string;
-    assignedToken?: ITokenAvulso;
+    assignedToken?: ITokenAvulso | IToken;
     errorCode?: string;
 }
 
@@ -29,6 +30,8 @@ export interface TokenAssignmentStatus {
 }
 
 export class TokenAssignmentService {
+    private useNewTokenModel = true; // Feature flag to switch to new Token model
+
     /**
      * Assign a token to a student when they are created or activated
      */
@@ -40,94 +43,11 @@ export class TokenAssignmentService {
         try {
             console.log(`[TokenAssignment] 🎯 Assigning ${requiredTokens} token(s) to student ${studentId} for personal ${personalTrainerId}`);
             
-            const now = new Date();
-            
-            // Find available tokens (not assigned, active, and not expired)
-            const availableTokens = await TokenAvulso.find({
-                personalTrainerId: personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: now },
-                assignedToStudentId: null // Only unassigned tokens
-            }).sort({ dataVencimento: 1 }); // Assign tokens that expire first
-            
-            console.log(`[TokenAssignment] 📊 Found ${availableTokens.length} available token records`);
-            
-            // Calculate total available token quantity
-            const totalAvailableQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
-            
-            console.log(`[TokenAssignment] 🔢 Total available token quantity: ${totalAvailableQuantity}`);
-            
-            if (totalAvailableQuantity < requiredTokens) {
-                return {
-                    success: false,
-                    message: `Não há tokens suficientes disponíveis. Necessário: ${requiredTokens}, Disponível: ${totalAvailableQuantity}`,
-                    errorCode: 'INSUFFICIENT_TOKENS'
-                };
+            if (this.useNewTokenModel) {
+                return this.assignTokenToStudentNewModel(personalTrainerId, studentId, requiredTokens);
+            } else {
+                return this.assignTokenToStudentLegacy(personalTrainerId, studentId, requiredTokens);
             }
-            
-            // Find the best token to assign (one that has enough quantity)
-            let assignedToken: ITokenAvulso | null = null;
-            
-            // First, try to find a token with exact or more quantity needed
-            for (const token of availableTokens) {
-                if (token.quantidade >= requiredTokens) {
-                    assignedToken = token;
-                    break;
-                }
-            }
-            
-            // If no single token has enough quantity, we'll use the first available token
-            // and reduce its quantity (for simplicity, assuming requiredTokens = 1 for now)
-            if (!assignedToken && requiredTokens === 1) {
-                assignedToken = availableTokens[0];
-            }
-            
-            if (!assignedToken) {
-                return {
-                    success: false,
-                    message: 'Não foi possível encontrar um token adequado para atribuição',
-                    errorCode: 'NO_SUITABLE_TOKEN'
-                };
-            }
-            
-            // Assign the token to the student
-            if (assignedToken.quantidade === requiredTokens) {
-                // Assign entire token to student
-                assignedToken.assignedToStudentId = new mongoose.Types.ObjectId(studentId);
-                assignedToken.dateAssigned = now;
-                await assignedToken.save();
-                
-                console.log(`[TokenAssignment] ✅ Assigned entire token ${assignedToken._id} (quantity: ${assignedToken.quantidade}) to student ${studentId}`);
-            } else if (assignedToken.quantidade > requiredTokens) {
-                // Split token: reduce original and create new assigned token
-                const originalQuantity = assignedToken.quantidade;
-                assignedToken.quantidade = originalQuantity - requiredTokens;
-                await assignedToken.save();
-                
-                // Create new token assigned to student
-                const assignedTokenRecord = new TokenAvulso({
-                    personalTrainerId: assignedToken.personalTrainerId,
-                    quantidade: requiredTokens,
-                    dataVencimento: assignedToken.dataVencimento,
-                    ativo: true,
-                    motivoAdicao: `Token atribuído ao aluno ${studentId}`,
-                    adicionadoPorAdmin: assignedToken.adicionadoPorAdmin,
-                    assignedToStudentId: new mongoose.Types.ObjectId(studentId),
-                    dateAssigned: now
-                });
-                
-                await assignedTokenRecord.save();
-                assignedToken = assignedTokenRecord;
-                
-                console.log(`[TokenAssignment] ✅ Split token: reduced original token to ${originalQuantity - requiredTokens}, created new assigned token ${assignedToken._id} (quantity: ${requiredTokens}) for student ${studentId}`);
-            }
-            
-            return {
-                success: true,
-                message: `Token atribuído com sucesso ao aluno`,
-                assignedToken
-            };
-            
         } catch (error) {
             console.error('❌ Error assigning token to student:', error);
             return {
@@ -137,11 +57,241 @@ export class TokenAssignmentService {
             };
         }
     }
+
+    /**
+     * New Token model implementation
+     */
+    private async assignTokenToStudentNewModel(
+        personalTrainerId: string, 
+        studentId: string,
+        requiredTokens: number = 1
+    ): Promise<TokenAssignmentResult> {
+        const now = new Date();
+        
+        // Find available tokens (not assigned, active, and not expired)
+        const availableTokens = await Token.find({
+            personalTrainerId: personalTrainerId,
+            ativo: true,
+            dataExpiracao: { $gt: now },
+            alunoId: null // Only unassigned tokens
+        }).sort({ dataExpiracao: 1 }); // Assign tokens that expire first
+        
+        console.log(`[TokenAssignment] 📊 Found ${availableTokens.length} available token records (new model)`);
+        
+        // Calculate total available token quantity
+        const totalAvailableQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+        
+        console.log(`[TokenAssignment] 🔢 Total available token quantity: ${totalAvailableQuantity}`);
+        
+        if (totalAvailableQuantity < requiredTokens) {
+            return {
+                success: false,
+                message: `Não há tokens suficientes disponíveis. Necessário: ${requiredTokens}, Disponível: ${totalAvailableQuantity}`,
+                errorCode: 'INSUFFICIENT_TOKENS'
+            };
+        }
+        
+        // Find the best token to assign
+        let assignedToken: IToken | null = null;
+        
+        // First, try to find a token with exact or more quantity needed
+        for (const token of availableTokens) {
+            if (token.quantidade >= requiredTokens) {
+                assignedToken = token;
+                break;
+            }
+        }
+        
+        if (!assignedToken && requiredTokens === 1) {
+            assignedToken = availableTokens[0];
+        }
+        
+        if (!assignedToken) {
+            return {
+                success: false,
+                message: 'Não foi possível encontrar um token adequado para atribuição',
+                errorCode: 'NO_SUITABLE_TOKEN'
+            };
+        }
+        
+        // Assign the token to the student
+        if (assignedToken.quantidade === requiredTokens) {
+            // Assign entire token to student
+            assignedToken.alunoId = new mongoose.Types.ObjectId(studentId);
+            assignedToken.dateAssigned = now;
+            await assignedToken.save();
+            
+            console.log(`[TokenAssignment] ✅ Assigned entire token ${assignedToken.id} (quantity: ${assignedToken.quantidade}) to student ${studentId}`);
+        } else if (assignedToken.quantidade > requiredTokens) {
+            // Split token: reduce original and create new assigned token
+            const originalQuantity = assignedToken.quantidade;
+            assignedToken.quantidade = originalQuantity - requiredTokens;
+            await assignedToken.save();
+            
+            // Create new token assigned to student
+            const assignedTokenRecord = new Token({
+                tipo: assignedToken.tipo,
+                personalTrainerId: assignedToken.personalTrainerId,
+                alunoId: new mongoose.Types.ObjectId(studentId),
+                planoId: assignedToken.planoId,
+                dataExpiracao: assignedToken.dataExpiracao,
+                ativo: true,
+                quantidade: requiredTokens,
+                dateAssigned: now,
+                adicionadoPorAdmin: assignedToken.adicionadoPorAdmin,
+                motivoAdicao: `Token atribuído ao aluno ${studentId}`
+            });
+            
+            await assignedTokenRecord.save();
+            assignedToken = assignedTokenRecord;
+            
+            console.log(`[TokenAssignment] ✅ Split token: reduced original token to ${originalQuantity - requiredTokens}, created new assigned token ${assignedToken.id} (quantity: ${requiredTokens}) for student ${studentId}`);
+        }
+        
+        return {
+            success: true,
+            message: `Token ${assignedToken.id} atribuído com sucesso ao aluno`,
+            assignedToken
+        };
+    }
+
+    /**
+     * Legacy TokenAvulso implementation (for backward compatibility)
+     */
+    private async assignTokenToStudentLegacy(
+        personalTrainerId: string, 
+        studentId: string,
+        requiredTokens: number = 1
+    ): Promise<TokenAssignmentResult> {
+        const now = new Date();
+        
+        // Find available tokens (not assigned, active, and not expired)
+        const availableTokens = await TokenAvulso.find({
+            personalTrainerId: personalTrainerId,
+            ativo: true,
+            dataVencimento: { $gt: now },
+            assignedToStudentId: null // Only unassigned tokens
+        }).sort({ dataVencimento: 1 }); // Assign tokens that expire first
+        
+        console.log(`[TokenAssignment] 📊 Found ${availableTokens.length} available token records (legacy model)`);
+        
+        // Calculate total available token quantity
+        const totalAvailableQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+        
+        console.log(`[TokenAssignment] 🔢 Total available token quantity: ${totalAvailableQuantity}`);
+        
+        if (totalAvailableQuantity < requiredTokens) {
+            return {
+                success: false,
+                message: `Não há tokens suficientes disponíveis. Necessário: ${requiredTokens}, Disponível: ${totalAvailableQuantity}`,
+                errorCode: 'INSUFFICIENT_TOKENS'
+            };
+        }
+        
+        // Find the best token to assign (one that has enough quantity)
+        let assignedToken: ITokenAvulso | null = null;
+        
+        // First, try to find a token with exact or more quantity needed
+        for (const token of availableTokens) {
+            if (token.quantidade >= requiredTokens) {
+                assignedToken = token;
+                break;
+            }
+        }
+        
+        // If no single token has enough quantity, we'll use the first available token
+        // and reduce its quantity (for simplicity, assuming requiredTokens = 1 for now)
+        if (!assignedToken && requiredTokens === 1) {
+            assignedToken = availableTokens[0];
+        }
+        
+        if (!assignedToken) {
+            return {
+                success: false,
+                message: 'Não foi possível encontrar um token adequado para atribuição',
+                errorCode: 'NO_SUITABLE_TOKEN'
+            };
+        }
+        
+        // Assign the token to the student
+        if (assignedToken.quantidade === requiredTokens) {
+            // Assign entire token to student
+            assignedToken.assignedToStudentId = new mongoose.Types.ObjectId(studentId);
+            assignedToken.dateAssigned = now;
+            await assignedToken.save();
+            
+            console.log(`[TokenAssignment] ✅ Assigned entire token ${assignedToken._id} (quantity: ${assignedToken.quantidade}) to student ${studentId}`);
+        } else if (assignedToken.quantidade > requiredTokens) {
+            // Split token: reduce original and create new assigned token
+            const originalQuantity = assignedToken.quantidade;
+            assignedToken.quantidade = originalQuantity - requiredTokens;
+            await assignedToken.save();
+            
+            // Create new token assigned to student
+            const assignedTokenRecord = new TokenAvulso({
+                personalTrainerId: assignedToken.personalTrainerId,
+                quantidade: requiredTokens,
+                dataVencimento: assignedToken.dataVencimento,
+                ativo: true,
+                motivoAdicao: `Token atribuído ao aluno ${studentId}`,
+                adicionadoPorAdmin: assignedToken.adicionadoPorAdmin,
+                assignedToStudentId: new mongoose.Types.ObjectId(studentId),
+                dateAssigned: now
+            });
+            
+            await assignedTokenRecord.save();
+            assignedToken = assignedTokenRecord;
+            
+            console.log(`[TokenAssignment] ✅ Split token: reduced original token to ${originalQuantity - requiredTokens}, created new assigned token ${assignedToken._id} (quantity: ${requiredTokens}) for student ${studentId}`);
+        }
+        
+        return {
+            success: true,
+            message: `Token atribuído com sucesso ao aluno`,
+            assignedToken
+        };
+    }
     
     /**
      * Get available (unassigned) tokens for a personal trainer
      */
     async getAvailableTokensCount(personalTrainerId: string): Promise<number> {
+        try {
+            if (this.useNewTokenModel) {
+                return this.getAvailableTokensCountNewModel(personalTrainerId);
+            } else {
+                return this.getAvailableTokensCountLegacy(personalTrainerId);
+            }
+        } catch (error) {
+            console.error('❌ Error getting available tokens count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * New Token model implementation for available tokens count
+     */
+    private async getAvailableTokensCountNewModel(personalTrainerId: string): Promise<number> {
+        const now = new Date();
+        
+        const availableTokens = await Token.find({
+            personalTrainerId: personalTrainerId,
+            ativo: true,
+            dataExpiracao: { $gt: now },
+            alunoId: null
+        });
+        
+        const totalAvailableQuantity = availableTokens.reduce((sum, token) => sum + token.quantidade, 0);
+        
+        console.log(`[TokenAssignment] 📊 New model: ${totalAvailableQuantity} available tokens for ${personalTrainerId}`);
+        
+        return totalAvailableQuantity;
+    }
+
+    /**
+     * Legacy implementation for available tokens count
+     */
+    private async getAvailableTokensCountLegacy(personalTrainerId: string): Promise<number> {
         try {
             const now = new Date();
             
