@@ -65,6 +65,7 @@ export class StudentResourceValidationService {
 
             console.log(`[StudentResourceValidation] 📊 Current status:`, {
                 planLimit: planStatus.plano?.limiteAlunos || 0,
+                planName: planStatus.plano?.nome || 'No Plan',
                 planExpired: planStatus.isExpired,
                 activeStudents: planStatus.alunosAtivos,
                 availableTokens: tokenStatus.availableTokens,
@@ -93,7 +94,12 @@ export class StudentResourceValidationService {
                 tokenSlotsAvailable,
                 totalAvailableSlots,
                 quantityRequested,
-                canFulfillRequest: totalAvailableSlots >= quantityRequested
+                canFulfillRequest: totalAvailableSlots >= quantityRequested,
+                tokenStatusDetails: {
+                    availableTokens: tokenStatus.availableTokens,
+                    consumedTokens: tokenStatus.consumedTokens,
+                    totalTokens: tokenStatus.totalTokens
+                }
             });
 
             // Determine which resource type would be used
@@ -223,39 +229,49 @@ export class StudentResourceValidationService {
             // Determine resource assignment based on availability and priority
             const planInfo = validation.status.planInfo;
             
+            // CRITICAL FIX: Always create plan tokens for students activated using plan slots
+            // This ensures consistent token display regardless of plan type (Free, Start, etc.)
             if (planInfo && planInfo.planSlotsAvailable > 0 && !planInfo.isExpired) {
                 // Use plan slot - create a Token record with tipo: 'plano' for proper tracking and display
-                console.log(`[StudentResourceValidation] 📋 Using plan slot for student ${studentId}, creating plan token`);
+                console.log(`[StudentResourceValidation] 📋 CRITICAL FIX: Using plan slot for student ${studentId}, creating plan token for ${planInfo.plano?.nome || 'Unknown Plan'}`);
                 
                 const Token = (await import('../models/Token.js')).default;
+                const mongoose = (await import('mongoose')).default;
                 
                 try {
-                    // Create a plan token record for this student
+                    // ENHANCED: Ensure all plan tokens are created with proper data
                     const planToken = new Token({
                         tipo: 'plano',
                         personalTrainerId: personalTrainerId,
-                        alunoId: new (await import('mongoose')).default.Types.ObjectId(studentId),
+                        alunoId: new mongoose.Types.ObjectId(studentId),
                         planoId: planInfo.personalPlano?._id,
                         dataExpiracao: planInfo.personalPlano?.dataVencimento,
                         ativo: true,
                         quantidade: 1,
                         dateAssigned: new Date(),
-                        adicionadoPorAdmin: planInfo.personalPlano?.atribuidoPorAdmin || new (await import('mongoose')).default.Types.ObjectId(personalTrainerId),
+                        adicionadoPorAdmin: planInfo.personalPlano?.atribuidoPorAdmin || new mongoose.Types.ObjectId(personalTrainerId),
                         motivoAdicao: `Token de plano atribuído automaticamente - ${planInfo.plano?.nome || 'Plano'}`
                     });
                     
                     await planToken.save();
                     
-                    console.log(`[StudentResourceValidation] ✅ Created plan token ${planToken.id} for student ${studentId}`);
+                    console.log(`[StudentResourceValidation] ✅ CRITICAL FIX: Created plan token ${planToken.id} for student ${studentId} - Plan: ${planInfo.plano?.nome}, Expires: ${planInfo.personalPlano?.dataVencimento}`);
                     
                     return {
                         success: true,
-                        message: 'Plan token created and assigned to student',
+                        message: `Plan token created and assigned to student - ${planInfo.plano?.nome}`,
                         resourceType: 'plan',
                         assignedResourceId: planToken.id
                     };
                 } catch (tokenCreationError) {
-                    console.error(`[StudentResourceValidation] ❌ Error creating plan token for student ${studentId}:`, tokenCreationError);
+                    console.error(`[StudentResourceValidation] ❌ CRITICAL ERROR: Failed to create plan token for student ${studentId}:`, tokenCreationError);
+                    console.error(`[StudentResourceValidation] ❌ Plan info:`, {
+                        planId: planInfo.personalPlano?._id,
+                        planName: planInfo.plano?.nome,
+                        expiration: planInfo.personalPlano?.dataVencimento,
+                        personalTrainerId: personalTrainerId,
+                        studentId: studentId
+                    });
                     
                     // Fallback to traditional plan assignment without token creation
                     return {
@@ -309,6 +325,7 @@ export class StudentResourceValidationService {
 
     /**
      * Get breakdown of students by resource type (plan-based vs token-based)
+     * CRITICAL FIX: Only count ACTIVE students for plan slot calculations
      */
     private async getStudentResourceBreakdown(personalTrainerId: string): Promise<{
         planBasedStudents: number;
@@ -317,39 +334,52 @@ export class StudentResourceValidationService {
     }> {
         try {
             const Aluno = (await import('../models/Aluno.js')).default;
-            const allStudents = await Aluno.find({ trainerId: personalTrainerId });
+            
+            // CRITICAL FIX: Only get ACTIVE students for plan slot calculation
+            // Inactive students should not consume plan slots
+            const activeStudents = await Aluno.find({ 
+                trainerId: personalTrainerId, 
+                status: 'active' 
+            });
+            
+            console.log(`[StudentResourceValidation] 🔍 FIXED: Checking ${activeStudents.length} ACTIVE students (ignoring inactive students for plan slot calculation)`);
             
             let planBasedStudents = 0;
             let tokenBasedStudents = 0;
 
-            for (const student of allStudents) {
+            for (const student of activeStudents) {
                 try {
+                    // Check if this ACTIVE student has an assigned token (both new Token and legacy TokenAvulso)
                     const studentToken = await TokenAssignmentService.getStudentAssignedToken(
                         (student._id as mongoose.Types.ObjectId).toString()
                     );
                     
                     if (studentToken) {
                         tokenBasedStudents++;
+                        console.log(`[StudentResourceValidation] 🎫 ACTIVE student ${student._id} (${student.nome}) - token-based`);
                     } else {
                         planBasedStudents++;
+                        console.log(`[StudentResourceValidation] 📋 ACTIVE student ${student._id} (${student.nome}) - plan-based`);
                     }
                 } catch (error) {
                     console.error(`[StudentResourceValidation] ❌ Error checking token for student ${student._id}:`, error);
                     // If there's an error checking the token, assume it's plan-based to prevent failures
                     planBasedStudents++;
+                    console.log(`[StudentResourceValidation] ⚠️ ACTIVE student ${student._id} (${student.nome}) - plan-based (fallback due to error)`);
                 }
             }
 
-            console.log(`[StudentResourceValidation] 📊 Student breakdown for ${personalTrainerId}:`, {
-                planBasedStudents,
-                tokenBasedStudents,
-                totalStudents: allStudents.length
+            console.log(`[StudentResourceValidation] 📊 FIXED Student breakdown for ${personalTrainerId}:`, {
+                planBasedActiveStudents: planBasedStudents,
+                tokenBasedActiveStudents: tokenBasedStudents,
+                totalActiveStudents: activeStudents.length,
+                criticalFix: "ONLY counting ACTIVE students for plan slot calculations"
             });
 
             return {
                 planBasedStudents,
                 tokenBasedStudents,
-                totalStudents: allStudents.length
+                totalStudents: activeStudents.length
             };
 
         } catch (error) {
@@ -387,6 +417,11 @@ export class StudentResourceValidationService {
             recommendations.push('Poucos slots disponíveis - considere planejar expansão');
             if (!planStatus.plano || planStatus.isExpired) {
                 recommendations.push('Contrate um plano para ter base sólida de alunos');
+            }
+            
+            // Add token-specific recommendations when we have token info
+            if (tokenStatus.availableTokens === 0 && tokenStatus.consumedTokens > 0) {
+                recommendations.push('Considere adquirir mais tokens para aumentar capacidade');
             }
         }
 
