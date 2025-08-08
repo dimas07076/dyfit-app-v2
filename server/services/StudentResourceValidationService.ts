@@ -356,8 +356,10 @@ export class StudentResourceValidationService {
                     
                     if (studentToken) {
                         // CRITICAL FIX: Properly distinguish between plan tokens and standalone tokens
-                        const isStandaloneToken = studentToken.tipo === 'avulso' || !studentToken.tipo; // Legacy tokens have no tipo field
-                        const isPlanToken = studentToken.tipo === 'plano';
+                        // Type guard to safely access 'tipo' property
+                        const hasTypeProperty = 'tipo' in studentToken;
+                        const isStandaloneToken = hasTypeProperty ? studentToken.tipo === 'avulso' : true; // Legacy tokens are treated as standalone
+                        const isPlanToken = hasTypeProperty ? studentToken.tipo === 'plano' : false;
                         
                         if (isStandaloneToken) {
                             tokenBasedStudents++;
