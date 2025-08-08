@@ -203,6 +203,7 @@ export class StudentResourceValidationService {
     ): Promise<ResourceAssignmentResult> {
         const mongoose = (await import('mongoose')).default;
         let session: any = null;
+        let planInfo: any = null; // Declare planInfo in function scope for access outside transaction
         
         try {
             console.log(`[StudentResourceValidation] 🔗 ENHANCED: Starting atomic resource assignment for student ${studentId} for personal ${personalTrainerId}`);
@@ -239,7 +240,7 @@ export class StudentResourceValidationService {
                 }
 
                 // Determine resource assignment based on availability and priority
-                const planInfo = validation.status.planInfo;
+                planInfo = validation.status.planInfo; // Assign to function-scoped variable
                 
                 // CRITICAL FIX: Enhanced plan token creation with atomic operations and retry logic
                 if (planInfo && planInfo.planSlotsAvailable > 0 && !planInfo.isExpired) {
