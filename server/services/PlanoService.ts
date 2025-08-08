@@ -255,7 +255,7 @@ export class PlanoService {
         const Aluno = (await import('../models/Aluno.js')).default;
         const allStudents = await Aluno.find({ trainerId: personalTrainerId });
         
-        // Count students with assigned tokens (these are "token-based" students regardless of status)
+        // CRITICAL FIX: Properly distinguish between plan tokens and standalone tokens
         let tokenBasedActiveStudents = 0;
         let tokenBasedInactiveStudents = 0;
         let planBasedActiveStudents = 0;
@@ -264,20 +264,45 @@ export class PlanoService {
         for (const student of allStudents) {
             try {
                 const studentToken = await TokenAssignmentService.getStudentAssignedToken((student._id as mongoose.Types.ObjectId).toString());
+                
                 if (studentToken) {
-                    // This student has a token (regardless of status)
-                    if (student.status === 'active') {
-                        tokenBasedActiveStudents++;
+                    // FIXED: Check the token type to properly classify students
+                    const isStandaloneToken = studentToken.tipo === 'avulso' || !studentToken.tipo; // Legacy tokens have no tipo field
+                    const isPlanToken = studentToken.tipo === 'plano';
+                    
+                    if (isStandaloneToken) {
+                        // This student uses a standalone token
+                        if (student.status === 'active') {
+                            tokenBasedActiveStudents++;
+                        } else {
+                            tokenBasedInactiveStudents++;
+                        }
+                        console.log(`[PlanoService.canActivateMoreStudents] 🎫 Student ${student.nome} - STANDALONE TOKEN-based (${student.status})`);
+                    } else if (isPlanToken) {
+                        // This student uses a plan token (should count against plan slots)
+                        if (student.status === 'active') {
+                            planBasedActiveStudents++;
+                        } else {
+                            planBasedInactiveStudents++;
+                        }
+                        console.log(`[PlanoService.canActivateMoreStudents] 📋 Student ${student.nome} - PLAN TOKEN-based (${student.status}) - counts against plan slots`);
                     } else {
-                        tokenBasedInactiveStudents++;
+                        // Unknown token type, assume plan-based to be safe
+                        if (student.status === 'active') {
+                            planBasedActiveStudents++;
+                        } else {
+                            planBasedInactiveStudents++;
+                        }
+                        console.log(`[PlanoService.canActivateMoreStudents] ❓ Student ${student.nome} - UNKNOWN TOKEN TYPE, assuming plan-based (${student.status})`);
                     }
                 } else {
-                    // This student does NOT have a token (plan-based)
+                    // This student does NOT have any token (legacy plan-based)
                     if (student.status === 'active') {
                         planBasedActiveStudents++;
                     } else {
                         planBasedInactiveStudents++;
                     }
+                    console.log(`[PlanoService.canActivateMoreStudents] 📋 Student ${student.nome} - NO TOKEN (legacy plan-based) (${student.status})`);
                 }
             } catch (error) {
                 console.error(`[PlanoService.canActivateMoreStudents] ❌ Error checking token for student ${student._id}:`, error);
@@ -290,8 +315,8 @@ export class PlanoService {
             }
         }
         
-        // CRITICAL: Plan-based active students should NOT include ANY students with tokens
-        // This ensures that deactivating a token-based student doesn't free up plan slots
+        // CRITICAL: Plan-based active students should include students with plan tokens
+        // This ensures that students using plan slots (whether via tokens or not) consume plan slots
         
         console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED student breakdown:`, {
             totalActiveStudents: status.alunosAtivos,
@@ -299,8 +324,9 @@ export class PlanoService {
             tokenBasedInactiveStudents,
             planBasedActiveStudents,
             planBasedInactiveStudents,
-            totalStudentsWithTokens: tokenBasedActiveStudents + tokenBasedInactiveStudents,
+            totalStudentsWithStandaloneTokens: tokenBasedActiveStudents + tokenBasedInactiveStudents,
             totalPlanBasedStudents: planBasedActiveStudents + planBasedInactiveStudents,
+            criticalFix: "FIXED: Plan tokens now correctly count as plan-based students",
             verification: {
                 activeStudentsMatch: status.alunosAtivos === (tokenBasedActiveStudents + planBasedActiveStudents),
                 totalStudentsMatch: allStudents.length === (tokenBasedActiveStudents + tokenBasedInactiveStudents + planBasedActiveStudents + planBasedInactiveStudents)
@@ -319,7 +345,7 @@ export class PlanoService {
         // Current limit includes all valid capacity (plan + all valid tokens)
         const currentLimit = planLimit + tokenStatus.totalTokens;
         
-        console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED LOGIC: Plan slots freed when students become inactive:`, {
+        console.log(`[PlanoService.canActivateMoreStudents] 🧮 FIXED LOGIC: Plan slots correctly count plan tokens:`, {
             planLimit,
             isExpired,
             activeStudents: status.alunosAtivos,
@@ -332,7 +358,7 @@ export class PlanoService {
             totalAvailableSlots: availableSlots,
             currentLimit,
             canActivate: availableSlots >= quantidadeDesejada,
-            criticalFix: "CORRECT LOGIC: Plan slots only consumed by ACTIVE plan-based students (inactive students free up slots). Tokens remain permanently assigned."
+            criticalFix: "CORRECT LOGIC: Plan tokens now properly count as plan-based students, consuming plan slots as expected"
         });
         
         return {

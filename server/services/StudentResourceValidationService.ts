@@ -355,11 +355,24 @@ export class StudentResourceValidationService {
                     );
                     
                     if (studentToken) {
-                        tokenBasedStudents++;
-                        console.log(`[StudentResourceValidation] 🎫 ACTIVE student ${student._id} (${student.nome}) - token-based`);
+                        // CRITICAL FIX: Properly distinguish between plan tokens and standalone tokens
+                        const isStandaloneToken = studentToken.tipo === 'avulso' || !studentToken.tipo; // Legacy tokens have no tipo field
+                        const isPlanToken = studentToken.tipo === 'plano';
+                        
+                        if (isStandaloneToken) {
+                            tokenBasedStudents++;
+                            console.log(`[StudentResourceValidation] 🎫 ACTIVE student ${student._id} (${student.nome}) - STANDALONE token-based`);
+                        } else if (isPlanToken) {
+                            planBasedStudents++;
+                            console.log(`[StudentResourceValidation] 📋 ACTIVE student ${student._id} (${student.nome}) - PLAN token-based (counts against plan slots)`);
+                        } else {
+                            // Unknown token type, assume plan-based to be safe
+                            planBasedStudents++;
+                            console.log(`[StudentResourceValidation] ❓ ACTIVE student ${student._id} (${student.nome}) - UNKNOWN token type, assuming plan-based`);
+                        }
                     } else {
                         planBasedStudents++;
-                        console.log(`[StudentResourceValidation] 📋 ACTIVE student ${student._id} (${student.nome}) - plan-based`);
+                        console.log(`[StudentResourceValidation] 📋 ACTIVE student ${student._id} (${student.nome}) - NO TOKEN (legacy plan-based)`);
                     }
                 } catch (error) {
                     console.error(`[StudentResourceValidation] ❌ Error checking token for student ${student._id}:`, error);
@@ -373,7 +386,7 @@ export class StudentResourceValidationService {
                 planBasedActiveStudents: planBasedStudents,
                 tokenBasedActiveStudents: tokenBasedStudents,
                 totalActiveStudents: activeStudents.length,
-                criticalFix: "ONLY counting ACTIVE students for plan slot calculations"
+                criticalFix: "FIXED: Plan tokens now properly count as plan-based students (consuming plan slots)"
             });
 
             return {
