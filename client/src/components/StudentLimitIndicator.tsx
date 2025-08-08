@@ -1,6 +1,6 @@
 // client/src/components/StudentLimitIndicator.tsx
 import React from 'react';
-import { AlertTriangle, Users, Zap, Info, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Users, Zap, Info, CheckCircle, Crown } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -21,23 +21,21 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
     showRecommendations = false,
     className = '',
 }) => {
-    // Temporarily simplified version to prevent crashes
     try {
         console.log('🔧 [StudentLimitIndicator] Rendering component, variant:', variant);
         
-        // Try to use the hook, but with better error boundaries
         let hookResult;
         try {
             hookResult = useStudentLimit();
             console.log('🔧 [StudentLimitIndicator] Hook result:', {
-                hasStatus: !!hookResult.status,
-                isLoading: hookResult.isLoading,
-                isError: hookResult.isError,
-                errorMessage: hookResult.error?.message
+                hasTokenStatus: !!hookResult.tokenStatus,
+                hasLegacyStatus: !!hookResult.status,
+                isLoading: hookResult.loading,
+                availableSlots: hookResult.availableSlots,
+                canActivate: hookResult.canActivateStudent
             });
         } catch (hookError) {
             console.error('🚨 [StudentLimitIndicator] Hook failed:', hookError);
-            // Return a simple fallback
             return (
                 <div className={`p-2 text-sm text-gray-600 ${className}`}>
                     <span>Status do limite: Carregando...</span>
@@ -46,17 +44,21 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
         }
 
         const { 
-            status, 
-            isLoading, 
-            isError, 
-            error, 
-            isAtLimit, 
-            isCloseToLimit, 
-            refreshStatus 
+            tokenStatus,
+            status,
+            loading,
+            isError,
+            error,
+            availableSlots,
+            isAtLimit,
+            isCloseToLimit,
+            refreshStatus,
+            getStatusMessage,
+            getRecommendations
         } = hookResult;
 
         // Loading state
-        if (isLoading) {
+        if (loading) {
             return (
                 <div className={`animate-pulse ${className}`}>
                     <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -64,7 +66,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
             );
         }
 
-        if (isError || !status) {
+        if (isError && !tokenStatus && !status) {
             const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar status do limite de alunos';
             const isAuthError = error instanceof Error && error.message.includes('Token de autenticação');
             
@@ -97,13 +99,18 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
             );
         }
 
-        const progressPercentage = status.currentLimit > 0 
-            ? (status.activeStudents / status.currentLimit) * 100 
+        // Use new token system data when available, fallback to legacy
+        const currentLimit = tokenStatus ? 
+            tokenStatus.plan.total + tokenStatus.avulso.total : 
+            status?.currentLimit || 0;
+        const activeStudents = status?.activeStudents || 0;
+
+        const progressPercentage = currentLimit > 0 
+            ? (activeStudents / currentLimit) * 100 
             : 0;
 
-        const getStatusColor = () => {
+        const getStatusColor = (): "default" | "destructive" => {
             if (isAtLimit) return 'destructive';
-            if (isCloseToLimit) return 'warning';
             return 'default';
         };
 
@@ -118,7 +125,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                 <div className={`flex items-center gap-2 ${className}`}>
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">
-                        {status.activeStudents}/{status.currentLimit}
+                        {activeStudents}/{currentLimit}
                     </span>
                     {isAtLimit && (
                         <Badge variant="destructive" className="ml-1">
@@ -136,11 +143,11 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <Users className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm font-medium">Alunos Ativos</span>
+                                <span className="text-sm font-medium">Slots de Alunos</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Badge variant={getStatusColor()}>
-                                    {status.activeStudents}/{status.currentLimit}
+                                    {activeStudents}/{currentLimit}
                                 </Badge>
                                 <Button 
                                     variant="ghost" 
@@ -158,15 +165,15 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                                         onClick={async () => {
                                             try {
                                                 const token = localStorage.getItem('authToken');
-                                                const response = await fetch('/api/student-limit/debug-tokens', {
+                                                const response = await fetch('/api/token/debug/stats/' + localStorage.getItem('userData')?.split('"id":"')[1]?.split('"')[0] || '', {
                                                     headers: {
                                                         'Authorization': `Bearer ${token}`,
                                                         'Content-Type': 'application/json',
                                                     },
                                                 });
                                                 const data = await response.json();
-                                                console.log('🔧 [Debug] Token debug response:', data);
-                                                alert(`Tokens Debug: Total Records: ${data.debug?.totalTokenRecords}, Active: ${data.debug?.activeTokenRecords}, Service Result: ${data.debug?.serviceTokenCount}. Check console for details.`);
+                                                console.log('🔧 [Debug] Token stats response:', data);
+                                                alert(`Token Stats: Total: ${data.data?.stats?.total}, Available: ${data.data?.stats?.available}, Consumed: ${data.data?.stats?.consumed}. Check console for details.`);
                                             } catch (error) {
                                                 console.error('Debug failed:', error);
                                                 alert('Debug failed. Check console.');
@@ -181,7 +188,7 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                             </div>
                         </div>
                         
-                        {showProgress && status.currentLimit > 0 && (
+                        {showProgress && currentLimit > 0 && (
                             <Progress 
                                 value={progressPercentage} 
                                 className="h-2 mb-2"
@@ -189,13 +196,41 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                         )}
                         
                         <p className="text-sm text-muted-foreground">
-                            {status.availableSlots > 0 
-                                ? `${status.availableSlots} slots disponíveis`
+                            {availableSlots > 0 
+                                ? `${availableSlots} slots disponíveis`
                                 : 'Nenhum slot disponível'
                             }
                         </p>
 
-                        {(status.tokenInfo?.totalTokens > 0 || status.planInfo?.tokensAvulsos > 0) && (
+                        {/* Token breakdown using new token system */}
+                        {tokenStatus && (
+                            <div className="space-y-1 mt-2">
+                                {tokenStatus.hasPlan && tokenStatus.plan.total > 0 && (
+                                    <div className="flex items-center gap-1">
+                                        <Crown className="h-3 w-3 text-blue-500" />
+                                        <span className="text-xs text-muted-foreground">
+                                            Plano: {tokenStatus.plan.available}/{tokenStatus.plan.total} disponíveis
+                                            {tokenStatus.plan.expirationDate && (
+                                                <span className="text-gray-400 ml-1">
+                                                    (exp: {new Date(tokenStatus.plan.expirationDate).toLocaleDateString('pt-BR')})
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+                                {tokenStatus.avulso.total > 0 && (
+                                    <div className="flex items-center gap-1">
+                                        <Zap className="h-3 w-3 text-yellow-500" />
+                                        <span className="text-xs text-muted-foreground">
+                                            Avulso: {tokenStatus.avulso.available}/{tokenStatus.avulso.total} disponíveis
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Legacy token display for backward compatibility */}
+                        {!tokenStatus && status && (status.tokenInfo?.totalTokens > 0 || (status.planInfo?.tokensAvulsos && status.planInfo.tokensAvulsos > 0)) && (
                             <div className="flex items-center gap-1 mt-2">
                                 <Zap className="h-3 w-3 text-yellow-500" />
                                 <span className="text-xs text-muted-foreground">
@@ -216,27 +251,63 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
             <div className={className}>
                 <Alert variant={getStatusColor()}>
                     {getStatusIcon()}
-                    <AlertTitle>Status dos Alunos</AlertTitle>
+                    <AlertTitle>Status dos Slots de Alunos</AlertTitle>
                     <AlertDescription className="mt-2">
                         <div className="space-y-3">
                             <div>
-                                <p className="font-medium">{status.message}</p>
+                                <p className="font-medium">{getStatusMessage()}</p>
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
                                     <span className="text-muted-foreground">Alunos ativos:</span>
-                                    <span className="ml-2 font-medium">{status.activeStudents}</span>
+                                    <span className="ml-2 font-medium">{activeStudents}</span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground">Limite atual:</span>
-                                    <span className="ml-2 font-medium">{status.currentLimit}</span>
+                                    <span className="text-muted-foreground">Limite total:</span>
+                                    <span className="ml-2 font-medium">{currentLimit}</span>
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">Slots disponíveis:</span>
-                                    <span className="ml-2 font-medium">{status.availableSlots}</span>
+                                    <span className="ml-2 font-medium">{availableSlots}</span>
                                 </div>
-                                {status.tokenInfo && status.tokenInfo.totalTokens > 0 && (
+                                
+                                {/* New token system breakdown */}
+                                {tokenStatus && (
+                                    <>
+                                        {tokenStatus.plan.total > 0 && (
+                                            <>
+                                                <div>
+                                                    <span className="text-muted-foreground">Tokens de Plano:</span>
+                                                    <span className="ml-2 font-medium flex items-center gap-1">
+                                                        <Crown className="h-3 w-3 text-blue-500" />
+                                                        {tokenStatus.plan.available}/{tokenStatus.plan.total}
+                                                    </span>
+                                                </div>
+                                                {tokenStatus.plan.expirationDate && (
+                                                    <div>
+                                                        <span className="text-muted-foreground">Validade do Plano:</span>
+                                                        <span className="ml-2 font-medium text-xs">
+                                                            {new Date(tokenStatus.plan.expirationDate).toLocaleDateString('pt-BR')}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        {tokenStatus.avulso.total > 0 && (
+                                            <div>
+                                                <span className="text-muted-foreground">Tokens Avulsos:</span>
+                                                <span className="ml-2 font-medium flex items-center gap-1">
+                                                    <Zap className="h-3 w-3 text-yellow-500" />
+                                                    {tokenStatus.avulso.available}/{tokenStatus.avulso.total}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Legacy token info for backward compatibility */}
+                                {!tokenStatus && status && status.tokenInfo && status.tokenInfo.totalTokens > 0 && (
                                     <>
                                         <div>
                                             <span className="text-muted-foreground">Tokens disponíveis:</span>
@@ -254,32 +325,23 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
                                         </div>
                                     </>
                                 )}
-                                {(!status.tokenInfo || status.tokenInfo.totalTokens === 0) && status.planInfo?.tokensAvulsos > 0 && (
-                                    <div>
-                                        <span className="text-muted-foreground">Tokens ativos:</span>
-                                        <span className="ml-2 font-medium flex items-center gap-1">
-                                            <Zap className="h-3 w-3 text-yellow-500" />
-                                            {status.planInfo.tokensAvulsos}
-                                        </span>
-                                    </div>
-                                )}
                             </div>
 
-                            {showProgress && status.currentLimit > 0 && (
+                            {showProgress && currentLimit > 0 && (
                                 <div>
                                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                                         <span>0</span>
-                                        <span>{status.currentLimit}</span>
+                                        <span>{currentLimit}</span>
                                     </div>
                                     <Progress value={progressPercentage} className="h-2" />
                                 </div>
                             )}
 
-                            {showRecommendations && status.recommendations && status.recommendations.length > 0 && (
+                            {showRecommendations && (
                                 <div>
                                     <p className="text-sm font-medium mb-1">Recomendações:</p>
                                     <ul className="text-xs text-muted-foreground space-y-1">
-                                        {status.recommendations.map((rec, index) => (
+                                        {getRecommendations().map((rec, index) => (
                                             <li key={index} className="flex items-start gap-1">
                                                 <span className="text-primary">•</span>
                                                 {rec}
@@ -294,7 +356,6 @@ export const StudentLimitIndicator: React.FC<StudentLimitIndicatorProps> = ({
             </div>
         );
     } catch (error) {
-        // Fallback UI if component crashes
         console.error('StudentLimitIndicator crashed:', error);
         return (
             <div className={`p-2 border border-red-200 rounded bg-red-50 ${className}`}>
