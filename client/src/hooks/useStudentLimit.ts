@@ -1,6 +1,20 @@
 // client/src/hooks/useStudentLimit.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+export interface TokenStatus {
+    plan: {
+        total: number;
+        available: number;
+        expirationDate?: string;
+    };
+    avulso: {
+        total: number;
+        available: number;
+    };
+    availableSlots: number;
+    hasPlan: boolean;
+}
 
 export interface StudentLimitStatus {
     canActivate: boolean;
@@ -34,16 +48,89 @@ export interface StudentLimitValidation {
     status: StudentLimitStatus;
 }
 
-const API_BASE = '/api/student-limit';
+const API_BASE = '/api/token';
+const LEGACY_API_BASE = '/api/student-limit';
 
-// API functions
+// New token API functions
+const fetchTokenStatus = async (): Promise<TokenStatus> => {
+    try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            console.warn('🔑 [TokenStatus] No authToken found, returning default status');
+            return {
+                plan: { total: 0, available: 0 },
+                avulso: { total: 0, available: 0 },
+                availableSlots: 0,
+                hasPlan: false,
+            };
+        }
+
+        console.log('🔍 [TokenStatus] Fetching token status...');
+        
+        const response = await fetch(`${API_BASE}/status`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        console.log('📡 [TokenStatus] Response status:', response.status);
+
+        if (!response.ok) {
+            console.warn('📡 [TokenStatus] API error, status:', response.status);
+            
+            if (response.status === 401) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userData');
+                console.log('🔑 [TokenStatus] AuthToken expired, clearing storage');
+            }
+            
+            return {
+                plan: { total: 0, available: 0 },
+                avulso: { total: 0, available: 0 },
+                availableSlots: 0,
+                hasPlan: false,
+            };
+        }
+
+        const data = await response.json();
+        console.log('📋 [TokenStatus] Raw response data:', data);
+        
+        if (!data.success) {
+            console.warn('📋 [TokenStatus] API returned success=false:', data.message);
+            return {
+                plan: { total: 0, available: 0 },
+                avulso: { total: 0, available: 0 },
+                availableSlots: 0,
+                hasPlan: false,
+            };
+        }
+
+        console.log('✅ [TokenStatus] Successfully fetched status:', {
+            availableSlots: data.data.availableSlots,
+            hasPlan: data.data.hasPlan,
+            planTokens: data.data.plan.available,
+            avulsoTokens: data.data.avulso.available
+        });
+
+        return data.data;
+    } catch (error) {
+        console.error('❌ [TokenStatus] Error fetching status:', error);
+        return {
+            plan: { total: 0, available: 0 },
+            avulso: { total: 0, available: 0 },
+            availableSlots: 0,
+            hasPlan: false,
+        };
+    }
+};
+
+// Legacy student limit API functions (kept for backward compatibility)
 const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
     try {
-        // Use the correct token key for personal/admin users
         const token = localStorage.getItem('authToken');
         if (!token) {
             console.warn('🔑 [StudentLimit] No authToken found, returning default status');
-            // Return a safe default instead of throwing
             return {
                 canActivate: false,
                 currentLimit: 0,
@@ -66,7 +153,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
 
         console.log('🔍 [StudentLimit] Fetching student limit status...');
         
-        const response = await fetch(`${API_BASE}/status`, {
+        const response = await fetch(`${LEGACY_API_BASE}/status`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -79,33 +166,11 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
             console.warn('📡 [StudentLimit] API error, status:', response.status);
             
             if (response.status === 401) {
-                // Clear invalid token and force re-login
                 localStorage.removeItem('authToken');
                 localStorage.removeItem('userData');
                 console.log('🔑 [StudentLimit] AuthToken expired, clearing storage');
-                
-                // Return safe default instead of throwing
-                return {
-                    canActivate: false,
-                    currentLimit: 0,
-                    activeStudents: 0,
-                    availableSlots: 0,
-                    planInfo: null,
-                    tokenInfo: {
-                        availableTokens: 0,
-                        consumedTokens: 0,
-                        totalTokens: 0,
-                    },
-                    limitExceeded: true,
-                    blockedActions: {
-                        canActivateStudents: false,
-                        canSendInvites: false,
-                    },
-                    message: 'Token de autenticação não encontrado. Faça login novamente.',
-                };
             }
             
-            // For other errors, also return safe defaults
             return {
                 canActivate: false,
                 currentLimit: 0,
@@ -162,10 +227,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
 
         return data.data;
     } catch (error) {
-        // Log error for debugging
         console.error('❌ [StudentLimit] Error fetching status:', error);
-        
-        // Return safe default instead of throwing
         return {
             canActivate: false,
             currentLimit: 0,
@@ -188,7 +250,7 @@ const fetchStudentLimitStatus = async (): Promise<StudentLimitStatus> => {
 };
 
 const validateStudentActivation = async (quantidade: number = 1): Promise<StudentLimitValidation> => {
-    const response = await fetch(`${API_BASE}/validate-activation`, {
+    const response = await fetch(`${LEGACY_API_BASE}/validate-activation`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -211,7 +273,7 @@ const validateStudentActivation = async (quantidade: number = 1): Promise<Studen
 };
 
 const validateSendInvite = async (): Promise<StudentLimitValidation> => {
-    const response = await fetch(`${API_BASE}/validate-invite`, {
+    const response = await fetch(`${LEGACY_API_BASE}/validate-invite`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -235,7 +297,27 @@ const validateSendInvite = async (): Promise<StudentLimitValidation> => {
 export const useStudentLimit = () => {
     const queryClient = useQueryClient();
 
-    // Main status query with aggressive refresh settings and better error handling
+    // New token status query
+    const {
+        data: tokenStatus,
+        isLoading: isTokenLoading,
+        isError: isTokenError,
+        error: tokenError,
+        refetch: refetchTokens,
+    } = useQuery<TokenStatus>({
+        queryKey: ['tokenStatus'],
+        queryFn: fetchTokenStatus,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+        staleTime: 15 * 1000,
+        gcTime: 30 * 1000,
+        retry: false,
+        refetchInterval: 30 * 1000,
+        refetchIntervalInBackground: false,
+    });
+
+    // Legacy student limit status query (kept for backward compatibility)
     const {
         data: status,
         isLoading,
@@ -245,14 +327,14 @@ export const useStudentLimit = () => {
     } = useQuery<StudentLimitStatus>({
         queryKey: ['studentLimitStatus'],
         queryFn: fetchStudentLimitStatus,
-        refetchOnWindowFocus: true, // Enable refetch on window focus
-        refetchOnMount: true, // Always refetch on mount
-        refetchOnReconnect: true, // Refetch when network reconnects
-        staleTime: 15 * 1000, // Reduced to 15 seconds for even faster updates
-        gcTime: 30 * 1000, // Reduce garbage collection time to 30 seconds
-        retry: false, // Disable retry since we handle errors gracefully now
-        refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
-        refetchIntervalInBackground: false, // Don't waste resources when page is hidden
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+        staleTime: 15 * 1000,
+        gcTime: 30 * 1000,
+        retry: false,
+        refetchInterval: 30 * 1000,
+        refetchIntervalInBackground: false,
     });
 
     // Listen for storage events to detect cross-tab changes
@@ -263,19 +345,20 @@ export const useStudentLimit = () => {
                 console.log('🔄 [StudentLimit] Invalidating queries and forcing refresh...');
                 
                 // Invalidate all related queries
+                queryClient.invalidateQueries({ queryKey: ['tokenStatus'] });
                 queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
+                queryClient.refetchQueries({ queryKey: ['tokenStatus'] });
                 queryClient.refetchQueries({ queryKey: ['studentLimitStatus'] });
                 
                 // Force a fresh fetch
+                refetchTokens();
                 refetch();
             }
         };
 
         window.addEventListener('storage', handleStorageChange);
         
-        // Also listen for manual refresh triggers within the same tab
         const handleBeforeUnload = () => {
-            // Trigger refresh for other tabs when this tab is about to close
             localStorage.setItem('studentLimitRefresh', Date.now().toString());
         };
         
@@ -285,13 +368,12 @@ export const useStudentLimit = () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, [queryClient, refetch]);
+    }, [queryClient, refetch, refetchTokens]);
 
     // Validation mutations
     const activationValidation = useMutation<StudentLimitValidation, Error, number>({
         mutationFn: validateStudentActivation,
         onSuccess: (data) => {
-            // Update the status cache with fresh data
             queryClient.setQueryData(['studentLimitStatus'], data.status);
         },
     });
@@ -299,35 +381,63 @@ export const useStudentLimit = () => {
     const inviteValidation = useMutation<StudentLimitValidation, Error, void>({
         mutationFn: validateSendInvite,
         onSuccess: (data) => {
-            // Update the status cache with fresh data
             queryClient.setQueryData(['studentLimitStatus'], data.status);
         },
     });
 
-    // Convenience methods
+    // Convenience methods using new token system when available
     const canActivateStudents = useCallback((quantidade: number = 1): boolean => {
-        if (!status) return false;
-        return status.availableSlots >= quantidade;
-    }, [status]);
+        if (tokenStatus) {
+            return tokenStatus.availableSlots >= quantidade;
+        }
+        if (status) {
+            return status.availableSlots >= quantidade;
+        }
+        return false;
+    }, [tokenStatus, status]);
 
     const canSendInvites = useCallback((): boolean => {
+        if (tokenStatus) {
+            return tokenStatus.availableSlots > 0;
+        }
         return status?.blockedActions.canSendInvites ?? false;
-    }, [status]);
+    }, [tokenStatus, status]);
 
     const getStatusMessage = useCallback((): string => {
+        if (tokenStatus) {
+            if (tokenStatus.availableSlots === 0) {
+                return 'Você não possui tokens disponíveis para cadastrar/ativar novos alunos.';
+            } else if (tokenStatus.availableSlots === 1) {
+                return 'Você pode ativar mais 1 aluno.';
+            } else {
+                return `Você pode ativar mais ${tokenStatus.availableSlots} alunos.`;
+            }
+        }
         return status?.message || 'Carregando status...';
-    }, [status]);
+    }, [tokenStatus, status]);
 
     const getRecommendations = useCallback((): string[] => {
+        if (tokenStatus && tokenStatus.availableSlots === 0) {
+            const recommendations = [];
+            if (!tokenStatus.hasPlan) {
+                recommendations.push('Contrate um plano para começar a ativar alunos');
+            } else {
+                recommendations.push('Faça upgrade do seu plano para mais slots');
+            }
+            recommendations.push('Adquira tokens avulsos entrando em contato com o Suporte DyFit');
+            return recommendations;
+        }
         return status?.recommendations || [];
-    }, [status]);
+    }, [tokenStatus, status]);
 
-    // Invalidate and refetch status (useful after student operations)
+    // Get available slots (prioritize new token system)
+    const availableSlots = tokenStatus?.availableSlots ?? status?.availableSlots ?? 0;
+
+    // Invalidate and refetch status
     const refreshStatus = useCallback(async () => {
         console.log('🔄 [StudentLimit] Manual refresh triggered');
         
         try {
-            // Call force refresh endpoint for fresh data
             const token = localStorage.getItem('authToken');
             if (token) {
                 const response = await fetch('/api/student-limit/force-refresh', {
@@ -342,7 +452,6 @@ export const useStudentLimit = () => {
                     const data = await response.json();
                     if (data.success) {
                         console.log('🔄 [StudentLimit] Force refresh successful:', data.data);
-                        // Update cache with fresh data
                         queryClient.setQueryData(['studentLimitStatus'], data.data);
                     }
                 }
@@ -351,47 +460,88 @@ export const useStudentLimit = () => {
             console.warn('🔄 [StudentLimit] Force refresh failed, falling back to regular refresh:', error);
         }
         
-        // Clear any existing cache
+        // Clear caches
+        queryClient.removeQueries({ queryKey: ['tokenStatus'] });
         queryClient.removeQueries({ queryKey: ['studentLimitStatus'] });
         
         // Trigger refresh across tabs
         localStorage.setItem('studentLimitRefresh', Date.now().toString());
         
-        // Force a fresh fetch
-        const result = await refetch();
+        // Force fresh fetches
+        const [tokenResult, statusResult] = await Promise.all([
+            refetchTokens(),
+            refetch()
+        ]);
         
-        console.log('✅ [StudentLimit] Manual refresh completed', result.data);
+        console.log('✅ [StudentLimit] Manual refresh completed', {
+            tokens: tokenResult.data,
+            status: statusResult.data
+        });
         
-        return result;
-    }, [queryClient, refetch]);
+        return { tokens: tokenResult, status: statusResult };
+    }, [queryClient, refetch, refetchTokens]);
 
     // Validate operations
-    const validateActivation = useCallback((quantidade: number = 1) => {
+    const validateActivation = useCallback(async (quantidade: number = 1) => {
+        // First check with new token system if available
+        if (tokenStatus && tokenStatus.availableSlots < quantidade) {
+            return Promise.resolve({
+                isValid: false,
+                message: 'Você não possui tokens disponíveis para cadastrar/ativar novos alunos.',
+                errorCode: 'NO_TOKENS_AVAILABLE',
+                status: status || {} as StudentLimitStatus,
+            });
+        }
+        
+        // Fallback to legacy validation
         return activationValidation.mutateAsync(quantidade);
-    }, [activationValidation]);
+    }, [tokenStatus, status, activationValidation]);
 
-    const validateInvite = useCallback(() => {
+    const validateInvite = useCallback(async () => {
+        // First check with new token system if available
+        if (tokenStatus && tokenStatus.availableSlots === 0) {
+            return Promise.resolve({
+                isValid: false,
+                message: 'Você não possui tokens disponíveis para enviar convites.',
+                errorCode: 'NO_TOKENS_AVAILABLE',
+                status: status || {} as StudentLimitStatus,
+            });
+        }
+        
+        // Fallback to legacy validation
         return inviteValidation.mutateAsync();
-    }, [inviteValidation]);
+    }, [tokenStatus, status, inviteValidation]);
 
     // Check if we're at the limit
-    const isAtLimit = status?.limitExceeded ?? false;
+    const isAtLimit = availableSlots === 0;
     
     // Check if close to limit (within 1 slot)
-    const isCloseToLimit = (status?.availableSlots ?? 0) <= 1 && (status?.availableSlots ?? 0) > 0;
+    const isCloseToLimit = availableSlots <= 1 && availableSlots > 0;
 
     return {
-        // Status data
+        // New token system data
+        tokenStatus,
+        isTokenLoading,
+        isTokenError,
+        tokenError,
+
+        // Legacy status data (for backward compatibility)
         status,
         isLoading,
         isError,
         error,
 
-        // Computed states
-        isAtLimit,
-        isCloseToLimit,
+        // Computed states (using new system when available)
+        availableSlots,
+        canActivateStudent: canActivateStudents(1),
         canActivateStudents,
         canSendInvites,
+        isAtLimit,
+        isCloseToLimit,
+        loading: isTokenLoading || isLoading,
+        reason: !canActivateStudents(1) ? getStatusMessage() : undefined,
+        
+        // Message and recommendations
         getStatusMessage,
         getRecommendations,
 
