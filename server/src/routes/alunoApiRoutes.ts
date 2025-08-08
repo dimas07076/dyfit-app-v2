@@ -112,44 +112,86 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
 
-        // ENHANCED: Use unified resource assignment after student creation
+        // ENHANCED: Use atomic resource assignment after student creation with comprehensive verification
         const studentId = (novoAluno._id as mongoose.Types.ObjectId).toString();
         
-        console.log(`[AlunoCreation] 🎯 ENHANCED: Assigning resource to newly created student ${studentId} for personal ${trainerId}`);
+        console.log(`[AlunoCreation] 🎯 ENHANCED: Starting atomic resource assignment for newly created student ${studentId} (${novoAluno.nome}) for personal ${trainerId}`);
         
         // Import and use unified StudentResourceValidationService
         const StudentResourceValidationService = (await import('../../services/StudentResourceValidationService.js')).default;
         
-        // Assign appropriate resource (plan slot or token) to the new student
-        const assignmentResult = await StudentResourceValidationService.assignResourceToStudent(
+        let assignmentResult: any;
+        let tokenVerificationPassed = false;
+        let verificationAttempts = 0;
+        const maxVerificationAttempts = 3;
+        
+        // Assign appropriate resource (plan slot or token) to the new student with atomic transaction
+        assignmentResult = await StudentResourceValidationService.assignResourceToStudent(
             trainerId, 
             studentId
         );
         
-        console.log(`[AlunoCreation] 📊 ENHANCED: Resource assignment result:`, {
+        console.log(`[AlunoCreation] 📊 ENHANCED: Initial resource assignment result:`, {
             success: assignmentResult.success,
             message: assignmentResult.message,
             resourceType: assignmentResult.resourceType,
             assignedResourceId: assignmentResult.assignedResourceId
         });
         
-        // Verify the resource assignment
-        if (assignmentResult.resourceType === 'token') {
+        // ENHANCED: Comprehensive token verification with retry logic
+        if (assignmentResult.success && assignmentResult.resourceType === 'plan') {
+            while (!tokenVerificationPassed && verificationAttempts < maxVerificationAttempts) {
+                verificationAttempts++;
+                console.log(`[AlunoCreation] 🔍 ENHANCED: Token verification attempt ${verificationAttempts}/${maxVerificationAttempts} for student ${studentId}`);
+                
+                // Wait for database consistency
+                await new Promise(resolve => setTimeout(resolve, verificationAttempts * 200));
+                
+                const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+                const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+                
+                if (verificationToken) {
+                    console.log(`[AlunoCreation] ✅ ENHANCED: Token verification PASSED for student ${studentId}:`, {
+                        tokenId: verificationToken._id?.toString(),
+                        tokenType: (verificationToken as any).tipo || 'unknown',
+                        tokenPermanentlyBound: !!getTokenAssignedStudentId(verificationToken),
+                        assignmentVerified: getTokenAssignedStudentId(verificationToken)?.toString() === studentId,
+                        verificationAttempt: verificationAttempts
+                    });
+                    tokenVerificationPassed = true;
+                } else {
+                    console.warn(`[AlunoCreation] ⚠️ ENHANCED: Token verification FAILED for student ${studentId} on attempt ${verificationAttempts}`);
+                    
+                    // If this is the last attempt and still no token, force a retry
+                    if (verificationAttempts === maxVerificationAttempts) {
+                        console.log(`[AlunoCreation] 🚨 ENHANCED: Final attempt failed, forcing emergency token creation for student ${studentId}`);
+                        
+                        // Try to assign resource again
+                        const emergencyAssignment = await StudentResourceValidationService.assignResourceToStudent(trainerId, studentId);
+                        console.log(`[AlunoCreation] 🚨 ENHANCED: Emergency assignment result:`, emergencyAssignment);
+                    }
+                }
+            }
+        } else if (assignmentResult.success && assignmentResult.resourceType === 'token') {
+            // Verify standalone token assignment
             const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
             const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
-            console.log(`[AlunoCreation] 🔍 ENHANCED: Token assignment verification:`, {
+            console.log(`[AlunoCreation] 🔍 ENHANCED: Standalone token assignment verification:`, {
                 studentHasToken: !!verificationToken,
                 tokenId: verificationToken?._id?.toString(),
                 tokenPermanentlyBound: verificationToken ? !!getTokenAssignedStudentId(verificationToken) : false,
                 assignmentVerified: verificationToken ? getTokenAssignedStudentId(verificationToken)?.toString() === studentId : false
             });
+            tokenVerificationPassed = !!verificationToken;
         }
         
+        // Final logging
         if (!assignmentResult.success) {
             console.warn(`[AlunoCreation] ⚠️ ENHANCED: Resource assignment failed for student ${studentId}: ${assignmentResult.message}`);
-            // For now, don't fail the student creation, but log the issue
+        } else if (!tokenVerificationPassed && assignmentResult.resourceType === 'plan') {
+            console.error(`[AlunoCreation] ❌ ENHANCED: CRITICAL - Resource assignment reported success but token verification failed for student ${studentId}!`);
         } else {
-            console.log(`[AlunoCreation] ✅ ENHANCED: Resource successfully assigned to student ${studentId} (type: ${assignmentResult.resourceType})`);
+            console.log(`[AlunoCreation] ✅ ENHANCED: Resource successfully assigned and verified for student ${studentId} (type: ${assignmentResult.resourceType})`);
         }
 
         res.status(201).json({
@@ -159,7 +201,9 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
                 success: assignmentResult.success,
                 message: assignmentResult.message,
                 resourceType: assignmentResult.resourceType,
-                assignedResourceId: assignmentResult.assignedResourceId
+                assignedResourceId: assignmentResult.assignedResourceId,
+                tokenVerificationPassed: tokenVerificationPassed,
+                verificationAttempts: verificationAttempts
             }
         });
 

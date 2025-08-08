@@ -81,7 +81,7 @@ interface StudentFormProps {
     isEditing?: boolean; 
     onCancel?: () => void; 
     disabled?: boolean; 
-    tokenRefreshRef?: MutableRefObject<{ refetch: () => void } | null>;
+    tokenRefreshRef?: MutableRefObject<{ refetch: () => void; forceRefresh: () => Promise<void> } | null>;
 }
 
 export function StudentForm({ 
@@ -94,14 +94,17 @@ export function StudentForm({
     tokenRefreshRef 
 }: StudentFormProps) {
     // Get token information for the student (only when editing)
-    const { tokenInfo, isLoading: tokenLoading, refetch: refetchTokenInfo } = useTokenInfo(isEditing ? initialData?._id : undefined);
+    const { tokenInfo, isLoading: tokenLoading, refetch: refetchTokenInfo, forceRefresh: forceRefreshTokenInfo } = useTokenInfo(isEditing ? initialData?._id : undefined);
     
-    // Expose refetch function via ref for parent component
+    // Expose refetch functions via ref for parent component
     useEffect(() => {
         if (tokenRefreshRef && isEditing) {
-            tokenRefreshRef.current = { refetch: refetchTokenInfo };
+            tokenRefreshRef.current = { 
+                refetch: refetchTokenInfo,
+                forceRefresh: forceRefreshTokenInfo
+            };
         }
-    }, [tokenRefreshRef, isEditing, refetchTokenInfo]);
+    }, [tokenRefreshRef, isEditing, refetchTokenInfo, forceRefreshTokenInfo]);
     
     // Form persistence for new students only
     const persistedForm = useFormPersistence({

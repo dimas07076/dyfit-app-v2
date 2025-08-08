@@ -19,7 +19,7 @@ const EditStudentPage: React.FC = () => {
     const { toast } = useToast();
     
     // Ref to trigger token info refresh from the StudentForm
-    const tokenRefreshRef = useRef<{ refetch: () => void } | null>(null);
+    const tokenRefreshRef = useRef<{ refetch: () => void; forceRefresh: () => Promise<void> } | null>(null);
 
     // <<< CORREÇÃO AQUI: Atualizado o caminho da API e a queryKey >>>
     const { data: studentData, isLoading, isError, error } = useQuery<Aluno, Error>({
@@ -34,22 +34,37 @@ const EditStudentPage: React.FC = () => {
             method: 'PUT',
             body: JSON.stringify(updatedData),
         }),
-        onSuccess: (updatedStudent, variables) => {
+        onSuccess: async (updatedStudent, variables) => {
             toast({ title: "Sucesso!", description: `${updatedStudent.nome} atualizado com sucesso.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
             queryClient.invalidateQueries({ queryKey: ['aluno', studentId] });
             
-            // Check if status changed and trigger token info refresh
+            // ENHANCED: Check if status changed and trigger comprehensive token info refresh
             if (studentData?.status !== variables.status) {
-                console.log(`[EditStudentPage] Status changed from ${studentData?.status} to ${variables.status}, refreshing token info`);
+                console.log(`[EditStudentPage] 🔄 ENHANCED: Status changed from ${studentData?.status} to ${variables.status}, triggering comprehensive token refresh`);
                 
-                // Trigger token info refresh after a short delay to allow backend processing
-                setTimeout(() => {
-                    if (tokenRefreshRef.current) {
-                        tokenRefreshRef.current.refetch();
-                        console.log(`[EditStudentPage] Token info refresh triggered`);
+                // Use enhanced force refresh for status changes that might involve token assignment
+                if (tokenRefreshRef.current) {
+                    if (variables.status === 'active' && studentData?.status === 'inactive') {
+                        console.log(`[EditStudentPage] 🚨 ENHANCED: Student activated - using force refresh with extended delay`);
+                        // Force refresh for activations (might need new token assignment)
+                        setTimeout(async () => {
+                            if (tokenRefreshRef.current) {
+                                await tokenRefreshRef.current.forceRefresh();
+                                console.log(`[EditStudentPage] ✅ ENHANCED: Force refresh completed for activation`);
+                            }
+                        }, 1000);
+                    } else {
+                        console.log(`[EditStudentPage] 🔄 ENHANCED: Regular status change - using standard refresh`);
+                        // Regular refresh for other status changes
+                        setTimeout(() => {
+                            if (tokenRefreshRef.current) {
+                                tokenRefreshRef.current.refetch();
+                                console.log(`[EditStudentPage] ✅ ENHANCED: Standard refresh completed`);
+                            }
+                        }, 500);
                     }
-                }, 500);
+                }
             }
             
             setLocation('/alunos');
