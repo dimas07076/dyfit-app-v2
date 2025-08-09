@@ -51,34 +51,56 @@ export const checkStudentStatusChange = async (req: Request, res: Response, next
         }
 
         // Student is being activated, check if they already have an assigned token
-        const TokenAssignmentService = (await import('../services/TokenAssignmentService.js')).default;
-        const existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
+        let existingToken: any = null;
+        let needsNewToken = true;
         
-        if (existingToken) {
-            const now = new Date();
-            const isTokenExpired = existingToken.dataVencimento <= now;
+        try {
+            const TokenAssignmentService = (await import('../services/TokenAssignmentService.js')).default;
+            existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
             
-            console.log(`[checkStudentStatusChange] 🔍 Student ${alunoId} has existing token:`, {
-                tokenId: existingToken._id,
-                expired: isTokenExpired,
-                expirationDate: existingToken.dataVencimento
-            });
-            
-            if (!isTokenExpired) {
-                console.log(`[checkStudentStatusChange] ✅ Student ${alunoId} can be reactivated with existing valid token`);
-                // Student has a valid token, allow activation without new token assignment
-                return next();
+            if (existingToken) {
+                const now = new Date();
+                const isTokenExpired = existingToken.dataVencimento <= now;
+                
+                console.log(`[checkStudentStatusChange] 🔍 Student ${alunoId} has existing token:`, {
+                    tokenId: existingToken._id,
+                    expired: isTokenExpired,
+                    expirationDate: existingToken.dataVencimento
+                });
+                
+                if (!isTokenExpired) {
+                    console.log(`[checkStudentStatusChange] ✅ Student ${alunoId} can be reactivated with existing valid token`);
+                    // Student has a valid token, allow activation without new token assignment
+                    return next();
+                } else {
+                    console.log(`[checkStudentStatusChange] ⚠️ Student ${alunoId} has expired token, need new token for activation`);
+                    // Token is expired, need to assign a new token - continue with normal validation
+                    needsNewToken = true;
+                }
             } else {
-                console.log(`[checkStudentStatusChange] ⚠️ Student ${alunoId} has expired token, need new token for activation`);
-                // Token is expired, need to assign a new token - continue with normal validation
+                console.log(`[checkStudentStatusChange] 🆕 Student ${alunoId} has no assigned token, need new token for activation`);
+                // No existing token, need to assign a new token - continue with normal validation
+                needsNewToken = true;
             }
-        } else {
-            console.log(`[checkStudentStatusChange] 🆕 Student ${alunoId} has no assigned token, need new token for activation`);
-            // No existing token, need to assign a new token - continue with normal validation
+        } catch (tokenError) {
+            console.error(`[checkStudentStatusChange] ❌ Error checking student token for ${alunoId}:`, tokenError);
+            // Graceful fallback: assume student needs new token validation
+            needsNewToken = true;
         }
         
         // Check if personal trainer can activate (for new token assignment)
-        const validation = await StudentLimitService.validateStudentActivation(personalTrainerId, 1);
+        let validation: any;
+        try {
+            validation = await StudentLimitService.validateStudentActivation(personalTrainerId, 1);
+        } catch (validationError) {
+            console.error(`[checkStudentStatusChange] ❌ Error validating student activation for personal ${personalTrainerId}:`, validationError);
+            // Graceful fallback: return service error
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno ao verificar limite de alunos. Tente novamente.',
+                code: 'VALIDATION_SERVICE_ERROR'
+            });
+        }
 
         if (!validation.isValid) {
             return res.status(403).json({
@@ -89,7 +111,7 @@ export const checkStudentStatusChange = async (req: Request, res: Response, next
                     currentLimit: validation.status.currentLimit,
                     activeStudents: validation.status.activeStudents,
                     availableSlots: validation.status.availableSlots,
-                    recommendations: validation.status.recommendations,
+                    recommendations: validation.status.recommendations || [],
                     studentName: currentStudent.nome
                 }
             });

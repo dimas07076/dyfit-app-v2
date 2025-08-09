@@ -1,9 +1,11 @@
 // server/middlewares/assignTokenToStudent.ts
 import { Request, Response, NextFunction } from 'express';
-import TokenAssignmentService from '../services/TokenAssignmentService.js';
+import TokenAssignmentService, { getTokenAssignedStudentId } from '../services/TokenAssignmentService.js';
+import StudentResourceValidationService from '../services/StudentResourceValidationService.js';
 
 /**
- * Middleware to assign a token to a student after successful creation/activation
+ * Enhanced middleware to assign appropriate resource to a student after successful creation/activation
+ * Uses unified StudentResourceValidationService to assign plan slots or tokens based on priority
  * This should be used AFTER the student is successfully created
  */
 export const assignTokenToStudent = async (req: Request, res: Response, next: NextFunction) => {
@@ -13,7 +15,7 @@ export const assignTokenToStudent = async (req: Request, res: Response, next: Ne
         // Get student ID from response data (set by previous middleware/controller)
         const studentId = (res.locals.createdStudentId || res.locals.studentId);
         
-        console.log(`[assignTokenToStudent] 🎯 DETAILED: Middleware called for assignment:`, {
+        console.log(`[assignTokenToStudent] 🎯 ENHANCED: Middleware called for resource assignment:`, {
             personalTrainerId,
             studentId,
             method: req.method,
@@ -25,7 +27,7 @@ export const assignTokenToStudent = async (req: Request, res: Response, next: Ne
         });
         
         if (!personalTrainerId || !studentId) {
-            console.log(`[assignTokenToStudent] ⚠️ Missing required data for token assignment:`, {
+            console.log(`[assignTokenToStudent] ⚠️ Missing required data for resource assignment:`, {
                 personalTrainerId: !!personalTrainerId,
                 studentId: !!studentId,
                 locals: res.locals
@@ -34,99 +36,51 @@ export const assignTokenToStudent = async (req: Request, res: Response, next: Ne
             return next();
         }
 
-        // Skip token assignment for admins
+        // Skip resource assignment for admins
         if (req.user?.role === 'admin') {
-            console.log(`[assignTokenToStudent] 👑 Admin user, skipping token assignment`);
+            console.log(`[assignTokenToStudent] 👑 Admin user, skipping resource assignment`);
             return next();
         }
 
-        // Get token status BEFORE assignment
-        const TokenAssignmentService = (await import('../services/TokenAssignmentService.js')).default;
-        const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
-        const existingStudentToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+        // Use unified resource assignment service
+        console.log(`[assignTokenToStudent] 🔗 ENHANCED: Proceeding with unified resource assignment to student ${studentId} for personal ${personalTrainerId}`);
         
-        console.log(`[assignTokenToStudent] 📊 DETAILED: Pre-assignment status:`, {
-            personalTrainerId,
-            studentId,
-            tokenStatusBefore: {
-                available: tokenStatusBefore.availableTokens,
-                consumed: tokenStatusBefore.consumedTokens,
-                total: tokenStatusBefore.totalTokens
-            },
-            existingStudentToken: existingStudentToken ? {
-                tokenId: existingStudentToken._id?.toString(),
-                expired: existingStudentToken.dataVencimento <= new Date(),
-                assignedDate: existingStudentToken.dateAssigned
-            } : null
-        });
-
-        // Skip assignment if student already has a valid token (for reactivation scenarios)
-        if (existingStudentToken && existingStudentToken.dataVencimento > new Date()) {
-            console.log(`[assignTokenToStudent] ♻️ DETAILED: Student ${studentId} already has valid token ${existingStudentToken._id}, skipping new assignment`);
-            return next();
-        }
-
-        console.log(`[assignTokenToStudent] 🔗 DETAILED: Proceeding with token assignment to student ${studentId} for personal ${personalTrainerId}`);
-        
-        const assignmentResult = await TokenAssignmentService.assignTokenToStudent(
+        const assignmentResult = await StudentResourceValidationService.assignResourceToStudent(
             personalTrainerId, 
-            studentId, 
-            1 // One token per student
+            studentId
         );
         
-        // Get token status AFTER assignment
-        const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(personalTrainerId);
-        const studentTokenAfter = await TokenAssignmentService.getStudentAssignedToken(studentId);
-        
-        console.log(`[assignTokenToStudent] 📊 DETAILED: Assignment result and post-assignment status:`, {
-            assignmentResult: {
-                success: assignmentResult.success,
-                message: assignmentResult.message,
-                errorCode: assignmentResult.errorCode,
-                assignedTokenId: assignmentResult.assignedToken?._id?.toString()
-            },
-            tokenStatusAfter: {
-                available: tokenStatusAfter.availableTokens,
-                consumed: tokenStatusAfter.consumedTokens,
-                total: tokenStatusAfter.totalTokens,
-                changeInAvailable: tokenStatusAfter.availableTokens - tokenStatusBefore.availableTokens,
-                changeInConsumed: tokenStatusAfter.consumedTokens - tokenStatusBefore.consumedTokens
-            },
-            studentTokenAfter: studentTokenAfter ? {
-                tokenId: studentTokenAfter._id?.toString(),
-                quantity: studentTokenAfter.quantidade,
-                assignedDate: studentTokenAfter.dateAssigned,
-                expirationDate: studentTokenAfter.dataVencimento
-            } : null,
-            expectedBehavior: {
-                availableShouldDecrease: tokenStatusBefore.availableTokens - tokenStatusAfter.availableTokens === 1,
-                consumedShouldIncrease: tokenStatusAfter.consumedTokens - tokenStatusBefore.consumedTokens === 1,
-                studentShouldHaveToken: !!studentTokenAfter
-            }
+        console.log(`[assignTokenToStudent] 📊 ENHANCED: Resource assignment result:`, {
+            success: assignmentResult.success,
+            message: assignmentResult.message,
+            resourceType: assignmentResult.resourceType,
+            assignedResourceId: assignmentResult.assignedResourceId
         });
         
         if (!assignmentResult.success) {
-            console.warn(`[assignTokenToStudent] ⚠️ DETAILED: Token assignment failed: ${assignmentResult.message}`);
+            console.warn(`[assignTokenToStudent] ⚠️ ENHANCED: Resource assignment failed: ${assignmentResult.message}`);
             // Log the warning but don't fail the request since student was already created
             // In a production system, you might want to implement rollback logic here
         } else {
-            console.log(`[assignTokenToStudent] ✅ DETAILED: Token successfully assigned to student ${studentId}`);
+            console.log(`[assignTokenToStudent] ✅ ENHANCED: Resource successfully assigned to student ${studentId} (type: ${assignmentResult.resourceType})`);
             // Store assignment info in response locals for potential use
-            res.locals.tokenAssignment = assignmentResult;
+            res.locals.resourceAssignment = assignmentResult;
             
-            // Verify the assignment was persisted correctly
-            const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
-            console.log(`[assignTokenToStudent] 🔍 DETAILED: Assignment verification:`, {
-                tokenWasAssigned: !!verificationToken,
-                tokenId: verificationToken?._id?.toString(),
-                isPermanentlyBound: !!verificationToken?.assignedToStudentId,
-                criticalCheck: verificationToken?.assignedToStudentId?.toString() === studentId ? 'CORRECT' : 'ERROR'
-            });
+            // Additional verification for token assignments
+            if (assignmentResult.resourceType === 'token') {
+                const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+                console.log(`[assignTokenToStudent] 🔍 ENHANCED: Token assignment verification:`, {
+                    tokenWasAssigned: !!verificationToken,
+                    tokenId: verificationToken?._id?.toString(),
+                    isPermanentlyBound: verificationToken ? !!getTokenAssignedStudentId(verificationToken) : false,
+                    criticalCheck: verificationToken ? (getTokenAssignedStudentId(verificationToken)?.toString() === studentId ? 'CORRECT' : 'ERROR') : 'NO_TOKEN'
+                });
+            }
         }
         
         next();
     } catch (error) {
-        console.error('[assignTokenToStudent] ❌ DETAILED: Error in token assignment middleware:', error);
+        console.error('[assignTokenToStudent] ❌ ENHANCED: Error in resource assignment middleware:', error);
         // Don't fail the request, just log the error and continue
         next();
     }

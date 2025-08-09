@@ -4,6 +4,7 @@ import ConviteAluno from '../../models/ConviteAluno.js';
 import Aluno from '../../models/Aluno.js';
 import PersonalTrainer from '../../models/PersonalTrainer.js'; // Importa o modelo PersonalTrainer
 import dbConnect from '../../lib/dbConnect.js';
+import StudentResourceValidationService from '../../services/StudentResourceValidationService.js';
 const router = express.Router();
 // GET /api/public/convite-aluno/:token - Valida o token do convite
 router.get('/:token', async (req, res, next) => {
@@ -49,6 +50,25 @@ router.post('/registrar', async (req, res, next) => {
         if (!emailFinal) {
             return res.status(400).json({ erro: 'O e-mail é obrigatório para o cadastro.' });
         }
+        // ENHANCED: Validate resources before creating student
+        console.log(`[conviteAlunoPublic] 🔍 Validating resources before student creation for personal ${convite.criadoPor}`);
+        const resourceValidation = await StudentResourceValidationService.validateStudentCreation(convite.criadoPor.toString(), 1);
+        if (!resourceValidation.isValid) {
+            console.log(`[conviteAlunoPublic] 🚫 Resource validation failed:`, {
+                message: resourceValidation.message,
+                errorCode: resourceValidation.errorCode,
+                availableSlots: resourceValidation.status.availableSlots
+            });
+            return res.status(403).json({
+                erro: resourceValidation.message,
+                code: resourceValidation.errorCode,
+                details: {
+                    availableSlots: resourceValidation.status.availableSlots,
+                    recommendations: resourceValidation.status.recommendations
+                }
+            });
+        }
+        console.log(`[conviteAlunoPublic] ✅ Resource validation passed, proceeding with student creation`);
         const novoAluno = new Aluno({
             nome,
             email: emailFinal, // Usa o e-mail determinado
@@ -61,22 +81,27 @@ router.post('/registrar', async (req, res, next) => {
         convite.status = 'utilizado';
         convite.usadoPor = novoAluno._id;
         await convite.save();
-        // Assign token to the newly created student
+        // ENHANCED: Assign appropriate resource using unified service
         try {
-            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
-            console.log(`[conviteAlunoPublic] 🔗 Assigning token to student ${novoAluno._id} for personal ${convite.criadoPor}`);
-            const assignmentResult = await TokenAssignmentService.assignTokenToStudent(convite.criadoPor.toString(), novoAluno._id.toString(), 1);
+            console.log(`[conviteAlunoPublic] 🔗 ENHANCED: Assigning resource to student ${novoAluno._id} for personal ${convite.criadoPor}`);
+            const assignmentResult = await StudentResourceValidationService.assignResourceToStudent(convite.criadoPor.toString(), novoAluno._id.toString());
+            console.log(`[conviteAlunoPublic] 📊 ENHANCED: Resource assignment result:`, {
+                success: assignmentResult.success,
+                message: assignmentResult.message,
+                resourceType: assignmentResult.resourceType,
+                assignedResourceId: assignmentResult.assignedResourceId
+            });
             if (!assignmentResult.success) {
-                console.warn(`[conviteAlunoPublic] ⚠️ Token assignment failed: ${assignmentResult.message}`);
-                // Log warning but don't fail the registration
+                console.warn(`[conviteAlunoPublic] ⚠️ ENHANCED: Resource assignment failed: ${assignmentResult.message}`);
+                // Note: Student is already created at this point. In production, consider rollback logic
             }
             else {
-                console.log(`[conviteAlunoPublic] ✅ Token successfully assigned to student ${novoAluno._id}`);
+                console.log(`[conviteAlunoPublic] ✅ ENHANCED: Resource successfully assigned to student ${novoAluno._id} (type: ${assignmentResult.resourceType})`);
             }
         }
-        catch (tokenError) {
-            console.error('[conviteAlunoPublic] ❌ Error assigning token:', tokenError);
-            // Log error but don't fail the registration
+        catch (resourceError) {
+            console.error('[conviteAlunoPublic] ❌ ENHANCED: Error assigning resource:', resourceError);
+            // Log error but don't fail the registration as student is already created
         }
         res.status(201).json({ mensagem: 'Aluno registrado com sucesso!' });
     }

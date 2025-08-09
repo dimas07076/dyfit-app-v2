@@ -8,4 +8,5 @@ const path = require('path');
 // e apontam para o diretório e nome do arquivo atual, respectivamente.
 // Não precisamos de 'fileURLToPath' ou 'import.meta.url' aqui.
 
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+// Look for .env file in the parent directory (project root)
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });

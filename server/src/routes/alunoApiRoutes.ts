@@ -12,6 +12,7 @@ import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos, checkCanActivateStudent, checkCanSendInvite } from '../../middlewares/checkLimiteAlunos.js';
 import { checkStudentStatusChange } from '../../middlewares/checkStudentStatusChange.js';
+import { getTokenAssignedStudentId, getTokenExpirationDate } from '../../services/TokenAssignmentService.js';
 
 const router = express.Router();
 
@@ -111,71 +112,98 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
 
-        // CRITICAL FIX: Assign token AFTER student is created
+        // ENHANCED: Use atomic resource assignment after student creation with comprehensive verification
         const studentId = (novoAluno._id as mongoose.Types.ObjectId).toString();
         
-        console.log(`[AlunoCreation] 🎯 CRITICAL FIX: Assigning token to newly created student ${studentId} for personal ${trainerId}`);
+        console.log(`[AlunoCreation] 🎯 ENHANCED: Starting atomic resource assignment for newly created student ${studentId} (${novoAluno.nome}) for personal ${trainerId}`);
         
-        // Import and use TokenAssignmentService directly
-        const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+        // Import and use unified StudentResourceValidationService
+        const StudentResourceValidationService = (await import('../../services/StudentResourceValidationService.js')).default;
         
-        // Get token status BEFORE assignment
-        const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
-        console.log(`[AlunoCreation] 📊 Token status BEFORE assignment:`, {
-            available: tokenStatusBefore.availableTokens,
-            consumed: tokenStatusBefore.consumedTokens,
-            total: tokenStatusBefore.totalTokens
-        });
+        let assignmentResult: any;
+        let tokenVerificationPassed = false;
+        let verificationAttempts = 0;
+        const maxVerificationAttempts = 3;
         
-        // Assign token to the new student
-        const assignmentResult = await TokenAssignmentService.assignTokenToStudent(
+        // Assign appropriate resource (plan slot or token) to the new student with atomic transaction
+        assignmentResult = await StudentResourceValidationService.assignResourceToStudent(
             trainerId, 
-            studentId, 
-            1 // One token per student
+            studentId
         );
         
-        // Get token status AFTER assignment
-        const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
-        console.log(`[AlunoCreation] 📊 Token assignment result and status AFTER:`, {
-            assignmentSuccess: assignmentResult.success,
-            assignmentMessage: assignmentResult.message,
-            assignedTokenId: assignmentResult.assignedToken?._id?.toString(),
-            tokenStatusAfter: {
-                available: tokenStatusAfter.availableTokens,
-                consumed: tokenStatusAfter.consumedTokens,
-                total: tokenStatusAfter.totalTokens
-            },
-            change: {
-                availableDecreased: tokenStatusBefore.availableTokens - tokenStatusAfter.availableTokens,
-                consumedIncreased: tokenStatusAfter.consumedTokens - tokenStatusBefore.consumedTokens
+        console.log(`[AlunoCreation] 📊 ENHANCED: Initial resource assignment result:`, {
+            success: assignmentResult.success,
+            message: assignmentResult.message,
+            resourceType: assignmentResult.resourceType,
+            assignedResourceId: assignmentResult.assignedResourceId
+        });
+        
+        // ENHANCED: Comprehensive token verification with retry logic
+        if (assignmentResult.success && assignmentResult.resourceType === 'plan') {
+            while (!tokenVerificationPassed && verificationAttempts < maxVerificationAttempts) {
+                verificationAttempts++;
+                console.log(`[AlunoCreation] 🔍 ENHANCED: Token verification attempt ${verificationAttempts}/${maxVerificationAttempts} for student ${studentId}`);
+                
+                // Wait for database consistency
+                await new Promise(resolve => setTimeout(resolve, verificationAttempts * 200));
+                
+                const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+                const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+                
+                if (verificationToken) {
+                    console.log(`[AlunoCreation] ✅ ENHANCED: Token verification PASSED for student ${studentId}:`, {
+                        tokenId: verificationToken._id?.toString(),
+                        tokenType: (verificationToken as any).tipo || 'unknown',
+                        tokenPermanentlyBound: !!getTokenAssignedStudentId(verificationToken),
+                        assignmentVerified: getTokenAssignedStudentId(verificationToken)?.toString() === studentId,
+                        verificationAttempt: verificationAttempts
+                    });
+                    tokenVerificationPassed = true;
+                } else {
+                    console.warn(`[AlunoCreation] ⚠️ ENHANCED: Token verification FAILED for student ${studentId} on attempt ${verificationAttempts}`);
+                    
+                    // If this is the last attempt and still no token, force a retry
+                    if (verificationAttempts === maxVerificationAttempts) {
+                        console.log(`[AlunoCreation] 🚨 ENHANCED: Final attempt failed, forcing emergency token creation for student ${studentId}`);
+                        
+                        // Try to assign resource again
+                        const emergencyAssignment = await StudentResourceValidationService.assignResourceToStudent(trainerId, studentId);
+                        console.log(`[AlunoCreation] 🚨 ENHANCED: Emergency assignment result:`, emergencyAssignment);
+                    }
+                }
             }
-        });
+        } else if (assignmentResult.success && assignmentResult.resourceType === 'token') {
+            // Verify standalone token assignment
+            const TokenAssignmentService = (await import('../../services/TokenAssignmentService.js')).default;
+            const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
+            console.log(`[AlunoCreation] 🔍 ENHANCED: Standalone token assignment verification:`, {
+                studentHasToken: !!verificationToken,
+                tokenId: verificationToken?._id?.toString(),
+                tokenPermanentlyBound: verificationToken ? !!getTokenAssignedStudentId(verificationToken) : false,
+                assignmentVerified: verificationToken ? getTokenAssignedStudentId(verificationToken)?.toString() === studentId : false
+            });
+            tokenVerificationPassed = !!verificationToken;
+        }
         
-        // Verify the token was actually assigned
-        const verificationToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
-        console.log(`[AlunoCreation] 🔍 Final verification:`, {
-            studentHasToken: !!verificationToken,
-            tokenId: verificationToken?._id?.toString(),
-            tokenPermanentlyBound: !!verificationToken?.assignedToStudentId,
-            assignmentVerified: verificationToken?.assignedToStudentId?.toString() === studentId
-        });
-        
+        // Final logging
         if (!assignmentResult.success) {
-            console.warn(`[AlunoCreation] ⚠️ Token assignment failed for student ${studentId}: ${assignmentResult.message}`);
-            // For now, don't fail the student creation, but log the issue
-        } else if (!verificationToken) {
-            console.error(`[AlunoCreation] ❌ CRITICAL: Token assignment reported success but verification failed for student ${studentId}`);
+            console.warn(`[AlunoCreation] ⚠️ ENHANCED: Resource assignment failed for student ${studentId}: ${assignmentResult.message}`);
+        } else if (!tokenVerificationPassed && assignmentResult.resourceType === 'plan') {
+            console.error(`[AlunoCreation] ❌ ENHANCED: CRITICAL - Resource assignment reported success but token verification failed for student ${studentId}!`);
         } else {
-            console.log(`[AlunoCreation] ✅ CRITICAL FIX VERIFIED: Token successfully assigned and verified for student ${studentId}`);
+            console.log(`[AlunoCreation] ✅ ENHANCED: Resource successfully assigned and verified for student ${studentId} (type: ${assignmentResult.resourceType})`);
         }
 
         res.status(201).json({
             mensagem: "Aluno criado com sucesso!",
             aluno: alunoResponse,
-            tokenAssignment: {
+            resourceAssignment: {
                 success: assignmentResult.success,
                 message: assignmentResult.message,
-                tokenAssigned: !!verificationToken
+                resourceType: assignmentResult.resourceType,
+                assignedResourceId: assignmentResult.assignedResourceId,
+                tokenVerificationPassed: tokenVerificationPassed,
+                verificationAttempts: verificationAttempts
             }
         });
 
@@ -352,33 +380,26 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                 // Check if student has existing token
                 const existingToken = await TokenAssignmentService.getStudentAssignedToken(alunoId);
                 
-                if (existingToken && existingToken.dataVencimento > new Date()) {
+                if (existingToken && getTokenExpirationDate(existingToken) > new Date()) {
                     console.log(`[AlunoUpdate] ♻️ REACTIVATION: Student ${alunoId} has valid existing token ${existingToken._id}, reusing it`);
                 } else {
-                    console.log(`[AlunoUpdate] 🆕 NEW TOKEN NEEDED: Student ${alunoId} needs new token assignment`);
+                    console.log(`[AlunoUpdate] 🆕 ENHANCED: Student ${alunoId} needs new resource assignment`);
                     
-                    // Get token status before assignment
-                    const tokenStatusBefore = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
+                    // Use unified resource assignment service
+                    const StudentResourceValidationService = (await import('../../services/StudentResourceValidationService.js')).default;
                     
-                    // Assign new token
-                    const assignmentResult = await TokenAssignmentService.assignTokenToStudent(trainerId, alunoId, 1);
+                    // Assign appropriate resource (plan slot or token)
+                    const assignmentResult = await StudentResourceValidationService.assignResourceToStudent(trainerId, alunoId);
                     
-                    // Get token status after assignment
-                    const tokenStatusAfter = await TokenAssignmentService.getTokenAssignmentStatus(trainerId);
-                    
-                    console.log(`[AlunoUpdate] 📊 ACTIVATION token assignment:`, {
+                    console.log(`[AlunoUpdate] 📊 ENHANCED: ACTIVATION resource assignment:`, {
                         assignmentSuccess: assignmentResult.success,
                         assignmentMessage: assignmentResult.message,
-                        tokenChange: {
-                            availableBefore: tokenStatusBefore.availableTokens,
-                            availableAfter: tokenStatusAfter.availableTokens,
-                            consumedBefore: tokenStatusBefore.consumedTokens,
-                            consumedAfter: tokenStatusAfter.consumedTokens
-                        }
+                        resourceType: assignmentResult.resourceType,
+                        assignedResourceId: assignmentResult.assignedResourceId
                     });
                     
                     if (!assignmentResult.success) {
-                        console.warn(`[AlunoUpdate] ⚠️ Token assignment failed during activation: ${assignmentResult.message}`);
+                        console.warn(`[AlunoUpdate] ⚠️ ENHANCED: Resource assignment failed during activation: ${assignmentResult.message}`);
                     }
                 }
             } else if (alunoAtualizado?.status === 'inactive' && statusAnterior === 'active') {
@@ -393,20 +414,20 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                     studentName: alunoAtualizado?.nome,
                     tokenStillAssigned: !!assignedTokenAfter,
                     tokenId: assignedTokenAfter?._id?.toString(),
-                    tokenPermanentlyBound: !!assignedTokenAfter?.assignedToStudentId,
+                    tokenPermanentlyBound: assignedTokenAfter ? !!getTokenAssignedStudentId(assignedTokenAfter) : false,
                     currentTokenStatus: {
                         available: tokenStatusAfter.availableTokens,
                         consumed: tokenStatusAfter.consumedTokens,
                         total: tokenStatusAfter.totalTokens
                     },
-                    criticalCheck: assignedTokenAfter?.assignedToStudentId?.toString() === alunoId ? 
+                    criticalCheck: assignedTokenAfter ? (getTokenAssignedStudentId(assignedTokenAfter)?.toString() === alunoId ? 
                         'CORRECT: Token remains permanently assigned' : 
-                        'ERROR: Token assignment lost!'
+                        'ERROR: Token assignment lost!') : 'NO_TOKEN'
                 });
                 
                 if (!assignedTokenAfter) {
                     console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Student ${alunoId} was deactivated but lost their token assignment!`);
-                } else if (assignedTokenAfter.assignedToStudentId?.toString() !== alunoId) {
+                } else if (getTokenAssignedStudentId(assignedTokenAfter)?.toString() !== alunoId) {
                     console.error(`[AlunoUpdate] ❌ CRITICAL ERROR: Token ${assignedTokenAfter._id} is not properly bound to student ${alunoId}!`);
                 } else {
                     console.log(`[AlunoUpdate] ✅ DEACTIVATION CORRECT: Token ${assignedTokenAfter._id} remains permanently assigned to student ${alunoId}`);
@@ -431,8 +452,8 @@ router.put("/gerenciar/:id", authenticateToken, checkStudentStatusChange, async 
                 hasAssignedToken: !!assignedTokenAfter,
                 tokenId: assignedTokenAfter?._id?.toString(),
                 tokenQuantity: assignedTokenAfter?.quantidade,
-                tokenExpired: assignedTokenAfter ? assignedTokenAfter.dataVencimento <= new Date() : null,
-                tokenExpirationDate: assignedTokenAfter?.dataVencimento?.toISOString(),
+                tokenExpired: assignedTokenAfter ? getTokenExpirationDate(assignedTokenAfter) <= new Date() : null,
+                tokenExpirationDate: assignedTokenAfter ? getTokenExpirationDate(assignedTokenAfter).toISOString() : null,
                 dateAssigned: assignedTokenAfter?.dateAssigned?.toISOString(),
                 finalStatus: alunoAtualizado?.status
             });

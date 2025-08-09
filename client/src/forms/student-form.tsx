@@ -10,8 +10,10 @@ import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Aluno } from '@/types/aluno';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
-import { useEffect } from 'react';
+import { useEffect, MutableRefObject } from 'react';
 import { formatDateForInput } from '@/utils/dateUtils';
+import { TokenInfoDisplay } from '@/components/TokenInfoDisplay';
+import { useTokenInfo } from '@/hooks/useTokenInfo';
 
 // --- Funções de Validação (sem alterações) ---
 const requiredNumericString = (fieldName: string) => z.string().min(1, `${fieldName} é obrigatório.`).refine((val) => !isNaN(parseFloat(val.replace(',', '.'))), { message: "Deve ser um número." });
@@ -72,9 +74,38 @@ export interface StudentFormDataProcessed {
     password?: string;
 }
 
-interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; disabled?: boolean; }
+interface StudentFormProps { 
+    onSubmit: (data: StudentFormDataProcessed) => void; 
+    isLoading?: boolean; 
+    initialData?: Aluno; 
+    isEditing?: boolean; 
+    onCancel?: () => void; 
+    disabled?: boolean; 
+    tokenRefreshRef?: MutableRefObject<{ refetch: () => void; forceRefresh: () => Promise<void> } | null>;
+}
 
-export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel, disabled = false }: StudentFormProps) {
+export function StudentForm({ 
+    onSubmit: onSubmitProp, 
+    isLoading = false, 
+    initialData, 
+    isEditing = false, 
+    onCancel, 
+    disabled = false, 
+    tokenRefreshRef 
+}: StudentFormProps) {
+    // Get token information for the student (only when editing)
+    const { tokenInfo, isLoading: tokenLoading, refetch: refetchTokenInfo, forceRefresh: forceRefreshTokenInfo } = useTokenInfo(isEditing ? initialData?._id : undefined);
+    
+    // Expose refetch functions via ref for parent component
+    useEffect(() => {
+        if (tokenRefreshRef && isEditing) {
+            tokenRefreshRef.current = { 
+                refetch: refetchTokenInfo,
+                forceRefresh: forceRefreshTokenInfo
+            };
+        }
+    }, [tokenRefreshRef, isEditing, refetchTokenInfo, forceRefreshTokenInfo]);
+    
     // Form persistence for new students only
     const persistedForm = useFormPersistence({
         formKey: 'novo_aluno',
@@ -204,6 +235,18 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
                         ) : null}
                     </div>
                 </div>
+
+                {/* Token Information (only for editing existing students) */}
+                {isEditing && (
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold border-b pb-2">Token Associado</h3>
+                        <TokenInfoDisplay 
+                            tokenInfo={tokenInfo} 
+                            isLoading={tokenLoading}
+                            showTitle={false}
+                        />
+                    </div>
+                )}
 
                  {/* Metas e Status */}
                 <div className="space-y-4">
