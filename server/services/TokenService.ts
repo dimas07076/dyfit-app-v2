@@ -344,8 +344,21 @@ export class TokenService {
      */
     async getStudentAssignedToken(studentId: string): Promise<IToken | null> {
         try {
+            // CRITICAL FIX: Convert string studentId to ObjectId for proper database query
+            let studentObjectId: mongoose.Types.ObjectId;
+            try {
+                studentObjectId = new mongoose.Types.ObjectId(studentId);
+            } catch (error) {
+                console.log(`[TokenService] ❌ Invalid studentId format ${studentId}, falling back to string query`);
+                // Fallback to string query if ObjectId conversion fails
+                return await Token.findOne({
+                    alunoId: studentId,
+                    ativo: true
+                });
+            }
+            
             return await Token.findOne({
-                alunoId: studentId,
+                alunoId: studentObjectId,
                 ativo: true
             });
         } catch (error) {
