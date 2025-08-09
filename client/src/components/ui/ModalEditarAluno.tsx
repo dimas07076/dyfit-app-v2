@@ -6,8 +6,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react"; // Import Loader2
+import { Loader2, Tag, Calendar } from "lucide-react"; // Import icons for token section
 import { formatDateForInput } from "@/utils/dateUtils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+// Interface para informações de token
+interface TokenInfo {
+    id?: string;
+    tipo?: 'plano' | 'avulso';
+    dataExpiracao?: string;
+    status?: string;
+}
 
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
 interface AlunoEditData {
@@ -24,6 +34,8 @@ interface AlunoEditData {
     status?: 'active' | 'inactive';
     notes?: string;
     trainerId?: string; // Fixed: should be string, not number
+    // Token information fields (readonly)
+    tokenInfo?: TokenInfo;
 }
 
 // NOVA Interface para o ESTADO do formulário (permite string para campos numéricos durante digitação)
@@ -41,6 +53,8 @@ interface AlunoFormDataState {
     status?: 'active' | 'inactive';
     notes?: string;
     trainerId?: string | null; // Fixed: should be string, not number
+    // Token information fields (readonly)
+    tokenInfo?: TokenInfo;
 }
 
 
@@ -56,11 +70,38 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
   // Usa a NOVA interface para o estado do formulário
   const [formData, setFormData] = useState<AlunoFormDataState>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(false);
+
+  // Function to fetch token information for the student
+  const fetchTokenInfo = async (studentId: string) => {
+    try {
+      setIsLoadingTokenInfo(true);
+      const response = await fetch(`/api/tokens/student/${studentId}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return {
+            id: result.data.id,
+            tipo: result.data.tipo,
+            dataExpiracao: result.data.dataExpiracao,
+            status: result.data.status
+          } as TokenInfo;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Erro ao buscar informações de token:", error);
+      return null;
+    } finally {
+      setIsLoadingTokenInfo(false);
+    }
+  };
 
   useEffect(() => {
     if (aluno && isOpen) {
         // Ao popular o estado, converte números para string para os inputs text
-      setFormData({
+      const baseFormData = {
         ...aluno,
         birthDate: formatDateForInput(aluno.birthDate),
         startDate: formatDateForInput(aluno.startDate),
@@ -68,7 +109,19 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
         trainerId: aluno.trainerId || '', // trainerId is already a string
-      });
+      };
+
+      // Fetch token information if student has an ID
+      if (aluno._id) {
+        fetchTokenInfo(aluno._id).then(tokenInfo => {
+          setFormData({
+            ...baseFormData,
+            tokenInfo: tokenInfo || undefined
+          });
+        });
+      } else {
+        setFormData(baseFormData);
+      }
     }
     // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
     // else if (!isOpen) {
@@ -152,8 +205,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
     // Validação simples antes de enviar
     // Verifica se, após a conversão, o resultado é NaN (Not a Number)
-    if ((dataToSend.weight !== null && isNaN(dataToSend.weight)) || 
-        (dataToSend.height !== null && isNaN(dataToSend.height))) {
+    if ((dataToSend.weight !== null && dataToSend.weight !== undefined && isNaN(dataToSend.weight)) || 
+        (dataToSend.height !== null && dataToSend.height !== undefined && isNaN(dataToSend.height))) {
        toast({ title: "Peso ou Altura contém valor inválido.", variant: "destructive" });
        setIsLoading(false);
        return;
@@ -310,6 +363,79 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
             <Label htmlFor="trainerId" className="text-right">ID Personal</Label>
             <Input id="trainerId" name="trainerId" type="text" inputMode="numeric" value={formData.trainerId ?? ''} onChange={handleChange} className="col-span-3" />
           </div> */}
+
+          {/* Seção de Informações de Token */}
+          {formData.tokenInfo && (
+            <>
+              {/* Separador */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Informações de Token</Label>
+                </div>
+                
+                {/* Token ID e Tipo */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
+                    <Input 
+                      id="tokenId" 
+                      value={formData.tokenInfo.id || ""} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
+                    <Input 
+                      id="tokenTipo" 
+                      value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Data de Expiração */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="tokenExpiracao" className="text-right text-sm flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Data de Expiração
+                  </Label>
+                  <Input 
+                    id="tokenExpiracao" 
+                    value={formData.tokenInfo.dataExpiracao ? 
+                      format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
+                      ""
+                    } 
+                    readOnly 
+                    className={`col-span-3 bg-muted text-muted-foreground ${
+                      formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
+                        ? 'text-destructive' 
+                        : ''
+                    }`}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Loading state for token info */}
+          {isLoadingTokenInfo && (
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Tag className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Informações de Token</Label>
+              </div>
+              <div className="animate-pulse space-y-2">
+                <div className="h-10 bg-muted rounded"></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-10 bg-muted rounded"></div>
+                  <div className="h-10 bg-muted rounded"></div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botões */}
