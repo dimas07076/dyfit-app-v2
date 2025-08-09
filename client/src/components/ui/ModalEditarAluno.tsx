@@ -81,13 +81,17 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
   // Debug logging to help understand what's happening
   useEffect(() => {
-    if (aluno?._id) {
-      console.log(`[ModalEditarAluno] 🔍 Student ID: ${aluno._id}`);
+    if (isOpen) {
+      console.log(`[ModalEditarAluno] 🔍 Modal opened with aluno:`, aluno);
+      console.log(`[ModalEditarAluno] 🔍 Student ID: ${aluno?._id}`);
       console.log(`[ModalEditarAluno] 🔍 Token Info:`, tokenInfo);
       console.log(`[ModalEditarAluno] 🔍 Is Loading Token:`, isLoadingTokenInfo);
       console.log(`[ModalEditarAluno] 🔍 Token Error:`, tokenError);
+      
+      // Log form data changes
+      console.log(`[ModalEditarAluno] 🔍 Form Data Token Info:`, formData.tokenInfo);
     }
-  }, [aluno?._id, tokenInfo, isLoadingTokenInfo, tokenError]);
+  }, [isOpen, aluno?._id, tokenInfo, isLoadingTokenInfo, tokenError, formData.tokenInfo]);
 
   useEffect(() => {
     if (aluno && isOpen) {
@@ -343,8 +347,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
             <Input id="trainerId" name="trainerId" type="text" inputMode="numeric" value={formData.trainerId ?? ''} onChange={handleChange} className="col-span-3" />
           </div> */}
 
-          {/* Seção de Informações de Token */}
-          {(formData.tokenInfo || isLoadingTokenInfo || tokenError) && (
+          {/* Seção de Informações de Token - ALWAYS SHOW FOR DEBUGGING */}
+          {(formData.tokenInfo || isLoadingTokenInfo || tokenError || true) && (
             <>
               {/* Separador */}
               <div className="border-t pt-4 mt-4">
@@ -356,6 +360,9 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
                   
                   {/* Debug info and refresh button */}
                   <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      DEBUG: ID={aluno?._id?.slice(-4)} | Loading={isLoadingTokenInfo ? 'Y' : 'N'} | HasToken={tokenInfo ? 'Y' : 'N'}
+                    </span>
                     {tokenError && (
                       <span className="text-xs text-destructive">
                         Erro ao carregar token
@@ -439,7 +446,10 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
                   </>
                 ) : (
                   <div className="text-center py-4 text-muted-foreground text-sm">
-                    Nenhum token associado a este aluno
+                    <p>Nenhum token associado a este aluno</p>
+                    <p className="text-xs mt-1">
+                      Aluno ID: {aluno?._id} | Hook executed: {tokenInfo === null ? 'Yes' : 'No'} | Error: {tokenError || 'None'}
+                    </p>
                   </div>
                 )}
               </div>
