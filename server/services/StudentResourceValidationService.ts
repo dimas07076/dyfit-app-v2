@@ -242,73 +242,32 @@ export class StudentResourceValidationService {
                 // Determine resource assignment based on availability and priority
                 planInfo = validation.status.planInfo; // Assign to function-scoped variable
                 
-                // CRITICAL FIX: Enhanced plan token creation with atomic operations and retry logic
+                // CRITICAL FIX: Enhanced plan token creation using centralized helper method
                 if (planInfo && planInfo.planSlotsAvailable > 0 && !planInfo.isExpired) {
                     console.log(`[StudentResourceValidation] 📋 ENHANCED: Using plan slot for student ${studentId}, creating plan token for ${planInfo.plano?.nome || 'Unknown Plan'}`);
                     
-                    const Token = (await import('../models/Token.js')).default;
-                    
-                    // Ensure atomic token creation with comprehensive error handling
-                    let planToken: any = null;
+                    // Use centralized helper method with retry logic
                     let retryCount = 0;
                     const maxRetries = 3;
+                    let tokenCreationResult: any = null;
                     
-                    while (!planToken && retryCount < maxRetries) {
-                        try {
-                            retryCount++;
-                            console.log(`[StudentResourceValidation] 🔄 ENHANCED: Plan token creation attempt ${retryCount}/${maxRetries} for student ${studentId}`);
-                            
-                            // Create plan token with comprehensive data validation
-                            const tokenData = {
-                                tipo: 'plano' as const,
-                                personalTrainerId: personalTrainerId,
-                                alunoId: new mongoose.Types.ObjectId(studentId),
-                                planoId: planInfo.personalPlano?._id,
-                                dataExpiracao: planInfo.personalPlano?.dataVencimento,
-                                ativo: true,
-                                quantidade: 1,
-                                dateAssigned: new Date(),
-                                adicionadoPorAdmin: planInfo.personalPlano?.atribuidoPorAdmin || new mongoose.Types.ObjectId(personalTrainerId),
-                                motivoAdicao: `Token de plano atribuído automaticamente - ${planInfo.plano?.nome || 'Plano'} (Attempt ${retryCount})`
-                            };
-                            
-                            // Validate required fields before creation
-                            if (!tokenData.personalTrainerId || !tokenData.alunoId || !tokenData.dataExpiracao) {
-                                throw new Error(`Missing required token data: personalTrainerId=${!!tokenData.personalTrainerId}, alunoId=${!!tokenData.alunoId}, dataExpiracao=${!!tokenData.dataExpiracao}`);
-                            }
-                            
-                            planToken = new Token(tokenData);
-                            await planToken.save({ session });
-                            
-                            console.log(`[StudentResourceValidation] ✅ ENHANCED: Successfully created plan token ${planToken.id} for student ${studentId} on attempt ${retryCount}`);
-                            
-                            // Immediate verification of token creation
-                            const verificationToken = await Token.findById(planToken.id).session(session);
-                            if (!verificationToken) {
-                                throw new Error(`Token verification failed - token ${planToken.id} not found after creation`);
-                            }
-                            
-                            console.log(`[StudentResourceValidation] ✅ ENHANCED: Token verification passed for ${planToken.id}`);
-                            
-                        } catch (tokenCreationError: any) {
-                            console.error(`[StudentResourceValidation] ❌ ENHANCED: Plan token creation attempt ${retryCount} failed for student ${studentId}:`, {
-                                error: tokenCreationError.message,
-                                stack: tokenCreationError.stack,
-                                planInfo: {
-                                    planId: planInfo.personalPlano?._id,
-                                    planName: planInfo.plano?.nome,
-                                    expiration: planInfo.personalPlano?.dataVencimento,
-                                    personalTrainerId: personalTrainerId,
-                                    studentId: studentId
-                                }
-                            });
-                            
-                            // Reset planToken for retry
-                            planToken = null;
+                    while (!tokenCreationResult?.success && retryCount < maxRetries) {
+                        retryCount++;
+                        console.log(`[StudentResourceValidation] 🔄 ENHANCED: Plan token creation attempt ${retryCount}/${maxRetries} for student ${studentId}`);
+                        
+                        tokenCreationResult = await this.createAndAssignPlanToken(
+                            personalTrainerId,
+                            studentId,
+                            planInfo,
+                            session
+                        );
+                        
+                        if (!tokenCreationResult.success) {
+                            console.error(`[StudentResourceValidation] ❌ ENHANCED: Attempt ${retryCount} failed: ${tokenCreationResult.error}`);
                             
                             // If this is the last retry, throw the error to exit the transaction
                             if (retryCount >= maxRetries) {
-                                throw new Error(`Failed to create plan token after ${maxRetries} attempts: ${tokenCreationError.message}`);
+                                throw new Error(`Failed to create plan token after ${maxRetries} attempts: ${tokenCreationResult.error}`);
                             }
                             
                             // Wait before retry (exponential backoff)
@@ -316,12 +275,12 @@ export class StudentResourceValidationService {
                         }
                     }
                     
-                    if (planToken) {
+                    if (tokenCreationResult?.success) {
                         result = {
                             success: true,
                             message: `Plan token created and assigned to student - ${planInfo.plano?.nome} (Created on attempt ${retryCount})`,
                             resourceType: 'plan',
-                            assignedResourceId: planToken.id
+                            assignedResourceId: tokenCreationResult.token.id
                         };
                     } else {
                         throw new Error('Plan token creation failed after all retry attempts');
@@ -407,33 +366,106 @@ export class StudentResourceValidationService {
     }
 
     /**
+     * Helper method to create and assign plan token with robust error handling and logging
+     * Centralizes plan token creation logic with comprehensive validation and retry mechanism
+     */
+    private async createAndAssignPlanToken(
+        personalTrainerId: string,
+        studentId: string,
+        planInfo: any,
+        session?: any
+    ): Promise<{ success: boolean; token?: any; error?: string }> {
+        try {
+            console.log(`[StudentResourceValidation] 🏗️ Creating plan token for student ${studentId} with plan ${planInfo.plano?.nome || 'Unknown'}`);
+            
+            const mongoose = (await import('mongoose')).default;
+            const Token = (await import('../models/Token.js')).default;
+            
+            // Validate required data before creation
+            const requiredData = {
+                personalTrainerId,
+                studentId,
+                planId: planInfo.personalPlano?._id,
+                dataExpiracao: planInfo.personalPlano?.dataVencimento,
+                planName: planInfo.plano?.nome
+            };
+            
+            // Check for missing required fields
+            const missingFields = Object.entries(requiredData)
+                .filter(([, value]) => !value)
+                .map(([key]) => key);
+                
+            if (missingFields.length > 0) {
+                const errorMsg = `Missing required fields for plan token creation: ${missingFields.join(', ')}`;
+                console.error(`[StudentResourceValidation] ❌ ${errorMsg}`);
+                return { success: false, error: errorMsg };
+            }
+            
+            // Prepare token data with fallback for adicionadoPorAdmin
+            const tokenData = {
+                tipo: 'plano' as const,
+                personalTrainerId: personalTrainerId,
+                alunoId: new mongoose.Types.ObjectId(studentId),
+                planoId: planInfo.personalPlano._id,
+                dataExpiracao: planInfo.personalPlano.dataVencimento,
+                ativo: true,
+                quantidade: 1,
+                dateAssigned: new Date(),
+                adicionadoPorAdmin: planInfo.personalPlano?.atribuidoPorAdmin || new mongoose.Types.ObjectId(personalTrainerId),
+                motivoAdicao: `Token de plano criado automaticamente - ${planInfo.plano.nome}`
+            };
+            
+            console.log(`[StudentResourceValidation] 📋 Creating plan token with data:`, {
+                tipo: tokenData.tipo,
+                personalTrainerId: tokenData.personalTrainerId,
+                studentId: studentId,
+                planId: tokenData.planoId,
+                expiration: tokenData.dataExpiracao,
+                adminId: tokenData.adicionadoPorAdmin
+            });
+            
+            // Create and save token
+            const planToken = new Token(tokenData);
+            await planToken.save(session ? { session } : {});
+            
+            console.log(`[StudentResourceValidation] ✅ Successfully created plan token ${planToken.id} for student ${studentId}`);
+            
+            return { success: true, token: planToken };
+            
+        } catch (error: any) {
+            const errorMsg = `Failed to create plan token: ${error.message}`;
+            console.error(`[StudentResourceValidation] ❌ ${errorMsg}`, {
+                error: error.message,
+                stack: error.stack,
+                studentId,
+                personalTrainerId,
+                planInfo: {
+                    planId: planInfo?.personalPlano?._id,
+                    planName: planInfo?.plano?.nome
+                }
+            });
+            
+            return { success: false, error: errorMsg };
+        }
+    }
+
+    /**
      * Force retry token creation outside of transaction for edge cases
      */
     private async forceTokenCreationRetry(personalTrainerId: string, studentId: string, planInfo: any): Promise<void> {
         try {
             console.log(`[StudentResourceValidation] 🚨 FORCE RETRY: Creating plan token for student ${studentId} outside transaction`);
             
-            const Token = (await import('../models/Token.js')).default;
-            const mongoose = (await import('mongoose')).default;
+            const retryResult = await this.createAndAssignPlanToken(personalTrainerId, studentId, planInfo);
             
-            const forceToken = new Token({
-                tipo: 'plano',
-                personalTrainerId: personalTrainerId,
-                alunoId: new mongoose.Types.ObjectId(studentId),
-                planoId: planInfo?.personalPlano?._id,
-                dataExpiracao: planInfo?.personalPlano?.dataVencimento,
-                ativo: true,
-                quantidade: 1,
-                dateAssigned: new Date(),
-                adicionadoPorAdmin: planInfo?.personalPlano?.atribuidoPorAdmin || new mongoose.Types.ObjectId(personalTrainerId),
-                motivoAdicao: `FORCE RETRY: Token de plano atribuído - ${planInfo?.plano?.nome || 'Plano'}`
-            });
-            
-            await forceToken.save();
-            console.log(`[StudentResourceValidation] ✅ FORCE RETRY: Successfully created token ${forceToken.id} for student ${studentId}`);
+            if (retryResult.success) {
+                console.log(`[StudentResourceValidation] ✅ FORCE RETRY: Successfully created token ${retryResult.token?.id} for student ${studentId}`);
+            } else {
+                console.error(`[StudentResourceValidation] ❌ FORCE RETRY: Failed to create token for student ${studentId}: ${retryResult.error}`);
+            }
             
         } catch (retryError: any) {
-            console.error(`[StudentResourceValidation] ❌ FORCE RETRY: Failed to create token for student ${studentId}:`, retryError.message);
+            console.error(`[StudentResourceValidation] ❌ FORCE RETRY: Exception during token creation for student ${studentId}:`, retryError.message);
         }
     }
 
@@ -448,13 +480,38 @@ export class StudentResourceValidationService {
     }> {
         try {
             const Aluno = (await import('../models/Aluno.js')).default;
+            const mongoose = (await import('mongoose')).default;
             
             // CRITICAL FIX: Only get ACTIVE students for plan slot calculation
             // Inactive students should not consume plan slots
-            const activeStudents = await Aluno.find({ 
-                trainerId: personalTrainerId, 
-                status: 'active' 
-            });
+            // Also fix trainerId comparison to use ObjectId
+            let activeStudents: any[] = [];
+            try {
+                const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+                activeStudents = await Aluno.find({ 
+                    trainerId: trainerObjectId, 
+                    status: 'active' 
+                });
+                
+                console.log(`[StudentResourceValidation] 🔍 FIXED: Found ${activeStudents.length} ACTIVE students with ObjectId`);
+                
+                // If no students found, try string comparison as fallback
+                if (activeStudents.length === 0) {
+                    activeStudents = await Aluno.find({ 
+                        trainerId: personalTrainerId, 
+                        status: 'active' 
+                    });
+                    console.log(`[StudentResourceValidation] 🔍 FALLBACK: Found ${activeStudents.length} ACTIVE students with string`);
+                }
+            } catch (error) {
+                console.error(`[StudentResourceValidation] ❌ Error finding active students for ${personalTrainerId}:`, error);
+                // Fallback to string comparison
+                activeStudents = await Aluno.find({ 
+                    trainerId: personalTrainerId, 
+                    status: 'active' 
+                });
+                console.log(`[StudentResourceValidation] 🔍 FALLBACK: Found ${activeStudents.length} ACTIVE students`);
+            }
             
             console.log(`[StudentResourceValidation] 🔍 FIXED: Checking ${activeStudents.length} ACTIVE students (ignoring inactive students for plan slot calculation)`);
             

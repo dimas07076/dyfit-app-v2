@@ -653,14 +653,36 @@ export class TokenAssignmentService {
         try {
             console.log(`[TokenAssignment] 🔍 ENHANCED: Checking assigned token for student ${studentId}`);
             
-            // Check both legacy TokenAvulso and new Token models
+            // CRITICAL FIX: Convert string studentId to ObjectId for proper database query
+            let studentObjectId: mongoose.Types.ObjectId;
+            try {
+                studentObjectId = new mongoose.Types.ObjectId(studentId);
+            } catch (error) {
+                console.log(`[TokenAssignment] ❌ ENHANCED: Invalid studentId format ${studentId}, falling back to string query`);
+                // Fallback to original string query if ObjectId conversion fails
+                const [legacyToken, newToken] = await Promise.all([
+                    TokenAvulso.findOne({
+                        assignedToStudentId: studentId,
+                        ativo: true
+                    }),
+                    Token.findOne({
+                        alunoId: studentId,
+                        ativo: true
+                    })
+                ]);
+                return legacyToken || newToken || null;
+            }
+            
+            console.log(`[TokenAssignment] 🔧 ENHANCED: Converted studentId "${studentId}" to ObjectId for database query`);
+            
+            // Check both legacy TokenAvulso and new Token models using ObjectId
             const [legacyToken, newToken] = await Promise.all([
                 TokenAvulso.findOne({
-                    assignedToStudentId: studentId,
+                    assignedToStudentId: studentObjectId,
                     ativo: true
                 }),
                 Token.findOne({
-                    alunoId: studentId,
+                    alunoId: studentObjectId,
                     ativo: true
                 })
             ]);

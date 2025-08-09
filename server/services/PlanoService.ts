@@ -129,11 +129,39 @@ export class PlanoService {
             }
             // --- END ENHANCED DIAGNOSTIC LOG ---
 
-            const alunosAtivos = await Aluno.countDocuments({
-                trainerId: personalTrainerId,
-                status: 'active'
-            });
-            console.log(`[PlanoService] 👥 Active students count: ${alunosAtivos}`);
+            // CRITICAL FIX: Ensure trainerId is properly compared as ObjectId
+            let alunosAtivos = 0;
+            try {
+                // Try both string and ObjectId comparison for trainerId
+                const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+                
+                // Count with ObjectId
+                alunosAtivos = await Aluno.countDocuments({
+                    trainerId: trainerObjectId,
+                    status: 'active'
+                });
+                
+                console.log(`[PlanoService] 👥 FIXED: Active students count with ObjectId: ${alunosAtivos}`);
+                
+                // If zero, also try string comparison as fallback
+                if (alunosAtivos === 0) {
+                    const fallbackCount = await Aluno.countDocuments({
+                        trainerId: personalTrainerId,
+                        status: 'active'
+                    });
+                    console.log(`[PlanoService] 👥 FALLBACK: Active students count with string: ${fallbackCount}`);
+                    alunosAtivos = fallbackCount;
+                }
+                
+            } catch (error) {
+                console.error(`[PlanoService] ❌ Error counting active students for ${personalTrainerId}:`, error);
+                // Fallback to string comparison
+                alunosAtivos = await Aluno.countDocuments({
+                    trainerId: personalTrainerId,
+                    status: 'active'
+                });
+                console.log(`[PlanoService] 👥 FALLBACK: Active students count: ${alunosAtivos}`);
+            }
 
             const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
             console.log(`[PlanoService] 🎫 Active tokens count: ${tokensAtivos}`);
@@ -253,7 +281,26 @@ export class PlanoService {
         
         // Get all students for this personal trainer to count token-based vs plan-based students
         const Aluno = (await import('../models/Aluno.js')).default;
-        const allStudents = await Aluno.find({ trainerId: personalTrainerId });
+        
+        // CRITICAL FIX: Ensure trainerId is properly compared as ObjectId  
+        let allStudents: any[] = [];
+        try {
+            const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+            allStudents = await Aluno.find({ trainerId: trainerObjectId });
+            
+            console.log(`[PlanoService.canActivateMoreStudents] 👥 FIXED: Found ${allStudents.length} students with ObjectId`);
+            
+            // If no students found, try string comparison as fallback
+            if (allStudents.length === 0) {
+                allStudents = await Aluno.find({ trainerId: personalTrainerId });
+                console.log(`[PlanoService.canActivateMoreStudents] 👥 FALLBACK: Found ${allStudents.length} students with string`);
+            }
+        } catch (error) {
+            console.error(`[PlanoService.canActivateMoreStudents] ❌ Error finding students for ${personalTrainerId}:`, error);
+            // Fallback to string comparison
+            allStudents = await Aluno.find({ trainerId: personalTrainerId });
+            console.log(`[PlanoService.canActivateMoreStudents] 👥 FALLBACK: Found ${allStudents.length} students`);
+        }
         
         // CRITICAL FIX: Properly distinguish between plan tokens and standalone tokens
         let tokenBasedActiveStudents = 0;

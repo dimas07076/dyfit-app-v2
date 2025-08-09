@@ -1,7 +1,6 @@
 // server/services/TokenService.ts
 import Token, { IToken } from '../models/Token.js';
 import PersonalPlano from '../models/PersonalPlano.js';
-import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
 export interface TokenAssignmentResult {
@@ -161,76 +160,115 @@ export class TokenService {
      */
     async getStudentTokenDetails(studentId: string): Promise<TokenDetails | null> {
         try {
-            console.log(`[TokenService] 🔍 Getting token details for student ${studentId}`);
+            console.log(`[TokenService] 🔍 ENHANCED: Getting token details for student ${studentId}`);
             
-            // Check both legacy TokenAvulso and new Token models
-            const [legacyToken, newToken] = await Promise.all([
-                import('../models/TokenAvulso.js').then(module => 
-                    module.default.findOne({
-                        assignedToStudentId: studentId,
-                        ativo: true
-                    }).populate('assignedToStudentId', 'nome')
-                ),
-                Token.findOne({
-                    alunoId: studentId,
-                    ativo: true
-                }).populate('alunoId', 'nome')
-            ]);
-            
-            // Prefer legacy token if both exist (consistency with assignment logic)
-            const assignedToken = legacyToken || newToken;
+            // ENHANCED: Use consolidated token assignment service for accurate lookup
+            const TokenAssignmentService = (await import('./TokenAssignmentService.js')).default;
+            const assignedToken = await TokenAssignmentService.getStudentAssignedToken(studentId);
             
             if (!assignedToken) {
-                console.log(`[TokenService] ℹ️ No token found for student ${studentId} in either model`);
+                console.log(`[TokenService] ℹ️ ENHANCED: No token found for student ${studentId} using assignment service`);
                 return null;
             }
             
-            const isLegacyToken = !!legacyToken;
+            console.log(`[TokenService] 🎯 ENHANCED: Found assigned token for student ${studentId}:`, {
+                tokenId: assignedToken._id?.toString(),
+                tokenType: (assignedToken as any).tipo || 'legacy',
+                hasAlunoId: !!(assignedToken as any).alunoId,
+                hasAssignedToStudentId: !!(assignedToken as any).assignedToStudentId,
+                isActive: (assignedToken as any).ativo,
+                expiration: (assignedToken as any).dataVencimento || (assignedToken as any).dataExpiracao
+            });
+            
+            // Import Aluno model to get student name
+            const Aluno = (await import('../models/Aluno.js')).default;
+            const student = await Aluno.findById(studentId).select('nome');
+            const studentName = student?.nome || 'Unknown Student';
             
             // Convert to standardized TokenDetails format
+            // Check if this is a legacy TokenAvulso or new Token
+            const isLegacyToken = 'assignedToStudentId' in assignedToken;
+            const isNewToken = 'alunoId' in assignedToken;
+            
             let tokenDetails: TokenDetails;
             
             if (isLegacyToken) {
                 // Handle TokenAvulso model
                 const legacyTokenData = assignedToken as any;
+                const dataVencimento = legacyTokenData.dataVencimento;
+                const isExpired = dataVencimento <= new Date();
+                
                 tokenDetails = {
                     id: (legacyTokenData._id as mongoose.Types.ObjectId).toString(),
-                    tipo: 'avulso', // Legacy tokens are typically standalone
-                    dataExpiracao: legacyTokenData.dataVencimento,
-                    status: legacyTokenData.dataVencimento <= new Date() ? 'Expirado' : 'Ativo',
+                    tipo: 'avulso', // Legacy tokens are standalone
+                    dataExpiracao: dataVencimento,
+                    status: !legacyTokenData.ativo ? 'inativo' : (isExpired ? 'expirado' : 'ativo'),
                     alunoId: studentId,
-                    alunoNome: legacyTokenData.assignedToStudentId?.nome,
-                    planoId: undefined, // Legacy tokens typically don't have planoId
-                    quantidade: legacyTokenData.quantidade
+                    alunoNome: studentName,
+                    planoId: undefined, // Legacy tokens don't have planoId
+                    quantidade: legacyTokenData.quantidade || 1
                 };
-            } else {
+            } else if (isNewToken) {
                 // Handle new Token model
                 const newTokenData = assignedToken as any;
+                const dataExpiracao = newTokenData.dataExpiracao;
+                const isExpired = dataExpiracao <= new Date();
+                
+                // Compute standardized status (lowercase)
+                let computedStatus = 'ativo';
+                if (!newTokenData.ativo) {
+                    computedStatus = 'inativo';
+                } else if (isExpired) {
+                    computedStatus = 'expirado';
+                } else if (newTokenData.alunoId) {
+                    computedStatus = 'ativo';
+                } else {
+                    computedStatus = 'disponível';
+                }
+                
                 tokenDetails = {
-                    id: newTokenData.id,
+                    id: newTokenData._id?.toString() || newTokenData.id,
                     tipo: newTokenData.tipo,
-                    dataExpiracao: newTokenData.dataExpiracao,
-                    status: newTokenData.status || 'Ativo',
+                    dataExpiracao: dataExpiracao,
+                    status: computedStatus,
                     alunoId: studentId,
-                    alunoNome: newTokenData.alunoId?.nome,
+                    alunoNome: studentName,
                     planoId: newTokenData.planoId?.toString(),
-                    quantidade: newTokenData.quantidade
+                    quantidade: newTokenData.quantidade || 1
+                };
+            } else {
+                // Fallback for unknown token format
+                console.warn(`[TokenService] ⚠️ Unknown token format for student ${studentId}, using fallback`);
+                const tokenData = assignedToken as any;
+                const expiration = tokenData.dataExpiracao || tokenData.dataVencimento;
+                const isExpired = expiration <= new Date();
+                
+                tokenDetails = {
+                    id: tokenData._id?.toString() || tokenData.id,
+                    tipo: tokenData.tipo || 'avulso',
+                    dataExpiracao: expiration,
+                    status: isExpired ? 'expirado' : 'ativo',
+                    alunoId: studentId,
+                    alunoNome: studentName,
+                    planoId: tokenData.planoId?.toString(),
+                    quantidade: tokenData.quantidade || 1
                 };
             }
             
-            console.log(`[TokenService] ✅ Found token for student ${studentId}:`, {
+            console.log(`[TokenService] ✅ ENHANCED: Returning token details for student ${studentId}:`, {
                 tokenModel: isLegacyToken ? 'TokenAvulso' : 'Token',
                 tokenId: tokenDetails.id,
                 tipo: tokenDetails.tipo,
                 dataExpiracao: tokenDetails.dataExpiracao,
                 status: tokenDetails.status,
-                quantidade: tokenDetails.quantidade
+                quantidade: tokenDetails.quantidade,
+                alunoNome: tokenDetails.alunoNome
             });
             
             return tokenDetails;
             
         } catch (error) {
-            console.error('❌ Error getting student token details:', error);
+            console.error('❌ ENHANCED: Error getting student token details:', error);
             return null;
         }
     }
@@ -306,8 +344,21 @@ export class TokenService {
      */
     async getStudentAssignedToken(studentId: string): Promise<IToken | null> {
         try {
+            // CRITICAL FIX: Convert string studentId to ObjectId for proper database query
+            let studentObjectId: mongoose.Types.ObjectId;
+            try {
+                studentObjectId = new mongoose.Types.ObjectId(studentId);
+            } catch (error) {
+                console.log(`[TokenService] ❌ Invalid studentId format ${studentId}, falling back to string query`);
+                // Fallback to string query if ObjectId conversion fails
+                return await Token.findOne({
+                    alunoId: studentId,
+                    ativo: true
+                });
+            }
+            
             return await Token.findOne({
-                alunoId: studentId,
+                alunoId: studentObjectId,
                 ativo: true
             });
         } catch (error) {
