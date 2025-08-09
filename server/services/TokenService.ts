@@ -1,7 +1,6 @@
 // server/services/TokenService.ts
 import Token, { IToken } from '../models/Token.js';
 import PersonalPlano from '../models/PersonalPlano.js';
-import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
 export interface TokenAssignmentResult {
@@ -197,7 +196,7 @@ export class TokenService {
                     id: (legacyTokenData._id as mongoose.Types.ObjectId).toString(),
                     tipo: 'avulso', // Legacy tokens are typically standalone
                     dataExpiracao: legacyTokenData.dataVencimento,
-                    status: legacyTokenData.dataVencimento <= new Date() ? 'Expirado' : 'Ativo',
+                    status: legacyTokenData.dataVencimento <= new Date() ? 'expirado' : 'ativo',
                     alunoId: studentId,
                     alunoNome: legacyTokenData.assignedToStudentId?.nome,
                     planoId: undefined, // Legacy tokens typically don't have planoId
@@ -206,11 +205,26 @@ export class TokenService {
             } else {
                 // Handle new Token model
                 const newTokenData = assignedToken as any;
+                // Compute standardized status (lowercase) for new Token model
+                const now = new Date();
+                const isExpired = newTokenData.dataExpiracao <= now;
+                let computedStatus = 'ativo';
+                
+                if (!newTokenData.ativo) {
+                    computedStatus = 'inativo';
+                } else if (isExpired) {
+                    computedStatus = 'expirado';
+                } else if (newTokenData.alunoId) {
+                    computedStatus = 'ativo';
+                } else {
+                    computedStatus = 'disponível';
+                }
+                
                 tokenDetails = {
                     id: newTokenData.id,
                     tipo: newTokenData.tipo,
                     dataExpiracao: newTokenData.dataExpiracao,
-                    status: newTokenData.status || 'Ativo',
+                    status: computedStatus,
                     alunoId: studentId,
                     alunoNome: newTokenData.alunoId?.nome,
                     planoId: newTokenData.planoId?.toString(),

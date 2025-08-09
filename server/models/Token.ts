@@ -114,14 +114,15 @@ tokenSchema.virtual('status').get(function(this: IToken) {
     const now = new Date();
     const isExpired = this.dataExpiracao <= now;
     
-    if (!this.ativo) return 'Inativo';
-    if (isExpired) return 'Expirado';
-    if (this.alunoId) return 'Ativo';
-    return 'Disponível';
+    if (!this.ativo) return 'inativo';
+    if (isExpired) return 'expirado';
+    if (this.alunoId) return 'ativo';
+    return 'disponível';
 });
 
-// Ensure virtual fields are included in JSON
+// Ensure virtual fields are included in JSON and Object serialization
 tokenSchema.set('toJSON', { virtuals: true });
+tokenSchema.set('toObject', { virtuals: true });
 
 const Token = mongoose.model<IToken>('Token', tokenSchema);
 
