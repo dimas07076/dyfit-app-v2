@@ -10,13 +10,17 @@ import { Loader2, Tag, Calendar } from "lucide-react"; // Import icons for token
 import { formatDateForInput } from "@/utils/dateUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useTokenInfo } from "@/hooks/useTokenInfo";
 
-// Interface para informações de token
+// Interface para informações de token - updated to match useTokenInfo hook
 interface TokenInfo {
-    id?: string;
-    tipo?: 'plano' | 'avulso';
-    dataExpiracao?: string;
-    status?: string;
+    id: string;
+    tipo: 'plano' | 'avulso';
+    dataExpiracao: string;
+    status: string;
+    alunoId?: string;
+    alunoNome?: string;
+    quantidade: number;
 }
 
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
@@ -67,36 +71,23 @@ interface ModalEditarAlunoProps {
 
 export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: ModalEditarAlunoProps) {
   const { toast } = useToast();
+  
   // Usa a NOVA interface para o estado do formulário
   const [formData, setFormData] = useState<AlunoFormDataState>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(false);
+  
+  // Use the useTokenInfo hook for better authentication and error handling
+  const { tokenInfo, isLoading: isLoadingTokenInfo, error: tokenError, refetch: refetchTokenInfo } = useTokenInfo(aluno?._id);
 
-  // Function to fetch token information for the student
-  const fetchTokenInfo = async (studentId: string) => {
-    try {
-      setIsLoadingTokenInfo(true);
-      const response = await fetch(`/api/tokens/student/${studentId}`);
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          return {
-            id: result.data.id,
-            tipo: result.data.tipo,
-            dataExpiracao: result.data.dataExpiracao,
-            status: result.data.status
-          } as TokenInfo;
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error("Erro ao buscar informações de token:", error);
-      return null;
-    } finally {
-      setIsLoadingTokenInfo(false);
+  // Debug logging to help understand what's happening
+  useEffect(() => {
+    if (aluno?._id) {
+      console.log(`[ModalEditarAluno] 🔍 Student ID: ${aluno._id}`);
+      console.log(`[ModalEditarAluno] 🔍 Token Info:`, tokenInfo);
+      console.log(`[ModalEditarAluno] 🔍 Is Loading Token:`, isLoadingTokenInfo);
+      console.log(`[ModalEditarAluno] 🔍 Token Error:`, tokenError);
     }
-  };
+  }, [aluno?._id, tokenInfo, isLoadingTokenInfo, tokenError]);
 
   useEffect(() => {
     if (aluno && isOpen) {
@@ -109,25 +100,13 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
         trainerId: aluno.trainerId || '', // trainerId is already a string
+        // Include token information from the hook
+        tokenInfo: tokenInfo || undefined
       };
 
-      // Fetch token information if student has an ID
-      if (aluno._id) {
-        fetchTokenInfo(aluno._id).then(tokenInfo => {
-          setFormData({
-            ...baseFormData,
-            tokenInfo: tokenInfo || undefined
-          });
-        });
-      } else {
-        setFormData(baseFormData);
-      }
+      setFormData(baseFormData);
     }
-    // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
-    // else if (!isOpen) {
-    //    setFormData({});
-    // }
-  }, [aluno, isOpen]);
+  }, [aluno, isOpen, tokenInfo]);
 
   // handleChange agora está consistente com o tipo AlunoFormDataState (que permite string)
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -365,76 +344,106 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
           </div> */}
 
           {/* Seção de Informações de Token */}
-          {formData.tokenInfo && (
+          {(formData.tokenInfo || isLoadingTokenInfo || tokenError) && (
             <>
               {/* Separador */}
               <div className="border-t pt-4 mt-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Tag className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Informações de Token</Label>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Informações de Token</Label>
+                  </div>
+                  
+                  {/* Debug info and refresh button */}
+                  <div className="flex items-center gap-2">
+                    {tokenError && (
+                      <span className="text-xs text-destructive">
+                        Erro ao carregar token
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => refetchTokenInfo()}
+                      className="h-6 px-2 text-xs"
+                    >
+                      Atualizar
+                    </Button>
+                  </div>
                 </div>
                 
-                {/* Token ID e Tipo */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
-                    <Input 
-                      id="tokenId" 
-                      value={formData.tokenInfo.id || ""} 
-                      readOnly 
-                      className="bg-muted text-muted-foreground font-mono text-xs"
-                    />
+                {isLoadingTokenInfo ? (
+                  <div className="animate-pulse space-y-2">
+                    <div className="h-10 bg-muted rounded"></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="h-10 bg-muted rounded"></div>
+                      <div className="h-10 bg-muted rounded"></div>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
-                    <Input 
-                      id="tokenTipo" 
-                      value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
-                      readOnly 
-                      className="bg-muted text-muted-foreground"
-                    />
-                  </div>
-                </div>
+                ) : formData.tokenInfo ? (
+                  <>
+                    {/* Token ID e Tipo */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
+                        <Input 
+                          id="tokenId" 
+                          value={formData.tokenInfo.id || ""} 
+                          readOnly 
+                          className="bg-muted text-muted-foreground font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
+                        <Input 
+                          id="tokenTipo" 
+                          value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
+                          readOnly 
+                          className="bg-muted text-muted-foreground"
+                        />
+                      </div>
+                    </div>
 
-                {/* Data de Expiração */}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="tokenExpiracao" className="text-right text-sm flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Data de Expiração
-                  </Label>
-                  <Input 
-                    id="tokenExpiracao" 
-                    value={formData.tokenInfo.dataExpiracao ? 
-                      format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
-                      ""
-                    } 
-                    readOnly 
-                    className={`col-span-3 bg-muted text-muted-foreground ${
-                      formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
-                        ? 'text-destructive' 
-                        : ''
-                    }`}
-                  />
-                </div>
+                    {/* Data de Expiração e Quantidade */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="tokenExpiracao" className="text-sm flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Data de Expiração
+                        </Label>
+                        <Input 
+                          id="tokenExpiracao" 
+                          value={formData.tokenInfo.dataExpiracao ? 
+                            format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
+                            ""
+                          } 
+                          readOnly 
+                          className={`bg-muted text-muted-foreground ${
+                            formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
+                              ? 'text-destructive' 
+                              : ''
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="tokenQuantidade" className="text-sm">Quantidade</Label>
+                        <Input 
+                          id="tokenQuantidade" 
+                          value={formData.tokenInfo.quantidade || 0} 
+                          readOnly 
+                          className="bg-muted text-muted-foreground"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    Nenhum token associado a este aluno
+                  </div>
+                )}
               </div>
             </>
-          )}
-
-          {/* Loading state for token info */}
-          {isLoadingTokenInfo && (
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Tag className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Informações de Token</Label>
-              </div>
-              <div className="animate-pulse space-y-2">
-                <div className="h-10 bg-muted rounded"></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="h-10 bg-muted rounded"></div>
-                  <div className="h-10 bg-muted rounded"></div>
-                </div>
-              </div>
-            </div>
           )}
         </div>
 
