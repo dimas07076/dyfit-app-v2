@@ -347,114 +347,128 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
             <Input id="trainerId" name="trainerId" type="text" inputMode="numeric" value={formData.trainerId ?? ''} onChange={handleChange} className="col-span-3" />
           </div> */}
 
-          {/* Seção de Informações de Token - ALWAYS SHOW FOR DEBUGGING */}
-          {(formData.tokenInfo || isLoadingTokenInfo || tokenError || true) && (
-            <>
-              {/* Separador */}
-              <div className="border-t pt-4 mt-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-muted-foreground" />
-                    <Label className="text-sm font-medium">Informações de Token</Label>
+          {/* Seção de Informações de Token - DEBUGGING VERSION */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Informações de Token</Label>
+              </div>
+              
+              {/* Debug info and refresh button */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  DEBUG: ID={aluno?._id?.slice(-4)} | Loading={isLoadingTokenInfo ? 'Y' : 'N'} | HasToken={tokenInfo ? 'Y' : 'N'}
+                </span>
+                {tokenError && (
+                  <span className="text-xs text-destructive">
+                    Erro: {tokenError}
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetchTokenInfo()}
+                  className="h-6 px-2 text-xs"
+                >
+                  Atualizar
+                </Button>
+              </div>
+            </div>
+            
+            {isLoadingTokenInfo ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-10 bg-muted rounded"></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-10 bg-muted rounded"></div>
+                  <div className="h-10 bg-muted rounded"></div>
+                </div>
+              </div>
+            ) : formData.tokenInfo ? (
+              <>
+                {/* Token ID e Tipo */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
+                    <Input 
+                      id="tokenId" 
+                      value={formData.tokenInfo.id || ""} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground font-mono text-xs"
+                    />
                   </div>
-                  
-                  {/* Debug info and refresh button */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      DEBUG: ID={aluno?._id?.slice(-4)} | Loading={isLoadingTokenInfo ? 'Y' : 'N'} | HasToken={tokenInfo ? 'Y' : 'N'}
-                    </span>
-                    {tokenError && (
-                      <span className="text-xs text-destructive">
-                        Erro ao carregar token
-                      </span>
-                    )}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => refetchTokenInfo()}
-                      className="h-6 px-2 text-xs"
-                    >
-                      Atualizar
-                    </Button>
+                  <div>
+                    <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
+                    <Input 
+                      id="tokenTipo" 
+                      value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground"
+                    />
                   </div>
                 </div>
-                
-                {isLoadingTokenInfo ? (
-                  <div className="animate-pulse space-y-2">
-                    <div className="h-10 bg-muted rounded"></div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="h-10 bg-muted rounded"></div>
-                      <div className="h-10 bg-muted rounded"></div>
-                    </div>
-                  </div>
-                ) : formData.tokenInfo ? (
-                  <>
-                    {/* Token ID e Tipo */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
-                        <Input 
-                          id="tokenId" 
-                          value={formData.tokenInfo.id || ""} 
-                          readOnly 
-                          className="bg-muted text-muted-foreground font-mono text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
-                        <Input 
-                          id="tokenTipo" 
-                          value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
-                          readOnly 
-                          className="bg-muted text-muted-foreground"
-                        />
-                      </div>
-                    </div>
 
-                    {/* Data de Expiração e Quantidade */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="tokenExpiracao" className="text-sm flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Data de Expiração
-                        </Label>
-                        <Input 
-                          id="tokenExpiracao" 
-                          value={formData.tokenInfo.dataExpiracao ? 
-                            format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
-                            ""
-                          } 
-                          readOnly 
-                          className={`bg-muted text-muted-foreground ${
-                            formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
-                              ? 'text-destructive' 
-                              : ''
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="tokenQuantidade" className="text-sm">Quantidade</Label>
-                        <Input 
-                          id="tokenQuantidade" 
-                          value={formData.tokenInfo.quantidade || 0} 
-                          readOnly 
-                          className="bg-muted text-muted-foreground"
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    <p>Nenhum token associado a este aluno</p>
-                    <p className="text-xs mt-1">
-                      Aluno ID: {aluno?._id} | Hook executed: {tokenInfo === null ? 'Yes' : 'No'} | Error: {tokenError || 'None'}
-                    </p>
+                {/* Data de Expiração e Quantidade */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="tokenExpiracao" className="text-sm flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Data de Expiração
+                    </Label>
+                    <Input 
+                      id="tokenExpiracao" 
+                      value={formData.tokenInfo.dataExpiracao ? 
+                        format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
+                        ""
+                      } 
+                      readOnly 
+                      className={`bg-muted text-muted-foreground ${
+                        formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
+                          ? 'text-destructive' 
+                          : ''
+                      }`}
+                    />
                   </div>
+                  <div>
+                    <Label htmlFor="tokenQuantidade" className="text-sm">Quantidade</Label>
+                    <Input 
+                      id="tokenQuantidade" 
+                      value={formData.tokenInfo.quantidade || 0} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">
+                <p className="font-medium text-orange-600">⚠️ Nenhum token associado a este aluno</p>
+                <p className="text-xs mt-1">
+                  Aluno ID: {aluno?._id}
+                </p>
+                <p className="text-xs">
+                  API chamada: {tokenInfo === null ? 'Sim (sem token encontrado)' : 'Não executada'}
+                </p>
+                {tokenError && (
+                  <p className="text-xs text-destructive">
+                    Erro: {tokenError}
+                  </p>
                 )}
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchTokenInfo()}
+                    className="text-xs"
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Botões */}
