@@ -480,13 +480,38 @@ export class StudentResourceValidationService {
     }> {
         try {
             const Aluno = (await import('../models/Aluno.js')).default;
+            const mongoose = (await import('mongoose')).default;
             
             // CRITICAL FIX: Only get ACTIVE students for plan slot calculation
             // Inactive students should not consume plan slots
-            const activeStudents = await Aluno.find({ 
-                trainerId: personalTrainerId, 
-                status: 'active' 
-            });
+            // Also fix trainerId comparison to use ObjectId
+            let activeStudents: any[] = [];
+            try {
+                const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+                activeStudents = await Aluno.find({ 
+                    trainerId: trainerObjectId, 
+                    status: 'active' 
+                });
+                
+                console.log(`[StudentResourceValidation] 🔍 FIXED: Found ${activeStudents.length} ACTIVE students with ObjectId`);
+                
+                // If no students found, try string comparison as fallback
+                if (activeStudents.length === 0) {
+                    activeStudents = await Aluno.find({ 
+                        trainerId: personalTrainerId, 
+                        status: 'active' 
+                    });
+                    console.log(`[StudentResourceValidation] 🔍 FALLBACK: Found ${activeStudents.length} ACTIVE students with string`);
+                }
+            } catch (error) {
+                console.error(`[StudentResourceValidation] ❌ Error finding active students for ${personalTrainerId}:`, error);
+                // Fallback to string comparison
+                activeStudents = await Aluno.find({ 
+                    trainerId: personalTrainerId, 
+                    status: 'active' 
+                });
+                console.log(`[StudentResourceValidation] 🔍 FALLBACK: Found ${activeStudents.length} ACTIVE students`);
+            }
             
             console.log(`[StudentResourceValidation] 🔍 FIXED: Checking ${activeStudents.length} ACTIVE students (ignoring inactive students for plan slot calculation)`);
             
