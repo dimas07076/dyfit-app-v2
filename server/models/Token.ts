@@ -36,7 +36,6 @@ const tokenSchema: Schema<IToken> = new Schema(
         id: {
             type: String,
             required: true,
-            unique: true,
             default: () => `TOK-${uuidv4().substring(0, 8)}`
         },
         tipo: {
@@ -108,6 +107,22 @@ tokenSchema.index({ personalTrainerId: 1, alunoId: 1 });
 tokenSchema.index({ planoId: 1 });
 tokenSchema.index({ id: 1 }, { unique: true });
 tokenSchema.index({ tipo: 1 });
+
+// CRITICAL: Unique index to ensure idempotency - only 1 plan token per student
+// This prevents duplicate plan tokens during retries/concurrent requests
+tokenSchema.index(
+    { alunoId: 1, tipo: 1 }, 
+    { 
+        unique: true, 
+        sparse: true, 
+        partialFilterExpression: { 
+            tipo: 'plano', 
+            alunoId: { $ne: null },
+            ativo: true 
+        },
+        name: 'unique_plan_token_per_student'
+    }
+);
 
 // Virtual to get status
 tokenSchema.virtual('status').get(function(this: IToken) {

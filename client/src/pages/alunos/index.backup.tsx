@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical, Users, UserPlus, Filter, Tag } from "lucide-react";
+import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical, Users, UserPlus, Filter } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -21,7 +21,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import TokenViewModal from "@/components/dialogs/TokenViewModal";
 
 interface AlunosStats {
     totalAlunos: number;
@@ -30,12 +29,11 @@ interface AlunosStats {
     novosEsseMes: number;
 }
 
-const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: { 
+const AlunoCard = ({ student, onView, onEdit, onDelete }: { 
     student: Aluno, 
     onView: (s: Aluno) => void, 
     onEdit: (s: Aluno) => void,
-    onDelete: (s: Aluno) => void,
-    onViewTokens: (s: Aluno) => void
+    onDelete: (s: Aluno) => void 
 }) => {
     const getInitials = (nome: string) => {
         const partes = nome.split(' ').filter(Boolean);
@@ -132,18 +130,6 @@ const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: {
                             <span className="font-medium">Editar</span>
                         </DropdownMenuItem>
                         
-                        <DropdownMenuItem onClick={() => {
-                                            console.log("TESTE: Clicou em Tokens para o aluno:", student.nome);
-                                            alert(`TESTE: Clicou em Tokens para ${student.nome}`);
-                                            onViewTokens(student);
-                                        }}
-                                        className="hover:bg-purple-50 dark:hover:bg-purple-900/30 
-                                                 focus:bg-purple-50 dark:focus:bg-purple-900/30 
-                                                 transition-colors duration-200 cursor-pointer">
-                            <Tag className="mr-2 h-4 w-4 text-purple-600 dark:text-purple-400" /> 
-                            <span className="font-medium">🎟️ TOKENS 🎟️</span>
-                        </DropdownMenuItem>
-                        
                         <DropdownMenuItem className="text-red-600 dark:text-red-400 
                                                    hover:bg-red-50 dark:hover:bg-red-900/30 
                                                    focus:bg-red-50 dark:focus:bg-red-900/30
@@ -194,13 +180,6 @@ export default function AlunosIndex() {
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
-    const [tokenModalStudent, setTokenModalStudent] = useState<Aluno | null>(null);
-
-    // Add debug logging for token modal state
-    useEffect(() => {
-        console.log("TESTE: Modal state changed - isTokenModalOpen:", isTokenModalOpen, "tokenModalStudent:", tokenModalStudent?.nome);
-    }, [isTokenModalOpen, tokenModalStudent]);
 
     // Add page visibility handler to refresh student limit status
     useEffect(() => {
@@ -300,20 +279,6 @@ export default function AlunosIndex() {
         console.log("Handle edit click for student:", student.nome);
         // Navigate to edit page using Wouter navigation for proper SPA routing
         setLocation(`/alunos/editar/${student._id}`);
-    };
-
-    const handleViewTokensClick = (student: Aluno) => {
-        console.log("TESTE: Handle view tokens click for student:", student.nome);
-        console.log("TESTE: Setting tokenModalStudent to:", student);
-        console.log("TESTE: Setting isTokenModalOpen to true");
-        setTokenModalStudent(student);
-        setIsTokenModalOpen(true);
-        
-        // Additional debug
-        setTimeout(() => {
-            console.log("TESTE: After timeout - tokenModalStudent:", tokenModalStudent);
-            console.log("TESTE: After timeout - isTokenModalOpen:", isTokenModalOpen);
-        }, 100);
     };
 
     const handleRefresh = () => {
@@ -603,21 +568,6 @@ export default function AlunosIndex() {
 
                                                     <Button variant="ghost" 
                                                             size="icon" 
-                                                            onClick={() => {
-                                                                console.log("TESTE: Clicou em Tokens (desktop) para o aluno:", student.nome);
-                                                                alert(`TESTE: Clicou em Tokens (desktop) para ${student.nome}`);
-                                                                handleViewTokensClick(student);
-                                                            }} 
-                                                            title="🎟️ TOKENS 🎟️"
-                                                            className="h-9 w-9 hover:bg-purple-100 dark:hover:bg-purple-900/30 
-                                                                     hover:text-purple-700 dark:hover:text-purple-400
-                                                                     transition-all duration-200 rounded-lg
-                                                                     hover:scale-110 active:scale-95">
-                                                        <Tag className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <Button variant="ghost" 
-                                                            size="icon" 
                                                             className="h-9 w-9 hover:bg-red-100 dark:hover:bg-red-900/30 
                                                                      hover:text-red-700 dark:hover:text-red-400
                                                                      transition-all duration-200 rounded-lg
@@ -675,8 +625,7 @@ export default function AlunosIndex() {
                                             student={student} 
                                             onView={handleViewClick} 
                                             onEdit={handleEditClick}
-                                            onDelete={handleDeleteClick}
-                                            onViewTokens={handleViewTokensClick} 
+                                            onDelete={handleDeleteClick} 
                                         />
                                     </div>
                                 ))}
@@ -721,7 +670,6 @@ export default function AlunosIndex() {
 
             {/* Modals */}
             <AlunoViewModal aluno={selectedStudent} open={isViewModalOpen} onOpenChange={setIsViewModalOpen} />
-            <TokenViewModal student={tokenModalStudent} open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen} />
             <ModalConfirmacao 
                 isOpen={isConfirmOpen} 
                 onClose={closeConfirmDialog} 

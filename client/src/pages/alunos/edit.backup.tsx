@@ -50,48 +50,21 @@ const EditStudentPage: React.FC = () => {
                 // Use enhanced force refresh for status changes that might involve token assignment
                 if (tokenRefreshRef.current) {
                     if (variables.status === 'active' && studentData?.status === 'inactive') {
-                        console.log(`[EditStudentPage] 🚨 ENHANCED: Student activated - using multiple refresh attempts for token assignment`);
-                        // Enhanced multi-attempt refresh for activations (might need new token assignment)
-                        const attemptRefresh = async (attempt: number = 1, maxAttempts: number = 5) => {
-                            try {
-                                console.log(`[EditStudentPage] Token refresh attempt ${attempt}/${maxAttempts} for activation`);
-                                await tokenRefreshRef.current?.forceRefresh();
-                                console.log(`[EditStudentPage] ✅ Token refresh attempt ${attempt} completed successfully`);
-                                
-                                // Schedule additional attempts for better reliability
-                                if (attempt < maxAttempts) {
-                                    setTimeout(() => attemptRefresh(attempt + 1, maxAttempts), attempt * 1000);
-                                }
-                            } catch (error) {
-                                console.error(`[EditStudentPage] Token refresh attempt ${attempt} failed:`, error);
-                                // Retry with exponential backoff
-                                if (attempt < maxAttempts) {
-                                    setTimeout(() => attemptRefresh(attempt + 1, maxAttempts), attempt * 1500);
-                                }
-                            }
-                        };
-                        
-                        // Start the refresh sequence after a short delay
-                        setTimeout(() => attemptRefresh(), 1000);
-                        
-                    } else if (variables.status === 'inactive' && studentData?.status === 'active') {
-                        console.log(`[EditStudentPage] 🔄 ENHANCED: Student deactivated - refreshing to show token liberation`);
-                        // Refresh to show token has been freed
+                        console.log(`[EditStudentPage] 🚨 ENHANCED: Student activated - using force refresh with extended delay`);
+                        // Force refresh for activations (might need new token assignment)
                         setTimeout(async () => {
-                            try {
-                                await tokenRefreshRef.current?.forceRefresh();
-                                console.log(`[EditStudentPage] ✅ Token refresh completed for deactivation`);
-                            } catch (error) {
-                                console.error(`[EditStudentPage] Token refresh failed for deactivation:`, error);
+                            if (tokenRefreshRef.current) {
+                                await tokenRefreshRef.current.forceRefresh();
+                                console.log(`[EditStudentPage] ✅ ENHANCED: Force refresh completed for activation`);
                             }
-                        }, 500);
+                        }, 1000);
                     } else {
-                        console.log(`[EditStudentPage] 🔄 ENHANCED: Other status change - using standard refresh`);
+                        console.log(`[EditStudentPage] 🔄 ENHANCED: Regular status change - using standard refresh`);
                         // Regular refresh for other status changes
                         setTimeout(() => {
                             if (tokenRefreshRef.current) {
                                 tokenRefreshRef.current.refetch();
-                                console.log(`[EditStudentPage] ✅ Standard refresh completed`);
+                                console.log(`[EditStudentPage] ✅ ENHANCED: Standard refresh completed`);
                             }
                         }, 500);
                     }

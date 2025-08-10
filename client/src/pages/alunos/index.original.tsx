@@ -1,14 +1,14 @@
-// client/src/pages/alunos/AlunosIndex.tsx
+// client/src/pages/alunos/index.tsx
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical, Users, UserPlus, Filter, Tag } from "lucide-react";
+import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -20,23 +20,8 @@ import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StudentLimitIndicator } from "@/components/StudentLimitIndicator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import TokenViewModal from "@/components/dialogs/TokenViewModal";
 
-interface AlunosStats {
-    totalAlunos: number;
-    alunosAtivos: number;
-    alunosInativos: number;
-    novosEsseMes: number;
-}
-
-const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: { 
-    student: Aluno, 
-    onView: (s: Aluno) => void, 
-    onEdit: (s: Aluno) => void,
-    onDelete: (s: Aluno) => void,
-    onViewTokens: (s: Aluno) => void
-}) => {
+const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
     const getInitials = (nome: string) => {
         const partes = nome.split(' ').filter(Boolean);
         if (partes.length > 1) return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
@@ -76,11 +61,6 @@ const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: {
                                  transition-colors duration-300 truncate">
                         {student.email}
                     </p>
-                    {student.phone && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                            {student.phone}
-                        </p>
-                    )}
                 </div>
             </div>
             
@@ -124,25 +104,13 @@ const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: {
                             <span className="font-medium">Visualizar</span>
                         </DropdownMenuItem>
                         
-                        <DropdownMenuItem onClick={() => onEdit(student)}
-                                        className="hover:bg-indigo-50 dark:hover:bg-indigo-900/30 
-                                                 focus:bg-indigo-50 dark:focus:bg-indigo-900/30 
-                                                 transition-colors duration-200 cursor-pointer">
+                        <Link href={`/alunos/editar/${student._id}`} 
+                              className="flex items-center px-2 py-1.5 text-sm rounded-md 
+                                       hover:bg-indigo-50 dark:hover:bg-indigo-900/30 
+                                       transition-colors duration-200 cursor-pointer">
                             <Pencil className="mr-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" /> 
                             <span className="font-medium">Editar</span>
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuItem onClick={() => {
-                                            console.log("TESTE: Clicou em Tokens para o aluno:", student.nome);
-                                            alert(`TESTE: Clicou em Tokens para ${student.nome}`);
-                                            onViewTokens(student);
-                                        }}
-                                        className="hover:bg-purple-50 dark:hover:bg-purple-900/30 
-                                                 focus:bg-purple-50 dark:focus:bg-purple-900/30 
-                                                 transition-colors duration-200 cursor-pointer">
-                            <Tag className="mr-2 h-4 w-4 text-purple-600 dark:text-purple-400" /> 
-                            <span className="font-medium">🎟️ TOKENS 🎟️</span>
-                        </DropdownMenuItem>
+                        </Link>
                         
                         <DropdownMenuItem className="text-red-600 dark:text-red-400 
                                                    hover:bg-red-50 dark:hover:bg-red-900/30 
@@ -159,48 +127,15 @@ const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: {
     );
 };
 
-const StatsCard = ({ title, value, icon: Icon, description, className = "" }: {
-    title: string;
-    value: string | number;
-    icon: any;
-    description?: string;
-    className?: string;
-}) => {
-    return (
-        <Card className={`border-0 shadow-md hover:shadow-lg transition-all duration-300 ${className}`}>
-            <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                    <Icon className="h-5 w-5 text-muted-foreground" />
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">{title}</p>
-                        <p className="text-2xl font-bold">{value}</p>
-                        {description && (
-                            <p className="text-xs text-muted-foreground">{description}</p>
-                        )}
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-};
 
-export default function AlunosIndex() {
+export default function StudentsIndex() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const [, setLocation] = useLocation();
     const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog, confirm: confirmAction } = useConfirmDialog();
     const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState<string>("all");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
-    const [tokenModalStudent, setTokenModalStudent] = useState<Aluno | null>(null);
-
-    // Add debug logging for token modal state
-    useEffect(() => {
-        console.log("TESTE: Modal state changed - isTokenModalOpen:", isTokenModalOpen, "tokenModalStudent:", tokenModalStudent?.nome);
-    }, [isTokenModalOpen, tokenModalStudent]);
 
     // Add page visibility handler to refresh student limit status
     useEffect(() => {
@@ -208,7 +143,6 @@ export default function AlunosIndex() {
             if (!document.hidden) {
                 // Page became visible, invalidate student limit cache to get fresh data
                 queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
             }
         };
 
@@ -217,36 +151,20 @@ export default function AlunosIndex() {
     }, [queryClient]);
 
     console.log("Fetching students data...");
-    const { data: students = [], isLoading, isError, error, refetch } = useQuery<Aluno[], Error>({
+    const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({
         queryKey: ['/api/aluno/gerenciar'],
         queryFn: () => {
             console.log("Executing fetchWithAuth for /api/aluno/gerenciar");
             return fetchWithAuth<Aluno[]>("/api/aluno/gerenciar");
         },
-        retry: 2,
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        refetchOnWindowFocus: true,
+        retry: 1,
     });
-
     console.log("Students data:", students);
     console.log("Is Loading:", isLoading);
     console.log("Is Error:", isError);
     if (isError) {
         console.error("Error fetching students:", error);
     }
-
-    // Calculate stats
-    const stats: AlunosStats = {
-        totalAlunos: students.length,
-        alunosAtivos: students.filter(s => s.status === 'active').length,
-        alunosInativos: students.filter(s => s.status === 'inactive').length,
-        novosEsseMes: students.filter(s => {
-            const now = new Date();
-            const studentStart = new Date(s.startDate);
-            return studentStart.getMonth() === now.getMonth() && 
-                   studentStart.getFullYear() === now.getFullYear();
-        }).length
-    };
 
     const deleteStudentMutation = useMutation<any, Error, string>({
         mutationFn: (alunoId: string) => {
@@ -270,22 +188,16 @@ export default function AlunosIndex() {
     });
 
     const filteredStudents = students.filter((student) => {
-        const matchesSearch = (student.nome || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-                             (student.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-                             (student.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
-        
-        const matchesStatus = statusFilter === "all" || student.status === statusFilter;
-        
-        return matchesSearch && matchesStatus;
+        return (student.nome || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+               (student.email || "").toLowerCase().includes(searchQuery.toLowerCase());
     });
-
     console.log("Filtered students:", filteredStudents);
 
     const handleDeleteClick = (aluno: Aluno) => {
         console.log("Handle delete click for student:", aluno.nome);
         openConfirmDialog({
             titulo: "Remover Aluno",
-            mensagem: `Tem certeza que deseja remover o aluno ${aluno.nome}? Esta ação não pode ser desfeita.`,
+            mensagem: `Tem certeza que deseja remover o aluno ${aluno.nome}?`,
             onConfirm: () => deleteStudentMutation.mutate(aluno._id),
         });
     };
@@ -296,92 +208,10 @@ export default function AlunosIndex() {
         setIsViewModalOpen(true);
     };
 
-    const handleEditClick = (student: Aluno) => {
-        console.log("Handle edit click for student:", student.nome);
-        // Navigate to edit page using Wouter navigation for proper SPA routing
-        setLocation(`/alunos/editar/${student._id}`);
-    };
-
-    const handleViewTokensClick = (student: Aluno) => {
-        console.log("TESTE: Handle view tokens click for student:", student.nome);
-        console.log("TESTE: Setting tokenModalStudent to:", student);
-        console.log("TESTE: Setting isTokenModalOpen to true");
-        setTokenModalStudent(student);
-        setIsTokenModalOpen(true);
-        
-        // Additional debug
-        setTimeout(() => {
-            console.log("TESTE: After timeout - tokenModalStudent:", tokenModalStudent);
-            console.log("TESTE: After timeout - isTokenModalOpen:", isTokenModalOpen);
-        }, 100);
-    };
-
-    const handleRefresh = () => {
-        refetch();
-        queryClient.invalidateQueries({ queryKey: ['studentLimitStatus'] });
-        toast({ title: "Atualizado", description: "Lista de alunos atualizada." });
-    };
-
     return (
         <div className="p-4 md:p-6 lg:p-8 min-h-screen 
                        bg-gradient-to-br from-blue-50/60 via-indigo-50/40 to-purple-50/60 
                        dark:from-slate-900 dark:via-slate-800/95 dark:to-indigo-900/80">
-            
-            {/* Header Section */}
-            <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 
-                                     dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 
-                                     bg-clip-text text-transparent">
-                            Gerenciar Alunos
-                        </h1>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">
-                            Visualize e gerencie todos os seus alunos cadastrados.
-                        </p>
-                    </div>
-                    <div className="flex gap-2 mt-4 sm:mt-0">
-                        <Button variant="outline" onClick={handleRefresh} size="sm">
-                            Atualizar
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Student Limit Indicator */}
-                <div className="mb-4">
-                    <StudentLimitIndicator variant="compact" showProgress={true} />
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <StatsCard
-                        title="Total de Alunos"
-                        value={stats.totalAlunos}
-                        icon={Users}
-                        className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20"
-                    />
-                    <StatsCard
-                        title="Alunos Ativos"
-                        value={stats.alunosAtivos}
-                        icon={UserPlus}
-                        className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20"
-                    />
-                    <StatsCard
-                        title="Alunos Inativos"
-                        value={stats.alunosInativos}
-                        icon={UserX}
-                        className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20"
-                    />
-                    <StatsCard
-                        title="Novos Este Mês"
-                        value={stats.novosEsseMes}
-                        icon={Plus}
-                        className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20"
-                    />
-                </div>
-            </div>
-
-            {/* Main Content Card */}
             <Card className="relative overflow-hidden border-0 shadow-2xl hover:shadow-3xl 
                            bg-white/90 dark:bg-slate-800/90 backdrop-blur-md 
                            transition-all duration-500 rounded-xl">
@@ -393,74 +223,67 @@ export default function AlunosIndex() {
                 <CardHeader className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between 
                                      px-6 py-6 md:px-8 md:py-8 border-b border-gray-100 dark:border-slate-700/50 
                                      bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
-                    
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
-                        {/* Search and Filters */}
-                        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                            <div className="relative flex-1 sm:max-w-md">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                                <Input type="search" 
-                                       placeholder="Pesquisar alunos..." 
-                                       className="pl-10 w-full h-11 
-                                                bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm
-                                                border border-gray-200/60 dark:border-slate-700/60 
-                                                rounded-lg shadow-sm hover:shadow-md
-                                                focus:ring-2 focus:ring-blue-500/30 dark:focus:ring-blue-400/30
-                                                focus:border-blue-400 dark:focus:border-blue-500
-                                                transition-all duration-300 ease-out
-                                                hover:bg-white dark:hover:bg-slate-800" 
-                                       value={searchQuery} 
-                                       onChange={(e) => setSearchQuery(e.target.value)} />
-                            </div>
-                            
-                            <div className="flex gap-2">
-                                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                    <SelectTrigger className="w-[140px] h-11">
-                                        <Filter className="h-4 w-4 mr-2" />
-                                        <SelectValue placeholder="Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos</SelectItem>
-                                        <SelectItem value="active">Ativos</SelectItem>
-                                        <SelectItem value="inactive">Inativos</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        
-                        {/* Action Buttons */}
-                        <div className="flex gap-3">
-                            <Button variant="outline" 
-                                    onClick={() => setIsInviteModalOpen(true)}
-                                    className="min-h-[44px] px-4 py-2 border-2 border-indigo-200 dark:border-indigo-700
-                                             bg-gradient-to-r from-indigo-50 to-purple-50 
-                                             dark:from-indigo-900/30 dark:to-purple-900/30 
-                                             hover:from-indigo-100 hover:to-purple-100
-                                             dark:hover:from-indigo-800/40 dark:hover:to-purple-800/40
-                                             text-indigo-700 dark:text-indigo-400
-                                             hover:border-indigo-300 dark:hover:border-indigo-600
-                                             shadow-md hover:shadow-lg transition-all duration-300
-                                             hover:scale-105 active:scale-95 rounded-lg">
-                                <Mail className="h-4 w-4 mr-2" /> 
-                                Convidar
-                            </Button>
-                            
-                            <Link href="/alunos/novo">
-                                <Button className="min-h-[44px] px-4 py-2 font-semibold
-                                                 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
-                                                 hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 
-                                                 text-white shadow-lg hover:shadow-xl 
-                                                 transition-all duration-300 ease-out
-                                                 hover:scale-105 active:scale-95 
-                                                 border-0 rounded-lg">
-                                    <Plus className="h-4 w-4 mr-2" /> 
-                                    <span className="hidden sm:inline">Adicionar</span> Aluno
-                                </Button>
-                            </Link>
+                    <div className="space-y-2 mb-4 sm:mb-0 flex-1">
+                        <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 
+                                           dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 
+                                           bg-clip-text text-transparent">
+                            Gerenciar Alunos
+                        </CardTitle>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base leading-relaxed">
+                            Visualize e gerencie todos os seus alunos cadastrados.
+                        </p>
+                        {/* Student Limit Indicator */}
+                        <div className="mt-3">
+                            <StudentLimitIndicator variant="compact" showProgress={true} />
                         </div>
                     </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
+                        <div className="relative flex-1 sm:flex-none">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                            <Input type="search" 
+                                   placeholder="Pesquisar alunos..." 
+                                   className="pl-10 w-full sm:w-64 md:w-72 h-11 
+                                            bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm
+                                            border border-gray-200/60 dark:border-slate-700/60 
+                                            rounded-lg shadow-sm hover:shadow-md
+                                            focus:ring-2 focus:ring-blue-500/30 dark:focus:ring-blue-400/30
+                                            focus:border-blue-400 dark:focus:border-blue-500
+                                            transition-all duration-300 ease-out
+                                            hover:bg-white dark:hover:bg-slate-800" 
+                                   value={searchQuery} 
+                                   onChange={(e) => setSearchQuery(e.target.value)} />
+                        </div>
+                        
+                        <Button variant="outline" 
+                                onClick={() => setIsInviteModalOpen(true)}
+                                className="min-h-[44px] px-4 py-2 border-2 border-indigo-200 dark:border-indigo-700
+                                         bg-gradient-to-r from-indigo-50 to-purple-50 
+                                         dark:from-indigo-900/30 dark:to-purple-900/30 
+                                         hover:from-indigo-100 hover:to-purple-100
+                                         dark:hover:from-indigo-800/40 dark:hover:to-purple-800/40
+                                         text-indigo-700 dark:text-indigo-400
+                                         hover:border-indigo-300 dark:hover:border-indigo-600
+                                         shadow-md hover:shadow-lg transition-all duration-300
+                                         hover:scale-105 active:scale-95 rounded-lg">
+                            <Mail className="h-4 w-4 mr-2" /> 
+                            Convidar Aluno
+                        </Button>
+                        
+                        <Link href="/alunos/novo">
+                            <Button className="min-h-[44px] px-4 py-2 font-semibold
+                                             bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
+                                             hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 
+                                             text-white shadow-lg hover:shadow-xl 
+                                             transition-all duration-300 ease-out
+                                             hover:scale-105 active:scale-95 
+                                             border-0 rounded-lg">
+                                <Plus className="h-4 w-4 mr-2" /> 
+                                <span className="hidden sm:inline">Adicionar</span> Aluno
+                            </Button>
+                        </Link>
+                    </div>
                 </CardHeader>
-
                 <CardContent className="relative p-0">
                     {/* Desktop Table View */}
                     <div className="hidden md:block overflow-x-auto">
@@ -474,9 +297,6 @@ export default function AlunosIndex() {
                                     </TableHead>
                                     <TableHead className="py-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
                                         Email
-                                    </TableHead>
-                                    <TableHead className="py-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                        Telefone
                                     </TableHead>
                                     <TableHead className="py-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
                                         Status
@@ -505,10 +325,6 @@ export default function AlunosIndex() {
                                                                    dark:from-slate-600 dark:to-slate-700 rounded-full" />
                                             </TableCell>
                                             <TableCell className="py-6">
-                                                <Skeleton className="h-4 w-32 bg-gradient-to-r from-gray-200 to-gray-300 
-                                                                   dark:from-slate-600 dark:to-slate-700 rounded-full" />
-                                            </TableCell>
-                                            <TableCell className="py-6">
                                                 <Skeleton className="h-6 w-16 bg-gradient-to-r from-gray-200 to-gray-300 
                                                                    dark:from-slate-600 dark:to-slate-700 rounded-full" />
                                             </TableCell>
@@ -527,7 +343,7 @@ export default function AlunosIndex() {
                                 ) : isError ? (
                                     // Error message for desktop table
                                     <TableRow>
-                                        <TableCell colSpan={5} className="py-12">
+                                        <TableCell colSpan={4} className="py-12">
                                             <ErrorMessage title="Erro ao Carregar" message={error.message} />
                                         </TableCell>
                                     </TableRow>
@@ -561,11 +377,6 @@ export default function AlunosIndex() {
                                                                transition-colors duration-300">
                                                 {student.email}
                                             </TableCell>
-                                            <TableCell className="py-5 text-gray-600 dark:text-gray-400 
-                                                               group-hover:text-gray-700 dark:group-hover:text-gray-300 
-                                                               transition-colors duration-300">
-                                                {student.phone || '-'}
-                                            </TableCell>
                                             <TableCell className="py-5">
                                                 <Badge variant={student.status === "active" ? "default" : "destructive"} 
                                                        className={`px-3 py-1 text-xs font-semibold rounded-full transition-all duration-300
@@ -590,31 +401,15 @@ export default function AlunosIndex() {
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
                                                     
-                                                    <Button variant="ghost" 
-                                                            size="icon" 
-                                                            onClick={() => handleEditClick(student)} 
-                                                            title="Editar"
-                                                            className="h-9 w-9 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 
-                                                                     hover:text-indigo-700 dark:hover:text-indigo-400
-                                                                     transition-all duration-200 rounded-lg
-                                                                     hover:scale-110 active:scale-95">
+                                                    <Link href={`/alunos/editar/${student._id}`} 
+                                                          className="inline-flex items-center justify-center h-9 w-9 
+                                                                   rounded-lg text-sm font-medium transition-all duration-200
+                                                                   hover:bg-indigo-100 dark:hover:bg-indigo-900/30 
+                                                                   hover:text-indigo-700 dark:hover:text-indigo-400
+                                                                   hover:scale-110 active:scale-95" 
+                                                          title="Editar">
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <Button variant="ghost" 
-                                                            size="icon" 
-                                                            onClick={() => {
-                                                                console.log("TESTE: Clicou em Tokens (desktop) para o aluno:", student.nome);
-                                                                alert(`TESTE: Clicou em Tokens (desktop) para ${student.nome}`);
-                                                                handleViewTokensClick(student);
-                                                            }} 
-                                                            title="🎟️ TOKENS 🎟️"
-                                                            className="h-9 w-9 hover:bg-purple-100 dark:hover:bg-purple-900/30 
-                                                                     hover:text-purple-700 dark:hover:text-purple-400
-                                                                     transition-all duration-200 rounded-lg
-                                                                     hover:scale-110 active:scale-95">
-                                                        <Tag className="h-4 w-4" />
-                                                    </Button>
+                                                    </Link>
 
                                                     <Button variant="ghost" 
                                                             size="icon" 
@@ -671,13 +466,7 @@ export default function AlunosIndex() {
                                     <div key={student._id} 
                                          className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
                                          style={{ animationDelay: `${index * 100}ms` }}>
-                                        <AlunoCard 
-                                            student={student} 
-                                            onView={handleViewClick} 
-                                            onEdit={handleEditClick}
-                                            onDelete={handleDeleteClick}
-                                            onViewTokens={handleViewTokensClick} 
-                                        />
+                                        <AlunoCard student={student} onView={handleViewClick} onDelete={handleDeleteClick} />
                                     </div>
                                 ))}
                             </div>
@@ -697,7 +486,7 @@ export default function AlunosIndex() {
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
                                     {students.length > 0 
-                                        ? "Tente ajustar sua busca ou filtros para encontrar o aluno desejado."
+                                        ? "Tente ajustar sua busca para encontrar o aluno desejado."
                                         : "Comece adicionando seus primeiros alunos para gerenciar seus treinos."
                                     }
                                 </p>
@@ -719,17 +508,9 @@ export default function AlunosIndex() {
                 </CardContent>
             </Card>
 
-            {/* Modals */}
             <AlunoViewModal aluno={selectedStudent} open={isViewModalOpen} onOpenChange={setIsViewModalOpen} />
-            <TokenViewModal student={tokenModalStudent} open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen} />
-            <ModalConfirmacao 
-                isOpen={isConfirmOpen} 
-                onClose={closeConfirmDialog} 
-                onConfirm={confirmAction} 
-                titulo={confirmOptions.titulo} 
-                mensagem={confirmOptions.mensagem} 
-                isLoadingConfirm={deleteStudentMutation.isPending}
-            />
+            <ModalConfirmacao isOpen={isConfirmOpen} onClose={closeConfirmDialog} onConfirm={confirmAction} titulo={confirmOptions.titulo} mensagem={confirmOptions.mensagem} isLoadingConfirm={deleteStudentMutation.isPending}/>
+            
             <GerarConviteAlunoModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} />
         </div>
     );
