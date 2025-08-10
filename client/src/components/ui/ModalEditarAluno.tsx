@@ -6,8 +6,22 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react"; // Import Loader2
+import { Loader2, Tag, Calendar } from "lucide-react"; // Import icons for token section
 import { formatDateForInput } from "@/utils/dateUtils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useTokenInfo } from "@/hooks/useTokenInfo";
+
+// Interface para informações de token - updated to match useTokenInfo hook
+interface TokenInfo {
+    id: string;
+    tipo: 'plano' | 'avulso';
+    dataExpiracao: string;
+    status: string;
+    alunoId?: string;
+    alunoNome?: string;
+    quantidade: number;
+}
 
 // Interface Original para dados do Aluno (como vem da API ou é esperado no submit final)
 interface AlunoEditData {
@@ -24,6 +38,8 @@ interface AlunoEditData {
     status?: 'active' | 'inactive';
     notes?: string;
     trainerId?: string; // Fixed: should be string, not number
+    // Token information fields (readonly)
+    tokenInfo?: TokenInfo;
 }
 
 // NOVA Interface para o ESTADO do formulário (permite string para campos numéricos durante digitação)
@@ -41,6 +57,8 @@ interface AlunoFormDataState {
     status?: 'active' | 'inactive';
     notes?: string;
     trainerId?: string | null; // Fixed: should be string, not number
+    // Token information fields (readonly)
+    tokenInfo?: TokenInfo;
 }
 
 
@@ -53,14 +71,32 @@ interface ModalEditarAlunoProps {
 
 export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: ModalEditarAlunoProps) {
   const { toast } = useToast();
+  
   // Usa a NOVA interface para o estado do formulário
   const [formData, setFormData] = useState<AlunoFormDataState>({});
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Use the useTokenInfo hook for better authentication and error handling
+  const { tokenInfo, isLoading: isLoadingTokenInfo, error: tokenError, refetch: refetchTokenInfo } = useTokenInfo(aluno?._id);
+
+  // Debug logging to help understand what's happening
+  useEffect(() => {
+    if (isOpen) {
+      console.log(`[ModalEditarAluno] 🔍 Modal opened with aluno:`, aluno);
+      console.log(`[ModalEditarAluno] 🔍 Student ID: ${aluno?._id}`);
+      console.log(`[ModalEditarAluno] 🔍 Token Info:`, tokenInfo);
+      console.log(`[ModalEditarAluno] 🔍 Is Loading Token:`, isLoadingTokenInfo);
+      console.log(`[ModalEditarAluno] 🔍 Token Error:`, tokenError);
+      
+      // Log form data changes
+      console.log(`[ModalEditarAluno] 🔍 Form Data Token Info:`, formData.tokenInfo);
+    }
+  }, [isOpen, aluno?._id, tokenInfo, isLoadingTokenInfo, tokenError, formData.tokenInfo]);
 
   useEffect(() => {
     if (aluno && isOpen) {
         // Ao popular o estado, converte números para string para os inputs text
-      setFormData({
+      const baseFormData = {
         ...aluno,
         birthDate: formatDateForInput(aluno.birthDate),
         startDate: formatDateForInput(aluno.startDate),
@@ -68,13 +104,13 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
         weight: aluno.weight !== null && aluno.weight !== undefined ? String(aluno.weight) : '',
         height: aluno.height !== null && aluno.height !== undefined ? String(aluno.height) : '',
         trainerId: aluno.trainerId || '', // trainerId is already a string
-      });
+        // Include token information from the hook
+        tokenInfo: tokenInfo || undefined
+      };
+
+      setFormData(baseFormData);
     }
-    // Não limpar o form ao fechar para não causar piscar de dados se reabrir rápido
-    // else if (!isOpen) {
-    //    setFormData({});
-    // }
-  }, [aluno, isOpen]);
+  }, [aluno, isOpen, tokenInfo]);
 
   // handleChange agora está consistente com o tipo AlunoFormDataState (que permite string)
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -152,8 +188,8 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
 
     // Validação simples antes de enviar
     // Verifica se, após a conversão, o resultado é NaN (Not a Number)
-    if ((dataToSend.weight !== null && isNaN(dataToSend.weight)) || 
-        (dataToSend.height !== null && isNaN(dataToSend.height))) {
+    if ((dataToSend.weight !== null && dataToSend.weight !== undefined && isNaN(dataToSend.weight)) || 
+        (dataToSend.height !== null && dataToSend.height !== undefined && isNaN(dataToSend.height))) {
        toast({ title: "Peso ou Altura contém valor inválido.", variant: "destructive" });
        setIsLoading(false);
        return;
@@ -310,6 +346,129 @@ export function ModalEditarAluno({ isOpen, onClose, aluno, atualizarAlunos }: Mo
             <Label htmlFor="trainerId" className="text-right">ID Personal</Label>
             <Input id="trainerId" name="trainerId" type="text" inputMode="numeric" value={formData.trainerId ?? ''} onChange={handleChange} className="col-span-3" />
           </div> */}
+
+          {/* Seção de Informações de Token - DEBUGGING VERSION */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Informações de Token</Label>
+              </div>
+              
+              {/* Debug info and refresh button */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  DEBUG: ID={aluno?._id?.slice(-4)} | Loading={isLoadingTokenInfo ? 'Y' : 'N'} | HasToken={tokenInfo ? 'Y' : 'N'}
+                </span>
+                {tokenError && (
+                  <span className="text-xs text-destructive">
+                    Erro: {tokenError}
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetchTokenInfo()}
+                  className="h-6 px-2 text-xs"
+                >
+                  Atualizar
+                </Button>
+              </div>
+            </div>
+            
+            {isLoadingTokenInfo ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-10 bg-muted rounded"></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-10 bg-muted rounded"></div>
+                  <div className="h-10 bg-muted rounded"></div>
+                </div>
+              </div>
+            ) : formData.tokenInfo ? (
+              <>
+                {/* Token ID e Tipo */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label htmlFor="tokenId" className="text-sm">ID do Token</Label>
+                    <Input 
+                      id="tokenId" 
+                      value={formData.tokenInfo.id || ""} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tokenTipo" className="text-sm">Tipo de Token</Label>
+                    <Input 
+                      id="tokenTipo" 
+                      value={formData.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Data de Expiração e Quantidade */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="tokenExpiracao" className="text-sm flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Data de Expiração
+                    </Label>
+                    <Input 
+                      id="tokenExpiracao" 
+                      value={formData.tokenInfo.dataExpiracao ? 
+                        format(new Date(formData.tokenInfo.dataExpiracao), 'dd/MM/yyyy', { locale: ptBR }) : 
+                        ""
+                      } 
+                      readOnly 
+                      className={`bg-muted text-muted-foreground ${
+                        formData.tokenInfo.dataExpiracao && new Date(formData.tokenInfo.dataExpiracao) <= new Date() 
+                          ? 'text-destructive' 
+                          : ''
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tokenQuantidade" className="text-sm">Quantidade</Label>
+                    <Input 
+                      id="tokenQuantidade" 
+                      value={formData.tokenInfo.quantidade || 0} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">
+                <p className="font-medium text-orange-600">⚠️ Nenhum token associado a este aluno</p>
+                <p className="text-xs mt-1">
+                  Aluno ID: {aluno?._id}
+                </p>
+                <p className="text-xs">
+                  API chamada: {tokenInfo === null ? 'Sim (sem token encontrado)' : 'Não executada'}
+                </p>
+                {tokenError && (
+                  <p className="text-xs text-destructive">
+                    Erro: {tokenError}
+                  </p>
+                )}
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchTokenInfo()}
+                    className="text-xs"
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Botões */}
