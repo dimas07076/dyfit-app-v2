@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k --kill-others-on-fail --name \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "NODE_ENV=development tsx --require ./server/loadEnv.mts server/index.ts",
+    "dev:server": "NODE_ENV=development tsx server/index.ts",
     "dev:client": "vite",
     "build:shared": "tsc -p shared/tsconfig.json",
     "build:client": "vite build",
