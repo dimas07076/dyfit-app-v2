@@ -240,33 +240,11 @@ export function StudentForm({
                 {isEditing && (
                     <div className="space-y-4">
                         <h3 className="text-lg font-semibold border-b pb-2">Token Associado</h3>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                            <TokenInfoDisplay 
-                                tokenInfo={tokenInfo} 
-                                isLoading={tokenLoading}
-                                showTitle={false}
-                            />
-                            {/* Enhanced refresh button */}
-                            <div className="mt-3 flex justify-between items-center">
-                                <small className="text-gray-500">
-                                    {tokenInfo ? 'Token encontrado e ativo' : 'Nenhum token associado (será atribuído automaticamente ao ativar)'}
-                                </small>
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => {
-                                        console.log('[StudentForm] Manual token refresh triggered');
-                                        if (tokenRefreshRef.current) {
-                                            tokenRefreshRef.current.forceRefresh();
-                                        }
-                                    }}
-                                    className="text-xs"
-                                >
-                                    🔄 Atualizar Token
-                                </Button>
-                            </div>
-                        </div>
+                        <TokenInfoDisplay 
+                            tokenInfo={tokenInfo} 
+                            isLoading={tokenLoading}
+                            showTitle={false}
+                        />
                     </div>
                 )}
 
