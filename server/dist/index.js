@@ -1,8 +1,5 @@
 // server/index.ts
 // --- BLOCO DE IMPORTAÇÕES ---
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import express, { Router } from 'express';
 import cors from 'cors';
 import authRoutes from './src/routes/auth.js';
@@ -15,7 +12,7 @@ import sessionsRoutes from './src/routes/sessionsRoutes.js';
 import pastaRoutes from './src/routes/pastasTreinos.js';
 import alunoApiRoutes from './src/routes/alunoApiRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
-import activityLogsRoutes from './src/routes/activityLogsRoutes.js'; // <-- 1. IMPORTAÇÃO ADICIONADA
+import activityLogsRoutes from './src/routes/activityLogsRoutes.js';
 import adminPlanosRoutes from './src/routes/adminPlanosRoutes.js';
 import personalPlanosRoutes from './src/routes/personalPlanosRoutes.js';
 import studentLimitRoutes from './src/routes/studentLimitRoutes.js';
@@ -25,9 +22,8 @@ import { authorizeAdmin } from './middlewares/authorizeAdmin.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import dbConnect from './lib/dbConnect.js';
 // --- CONFIGURAÇÃO DE AMBIENTE ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+// REMOVIDO: A configuração do dotenv foi centralizada no 'loadEnv.mts'
+// para garantir que as variáveis sejam carregadas antes de qualquer importação.
 const app = express();
 const apiRouter = Router();
 // --- CONFIGURAÇÃO DE CORS E MIDDLEWARES GLOBAIS ---
@@ -67,7 +63,7 @@ apiRouter.use('/dashboard/geral', authenticateToken, dashboardRoutes);
 apiRouter.use('/treinos', authenticateToken, treinoRoutes);
 apiRouter.use('/exercicios', authenticateToken, exercicioRoutes);
 apiRouter.use('/pastas/treinos', authenticateToken, pastaRoutes);
-apiRouter.use('/activity-logs', authenticateToken, activityLogsRoutes); // <-- 2. REGISTRO DA ROTA ADICIONADO
+apiRouter.use('/activity-logs', authenticateToken, activityLogsRoutes);
 apiRouter.use('/aluno', alunoApiRoutes);
 apiRouter.use('/alunos', alunoApiRoutes); // Add alias for consistency with client expectations
 apiRouter.use('/sessions', sessionsRoutes);
