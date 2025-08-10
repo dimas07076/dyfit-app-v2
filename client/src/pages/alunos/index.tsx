@@ -132,12 +132,16 @@ const AlunoCard = ({ student, onView, onEdit, onDelete, onViewTokens }: {
                             <span className="font-medium">Editar</span>
                         </DropdownMenuItem>
                         
-                        <DropdownMenuItem onClick={() => onViewTokens(student)}
+                        <DropdownMenuItem onClick={() => {
+                                            console.log("TESTE: Clicou em Tokens para o aluno:", student.nome);
+                                            alert(`TESTE: Clicou em Tokens para ${student.nome}`);
+                                            onViewTokens(student);
+                                        }}
                                         className="hover:bg-purple-50 dark:hover:bg-purple-900/30 
                                                  focus:bg-purple-50 dark:focus:bg-purple-900/30 
                                                  transition-colors duration-200 cursor-pointer">
                             <Tag className="mr-2 h-4 w-4 text-purple-600 dark:text-purple-400" /> 
-                            <span className="font-medium">Tokens</span>
+                            <span className="font-medium">🎟️ TOKENS 🎟️</span>
                         </DropdownMenuItem>
                         
                         <DropdownMenuItem className="text-red-600 dark:text-red-400 
@@ -192,6 +196,11 @@ export default function AlunosIndex() {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [tokenModalStudent, setTokenModalStudent] = useState<Aluno | null>(null);
+
+    // Add debug logging for token modal state
+    useEffect(() => {
+        console.log("TESTE: Modal state changed - isTokenModalOpen:", isTokenModalOpen, "tokenModalStudent:", tokenModalStudent?.nome);
+    }, [isTokenModalOpen, tokenModalStudent]);
 
     // Add page visibility handler to refresh student limit status
     useEffect(() => {
@@ -294,9 +303,17 @@ export default function AlunosIndex() {
     };
 
     const handleViewTokensClick = (student: Aluno) => {
-        console.log("Handle view tokens click for student:", student.nome);
+        console.log("TESTE: Handle view tokens click for student:", student.nome);
+        console.log("TESTE: Setting tokenModalStudent to:", student);
+        console.log("TESTE: Setting isTokenModalOpen to true");
         setTokenModalStudent(student);
         setIsTokenModalOpen(true);
+        
+        // Additional debug
+        setTimeout(() => {
+            console.log("TESTE: After timeout - tokenModalStudent:", tokenModalStudent);
+            console.log("TESTE: After timeout - isTokenModalOpen:", isTokenModalOpen);
+        }, 100);
     };
 
     const handleRefresh = () => {
@@ -586,8 +603,12 @@ export default function AlunosIndex() {
 
                                                     <Button variant="ghost" 
                                                             size="icon" 
-                                                            onClick={() => handleViewTokensClick(student)} 
-                                                            title="Tokens"
+                                                            onClick={() => {
+                                                                console.log("TESTE: Clicou em Tokens (desktop) para o aluno:", student.nome);
+                                                                alert(`TESTE: Clicou em Tokens (desktop) para ${student.nome}`);
+                                                                handleViewTokensClick(student);
+                                                            }} 
+                                                            title="🎟️ TOKENS 🎟️"
                                                             className="h-9 w-9 hover:bg-purple-100 dark:hover:bg-purple-900/30 
                                                                      hover:text-purple-700 dark:hover:text-purple-400
                                                                      transition-all duration-200 rounded-lg

@@ -65,6 +65,13 @@ const getTipoIcon = (tipo: string) => {
 export default function TokenViewModal({ student, open, onOpenChange }: TokenViewModalProps) {
     const { tokenInfo, isLoading, error, refetch } = useTokenInfo(student?._id);
 
+    // Debug logging
+    console.log("TESTE: TokenViewModal rendered with:", { 
+        student: student?.nome, 
+        open, 
+        tokenInfo: tokenInfo?.id 
+    });
+
     const handleRefresh = () => {
         console.log(`[TokenViewModal] Manual refresh triggered for student: ${student?.nome}`);
         refetch();
@@ -72,6 +79,11 @@ export default function TokenViewModal({ student, open, onOpenChange }: TokenVie
 
     if (!student) {
         return null;
+    }
+
+    // Show alert when modal opens
+    if (open) {
+        console.log("TESTE: Modal is open for student:", student.nome);
     }
 
     const isExpired = tokenInfo?.dataExpiracao ? new Date(tokenInfo.dataExpiracao) <= new Date() : false;
