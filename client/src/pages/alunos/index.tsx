@@ -1,9 +1,9 @@
 // client/src/pages/alunos/AlunosIndex.tsx
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -173,6 +173,7 @@ const StatsCard = ({ title, value, icon: Icon, description, className = "" }: {
 export default function AlunosIndex() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [, setLocation] = useLocation();
     const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog, confirm: confirmAction } = useConfirmDialog();
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -276,8 +277,8 @@ export default function AlunosIndex() {
 
     const handleEditClick = (student: Aluno) => {
         console.log("Handle edit click for student:", student.nome);
-        // Navigate to edit page - using window.location for reliable navigation
-        window.location.href = `/alunos/editar/${student._id}`;
+        // Navigate to edit page using Wouter navigation for proper SPA routing
+        setLocation(`/alunos/editar/${student._id}`);
     };
 
     const handleRefresh = () => {

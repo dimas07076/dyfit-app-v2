@@ -18,6 +18,10 @@ const EditStudentPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { toast } = useToast();
     
+    // Debug logging to check if studentId is extracted correctly
+    console.log("EditStudentPage - params:", params);
+    console.log("EditStudentPage - studentId:", studentId);
+    
     // Ref to trigger token info refresh from the StudentForm
     const tokenRefreshRef = useRef<{ refetch: () => void; forceRefresh: () => Promise<void> } | null>(null);
 
@@ -74,8 +78,28 @@ const EditStudentPage: React.FC = () => {
         },
     });
 
-    if (isLoading) return <LoadingSpinner text="Carregando dados do aluno..." />;
-    if (isError) return <ErrorMessage title="Erro ao carregar" message={error?.message || "Não foi possível encontrar o aluno."} />;
+    // Handle missing studentId
+    if (!studentId) {
+        console.error("EditStudentPage - No studentId found in params");
+        return <ErrorMessage title="Erro ao carregar" message="ID do aluno não encontrado na URL." />;
+    }
+
+    if (isLoading) {
+        console.log("EditStudentPage - Loading student data for ID:", studentId);
+        return <LoadingSpinner text="Carregando dados do aluno..." />;
+    }
+    
+    if (isError) {
+        console.error("EditStudentPage - Error loading student:", error);
+        return <ErrorMessage title="Erro ao carregar" message={error?.message || "Não foi possível encontrar o aluno."} />;
+    }
+
+    if (!studentData) {
+        console.warn("EditStudentPage - No student data received");
+        return <ErrorMessage title="Erro ao carregar" message="Dados do aluno não encontrados." />;
+    }
+
+    console.log("EditStudentPage - Student data loaded:", studentData);
 
     return (
         <div className="p-4 md:p-6 lg:p-8">
