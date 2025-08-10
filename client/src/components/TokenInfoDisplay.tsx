@@ -14,6 +14,7 @@ export interface TokenInfo {
     alunoId?: string;
     alunoNome?: string;
     quantidade: number;
+    dateAssigned?: string;
 }
 
 interface TokenInfoDisplayProps {
