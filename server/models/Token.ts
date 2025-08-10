@@ -36,7 +36,6 @@ const tokenSchema: Schema<IToken> = new Schema(
         id: {
             type: String,
             required: true,
-            unique: true,
             default: () => `TOK-${uuidv4().substring(0, 8)}`
         },
         tipo: {
