@@ -3,7 +3,6 @@
 
 import Token, { IToken } from '../models/Token.js';
 import PersonalPlano from '../models/PersonalPlano.js';
-import Aluno from '../models/Aluno.js';
 import mongoose from 'mongoose';
 
 export interface TokenAssignmentResult {
@@ -176,7 +175,7 @@ export class TokenService {
                 const isExpired = tokenDoc.dataExpiracao && tokenDoc.dataExpiracao <= new Date();
                 const statusCalc = isExpired ? 'Expirado' : (tokenDoc.status || 'Ativo');
                 const detalhes: TokenDetails = {
-                    id: tokenDoc._id.toString(),
+                    id: (tokenDoc._id as any).toString(),
                     tipo: tokenDoc.tipo || 'plano',
                     dataExpiracao: tokenDoc.dataExpiracao || null,
                     status: statusCalc,
@@ -204,19 +203,19 @@ export class TokenService {
                     .populate('alunoId', 'nome');
 
                 if (legacyDoc) {
-                    const vencimento = legacyDoc.dataVencimento || legacyDoc.dataExpiracao || null;
+                    const vencimento = legacyDoc.dataVencimento || null;
                     const isExpired = vencimento ? vencimento <= new Date() : false;
                     const isConsumed = legacyDoc.quantidade <= 0;
                     let status = 'Ativo';
                     if (isExpired) status = 'Expirado'; else if (isConsumed) status = 'Esgotado';
 
                     const detalhes: TokenDetails = {
-                        id: legacyDoc._id.toString(),
+                        id: (legacyDoc._id as any).toString(),
                         tipo: 'avulso',
                         dataExpiracao: vencimento,
                         status,
                         alunoId: studentId,
-                        alunoNome: (legacyDoc.assignedToStudentId || legacyDoc.alunoId)?.nome,
+                        alunoNome: (legacyDoc.assignedToStudentId as any)?.nome,
                         planoId: undefined,
                         planoNome: undefined,
                         quantidade: legacyDoc.quantidade || 0
