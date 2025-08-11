@@ -1,7 +1,7 @@
 // client/src/components/dialogs/AlunoViewModal.tsx
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useLocation } from 'wouter'; // Removed Link, kept useLocation
+import { useLocation } from 'wouter';
 import { fetchWithAuth, apiRequest } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -19,7 +19,7 @@ import { Aluno } from "@/types/aluno";
 import {
   Dumbbell, Edit, History, Mail, Phone, User, Weight, Ruler, Cake, Target, CalendarDays,
   BarChart, CheckCircle2, Sigma, FileText, View, PlusCircle, MoreVertical, Trash2,
-  Clock, MessageSquare, TrendingUp, CalendarCheck, Loader2, Crown, Users, Zap
+  Clock, MessageSquare, TrendingUp, CalendarCheck, Loader2, Crown, Users, Zap, Ticket // <-- CORREÇÃO AQUI
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -30,6 +30,8 @@ import RotinaViewModal from './RotinaViewModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import RotinaFormModal from './RotinaFormModal';
 import SelectModeloRotinaModal from './SelectModeloRotinaModal';
+import TokenInfoDisplay from '../TokenInfoDisplay';
+import { Separator } from '../ui/separator';
 import type { RotinaListagemItem } from '@/types/treinoOuRotinaTypes';
 
 interface AlunoRotina {
@@ -39,12 +41,11 @@ interface AlunoRotina {
     atualizadoEm: string;
 }
 
-// INTERFACE ATUALIZADA - Adicionado dataInicio
 interface IWorkoutHistoryLog {
     _id: string;
     treinoId: string;
     treinoTitulo: string;
-    dataInicio: string; // <-- ADICIONADO
+    dataInicio: string;
     dataFim: string; 
     duracaoTotalMinutos: number;
     nivelTreino: 'muito_facil' | 'facil' | 'moderado' | 'dificil' | 'muito_dificil';
@@ -188,7 +189,6 @@ const HistoricoTab = ({ alunoId, isActive }: { alunoId: string, isActive: boolea
     );
 };
 
-
 const InfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: React.ReactNode }) => ( <div className="flex items-start text-sm py-2 border-b border-slate-100 dark:border-slate-800"> <Icon className="h-4 w-4 mr-3 mt-0.5 text-slate-500" /> <span className="font-medium text-slate-600 dark:text-slate-400 w-32">{label}:</span> <span className="text-slate-900 dark:text-slate-100">{value || <span className="italic text-slate-400">Não informado</span>}</span> </div> );
 const KpiCard = ({ title, value, icon: Icon }: { title: string, value: string | number, icon: React.ElementType }) => ( <Card className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"> <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> <CardTitle className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</CardTitle> <Icon className="h-4 w-4 text-slate-500" /> </CardHeader> <CardContent> <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">{value}</div> </CardContent> </Card> );
 
@@ -235,7 +235,6 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
     const handleEditFromView = (rotina: RotinaListagemItem) => {
         setRotinaParaEditar(rotina);
         setIsRotinaViewModalOpen(false);
-        // Add a small delay to ensure the view modal closes properly before opening edit modal
         setTimeout(() => {
             setIsRotinaFormModalOpen(true);
         }, 100);
@@ -269,7 +268,7 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         openConfirmDialog({
             titulo: "Confirmar Remoção",
             mensagem: `Tem certeza que deseja remover a rotina "${rotinaTitulo}" deste aluno?`,
-            onConfirm: () => {}, 
+            onConfirm: handleConfirmDelete, 
         });
     };
 
@@ -303,21 +302,13 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         mutationFn: (rotinaId: string) => apiRequest<RotinaListagemItem>("POST", `/api/treinos/${rotinaId}/tornar-modelo`),
         onSuccess: (novoModelo) => {
             toast({ title: "Sucesso!", description: `Rotina "${novoModelo.titulo}" copiada para modelo!` });
-
-            // <<< INÍCIO DA ALTERAÇÃO OTIMIZADA >>>
-            // Atualização manual e instantânea do cache da página de treinos
             queryClient.setQueryData<RotinaListagemItem[]>(['/api/treinos'], (oldData) => {
                 if (oldData) {
-                    // Adiciona o novo modelo no início da lista para visibilidade imediata
                     return [novoModelo, ...oldData];
                 }
-                return [novoModelo]; // Caso o cache esteja vazio
+                return [novoModelo];
             });
-
-            // A rotina do aluno não foi alterada, então não é mais necessário invalidar ['alunoRotinas']
-            // Apenas invalidamos ['modelosRotina'] se houver um seletor que use essa chave específica.
             queryClient.invalidateQueries({ queryKey: ["modelosRotina"] });
-            // <<< FIM DA ALTERAÇÃO OTIMIZADA >>>
         },
         onError: (error: any) => {
             toast({ variant: "destructive", title: "Erro ao Copiar", description: error.message || "Não foi possível copiar a rotina para modelo." });
@@ -341,7 +332,6 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
         queryClient.invalidateQueries({ queryKey: ['rotinaDetalhes', rotinaAtualizada._id] });
         setRotinaParaEditar(null);
         setRotinaIdParaVer(null);
-        // Clear any cached data to ensure fresh data on next view
         queryClient.removeQueries({ queryKey: ['rotinaDetalhes'] });
     };
 
@@ -376,23 +366,9 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                                 {trainerPlanStatus && (
                                     <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
                                         <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">Informações do Plano</h3>
-                                        <InfoItem 
-                                            icon={Crown} 
-                                            label="Plano" 
-                                            value={trainerPlanStatus.plano?.nome || "Sem plano ativo"} 
-                                        />
-                                        {trainerPlanStatus.tokensAvulsos > 0 && (
-                                            <InfoItem 
-                                                icon={Zap} 
-                                                label="Tokens Avulsos" 
-                                                value={`${trainerPlanStatus.tokensAvulsos} disponíveis`} 
-                                            />
-                                        )}
-                                        <InfoItem 
-                                            icon={Users} 
-                                            label="Vagas" 
-                                            value={`${trainerPlanStatus.alunosAtivos}/${trainerPlanStatus.limiteAtual}`} 
-                                        />
+                                        <InfoItem icon={Crown} label="Plano" value={trainerPlanStatus.plano?.nome || "Sem plano ativo"} />
+                                        {trainerPlanStatus.tokensAvulsos > 0 && (<InfoItem icon={Zap} label="Tokens Avulsos" value={`${trainerPlanStatus.tokensAvulsos} disponíveis`} />)}
+                                        <InfoItem icon={Users} label="Vagas" value={`${trainerPlanStatus.alunosAtivos}/${trainerPlanStatus.limiteAtual}`} />
                                     </div>
                                 )}
                             </div>
@@ -411,7 +387,29 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                             {progressoFicha > 0 && <Progress value={progressoFicha} className="w-full h-2 mb-6" />}
                             <Tabs defaultValue="detalhes" className="w-full flex-grow" onValueChange={setActiveTab}>
                                 <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="detalhes">Detalhes</TabsTrigger><TabsTrigger value="rotinas">Rotinas</TabsTrigger><TabsTrigger value="historico">Histórico</TabsTrigger></TabsList>
-                                <TabsContent value="detalhes" className="mt-4 pr-2 h-[250px] overflow-y-auto"><div className="space-y-1"><InfoItem icon={Target} label="Objetivo" value={aluno.goal} /><InfoItem icon={Cake} label="Nascimento" value={formatDateBR(aluno.birthDate)} /><InfoItem icon={Weight} label="Peso" value={`${aluno.weight} kg`} /><InfoItem icon={Ruler} label="Altura" value={`${aluno.height} cm`} /><InfoItem icon={User} label="Gênero" value={aluno.gender} /><InfoItem icon={CalendarDays} label="Início" value={formatDateBR(aluno.startDate)} /></div></TabsContent>
+                                <TabsContent value="detalhes" className="mt-4 pr-2 h-[250px] overflow-y-auto">
+                                    <h3 className="text-md font-semibold mb-2 text-slate-800 dark:text-slate-200">Dados Pessoais</h3>
+                                    <div className="space-y-1">
+                                        <InfoItem icon={Target} label="Objetivo" value={aluno.goal} />
+                                        <InfoItem icon={Cake} label="Nascimento" value={formatDateBR(aluno.birthDate)} />
+                                        <InfoItem icon={Weight} label="Peso" value={aluno.weight ? `${aluno.weight} kg` : 'N/A'} />
+                                        <InfoItem icon={Ruler} label="Altura" value={aluno.height ? `${aluno.height} cm` : 'N/A'} />
+                                        <InfoItem icon={User} label="Gênero" value={aluno.gender} />
+                                        <InfoItem icon={CalendarDays} label="Início" value={formatDateBR(aluno.startDate)} />
+                                    </div>
+                                    
+                                    <Separator className="my-4" />
+                                    
+                                    <h3 className="text-md font-semibold mb-2 text-slate-800 dark:text-slate-200">
+                                        <div className="flex items-center">
+                                            <Ticket className="mr-2 h-5 w-5 text-primary"/> Token Associado
+                                        </div>
+                                    </h3>
+                                    <div className="p-1">
+                                        <TokenInfoDisplay studentId={aluno._id} />
+                                    </div>
+
+                                </TabsContent>
                                 <TabsContent value="rotinas"><RotinasTab alunoId={aluno._id} onVisualizarRotina={handleVisualizarRotina} onAssociarRotina={handleAssociarRotina} onDeleteRotina={handleDeleteRotina} /></TabsContent>
                                 <TabsContent value="historico"><HistoricoTab alunoId={aluno._id} isActive={activeTab === "historico"} /></TabsContent>
                             </Tabs>
@@ -433,7 +431,6 @@ const AlunoViewModal: React.FC<AlunoViewModalProps> = ({ aluno, open, onOpenChan
                     isOpen={isRotinaViewModalOpen} 
                     onClose={() => { 
                         setIsRotinaViewModalOpen(false); 
-                        // Clear the routine data after a delay to prevent flicker
                         setTimeout(() => {
                             setRotinaIdParaVer(null);
                         }, 150);

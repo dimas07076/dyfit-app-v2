@@ -7,7 +7,9 @@ export interface ITokenAvulso extends Document {
     dataVencimento: Date;
     ativo: boolean;
     motivoAdicao?: string;
-    adicionadoPorAdmin: mongoose.Types.ObjectId; // ID do admin que adicionou
+    adicionadoPorAdmin: mongoose.Types.ObjectId;
+    assignedToStudentId?: mongoose.Types.ObjectId; // <-- CAMPO ADICIONADO
+    dateAssigned?: Date;                           // <-- CAMPO ADICIONADO
     createdAt: Date;
     updatedAt: Date;
 }
@@ -38,8 +40,17 @@ const tokenAvulsoSchema: Schema<ITokenAvulso> = new Schema(
         },
         adicionadoPorAdmin: {
             type: Schema.Types.ObjectId,
-            ref: 'PersonalTrainer', // Assuming admin is also a PersonalTrainer with role 'Admin'
+            ref: 'PersonalTrainer',
             required: [true, 'O ID do admin é obrigatório.'],
+        },
+        assignedToStudentId: { // <-- CAMPO ADICIONADO
+            type: Schema.Types.ObjectId,
+            ref: 'Aluno',
+            default: null,
+        },
+        dateAssigned: { // <-- CAMPO ADICIONADO
+            type: Date,
+            default: null,
         },
     },
     {
@@ -47,9 +58,10 @@ const tokenAvulsoSchema: Schema<ITokenAvulso> = new Schema(
     }
 );
 
-// Index for efficient queries
+// Índices
 tokenAvulsoSchema.index({ personalTrainerId: 1, ativo: 1 });
 tokenAvulsoSchema.index({ dataVencimento: 1 });
+tokenAvulsoSchema.index({ assignedToStudentId: 1 }); // <-- ÍNDICE ADICIONADO
 
 const TokenAvulso = mongoose.model<ITokenAvulso>('TokenAvulso', tokenAvulsoSchema);
 
