@@ -77,11 +77,28 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
-            // First, try to find an active plan
+            // First, try to find an active plan using both new and legacy field queries
             const personalPlanoAtivo = await PersonalPlano.findOne({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
+                $and: [
+                    {
+                        $or: [
+                            { personalId: personalTrainerId },
+                            { personalTrainerId: personalTrainerId }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { status: 'ativo' },
+                            { ativo: true }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { dataFim: { $gt: new Date() } },
+                            { dataVencimento: { $gt: new Date() } }
+                        ]
+                    }
+                ]
             }).populate({
                 path: 'planoId',
                 model: 'Plano'
@@ -91,13 +108,30 @@ export class PlanoService {
             let personalPlanoExpirado = null;
             if (!personalPlanoAtivo) {
                 personalPlanoExpirado = await PersonalPlano.findOne({
-                    personalTrainerId,
-                    ativo: true, // Still marked as active but expired by date
-                    dataVencimento: { $lte: new Date() }
+                    $and: [
+                        {
+                            $or: [
+                                { personalId: personalTrainerId },
+                                { personalTrainerId: personalTrainerId }
+                            ]
+                        },
+                        {
+                            $or: [
+                                { status: 'ativo' },
+                                { ativo: true }
+                            ]
+                        },
+                        {
+                            $or: [
+                                { dataFim: { $lte: new Date() } },
+                                { dataVencimento: { $lte: new Date() } }
+                            ]
+                        }
+                    ]
                 }).populate({
                     path: 'planoId',
                     model: 'Plano'
-                }).sort({ dataVencimento: -1 }); // Most recent expired plan
+                }).sort({ dataFim: -1, dataVencimento: -1 }); // Most recent expired plan
             }
 
             // --- DIAGNOSTIC LOG ---
@@ -243,8 +277,8 @@ export class PlanoService {
         
         // Deactivate current plan
         await PersonalPlano.updateMany(
-            { personalTrainerId, ativo: true },
-            { ativo: false }
+            { personalId: personalTrainerId, status: 'ativo' },
+            { status: 'inativo' }
         );
 
         const plano = await Plano.findById(planoId);
@@ -253,17 +287,24 @@ export class PlanoService {
         }
 
         const dataInicio = new Date();
-        const dataVencimento = new Date();
-        dataVencimento.setDate(dataVencimento.getDate() + (customDuration || plano.duracao));
+        const dataFim = new Date();
+        dataFim.setDate(dataFim.getDate() + (customDuration || plano.duracao));
 
         const personalPlano = new PersonalPlano({
-            personalTrainerId,
-            planoId,
+            personalId: new mongoose.Types.ObjectId(personalTrainerId),
+            planoTipo: plano.nome as 'Free' | 'Start' | 'Pro' | 'Elite' | 'Master',
+            limiteAlunos: plano.limiteAlunos,
             dataInicio,
-            dataVencimento,
-            atribuidoPorAdmin: adminId,
-            motivoAtribuicao: motivo,
-            ativo: true
+            dataFim,
+            status: 'ativo',
+            preco: plano.preco,
+            // Legacy fields for compatibility
+            personalTrainerId: new mongoose.Types.ObjectId(personalTrainerId),
+            planoId: new mongoose.Types.ObjectId(planoId),
+            dataVencimento: dataFim,
+            ativo: true,
+            atribuidoPorAdmin: new mongoose.Types.ObjectId(adminId),
+            motivoAtribuicao: motivo
         });
 
         // Save the PersonalPlano first
@@ -274,7 +315,7 @@ export class PlanoService {
             planoId: planoId,
             statusAssinatura: 'ativa',
             dataInicioAssinatura: dataInicio,
-            dataFimAssinatura: dataVencimento,
+            dataFimAssinatura: dataFim,
             limiteAlunos: plano.limiteAlunos
         });
 
