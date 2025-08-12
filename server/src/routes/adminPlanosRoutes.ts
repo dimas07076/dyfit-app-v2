@@ -124,6 +124,21 @@ router.post('/personal/:personalId/assign-plan', async (req, res) => {
         const { planoId, customDuration, motivo } = req.body;
         const adminId = (req as any).user.id;
 
+        // Validation
+        if (!planoId) {
+            return res.status(400).json({ 
+                message: 'ID do plano é obrigatório',
+                code: 'MISSING_PLAN_ID'
+            });
+        }
+
+        if (customDuration && (typeof customDuration !== 'number' || customDuration < 1 || customDuration > 365)) {
+            return res.status(400).json({
+                message: 'Duração personalizada deve ser entre 1 e 365 dias',
+                code: 'INVALID_CUSTOM_DURATION'
+            });
+        }
+
         console.log('🔄 Atribuindo plano:', { personalId, planoId, customDuration, motivo });
 
         const personal = await PersonalTrainer.findById(personalId);
@@ -168,8 +183,26 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
 
         console.log('🔄 Adicionando tokens:', { personalId, quantidade, customDays, motivo });
 
-        if (!quantidade || quantidade < 1) {
-            return res.status(400).json({ message: 'Quantidade deve ser pelo menos 1' });
+        // Enhanced validation
+        if (!quantidade || typeof quantidade !== 'number') {
+            return res.status(400).json({ 
+                message: 'Quantidade é obrigatória e deve ser um número',
+                code: 'INVALID_QUANTITY'
+            });
+        }
+
+        if (quantidade < 1 || quantidade > 100) {
+            return res.status(400).json({ 
+                message: 'Quantidade deve ser entre 1 e 100',
+                code: 'QUANTITY_OUT_OF_RANGE'
+            });
+        }
+
+        if (customDays && (typeof customDays !== 'number' || customDays < 1 || customDays > 365)) {
+            return res.status(400).json({
+                message: 'Duração personalizada deve ser entre 1 e 365 dias',
+                code: 'INVALID_CUSTOM_DURATION'
+            });
         }
 
         const personal = await PersonalTrainer.findById(personalId);
@@ -364,6 +397,10 @@ router.put('/tokens/:tokenId/status', async (req, res) => {
         });
     }
 });
+
+/**
+ * POST /api/admin/cleanup-expired - Cleanup expired plans and tokens
+ */
 router.post('/cleanup-expired', async (req, res) => {
     try {
         const result = await PlanoService.cleanupExpired();
@@ -374,6 +411,82 @@ router.post('/cleanup-expired', async (req, res) => {
     } catch (error) {
         console.error('Error cleaning up expired items:', error);
         res.status(500).json({ message: 'Erro ao realizar limpeza' });
+    }
+});
+
+/**
+ * POST /api/admin/maintenance/run - Execute complete maintenance
+ */
+router.post('/maintenance/run', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        // Import PlanMaintenanceService
+        const { default: PlanMaintenanceService } = await import('../../services/PlanMaintenanceService.js');
+        const result = await PlanMaintenanceService.executarManutencaoCompleta();
+        
+        res.json({
+            message: 'Manutenção executada com sucesso',
+            result
+        });
+    } catch (error) {
+        console.error('Error executing maintenance:', error);
+        res.status(500).json({ 
+            message: 'Erro ao executar manutenção',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/maintenance/report - Generate usage report
+ */
+router.get('/maintenance/report', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        // Import PlanMaintenanceService
+        const { default: PlanMaintenanceService } = await import('../../services/PlanMaintenanceService.js');
+        const report = await PlanMaintenanceService.gerarRelatorioUso();
+        
+        res.json(report);
+    } catch (error) {
+        console.error('Error generating report:', error);
+        res.status(500).json({ 
+            message: 'Erro ao gerar relatório',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/maintenance/warnings - Get expiration warnings
+ */
+router.get('/maintenance/warnings', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const days = parseInt(req.query.days as string) || 7;
+        
+        // Import PlanMaintenanceService
+        const { default: PlanMaintenanceService } = await import('../../services/PlanMaintenanceService.js');
+        
+        const [planWarnings, tokenWarnings] = await Promise.all([
+            PlanMaintenanceService.verificarPlanosProximosVencimento(days),
+            PlanMaintenanceService.verificarTokensProximosVencimento(days)
+        ]);
+        
+        res.json({
+            planWarnings,
+            tokenWarnings,
+            diasAntecedencia: days
+        });
+    } catch (error) {
+        console.error('Error getting warnings:', error);
+        res.status(500).json({ 
+            message: 'Erro ao buscar avisos',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
     }
 });
 
