@@ -210,13 +210,12 @@ export class PlanoService {
                 return 0;
             }
 
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
+            // Count individual available tokens
+            const total = await TokenAvulso.countDocuments({
+                personalId: personalTrainerId,
+                status: 'disponivel',
+                dataExpiracao: { $gt: new Date() }
             });
-
-            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
             
             if (total > 0) {
                 console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
@@ -283,7 +282,7 @@ export class PlanoService {
     }
 
     /**
-     * Add tokens to a personal trainer
+     * Add tokens to a personal trainer (now creates individual tokens)
      */
     async addTokensToPersonal(
         personalTrainerId: string,
@@ -291,20 +290,23 @@ export class PlanoService {
         adminId: string,
         customDays?: number,
         motivo?: string
-    ): Promise<ITokenAvulso> {
+    ): Promise<ITokenAvulso[]> {
         const dataVencimento = new Date();
         dataVencimento.setDate(dataVencimento.getDate() + (customDays || 30)); // Default 30 days
 
-        const token = new TokenAvulso({
-            personalTrainerId,
-            quantidade,
-            dataVencimento,
-            adicionadoPorAdmin: adminId,
-            motivoAdicao: motivo,
-            ativo: true
-        });
+        const tokensToCreate: Partial<ITokenAvulso>[] = [];
+        for (let i = 0; i < quantidade; i++) {
+            tokensToCreate.push({
+                personalId: new mongoose.Types.ObjectId(personalTrainerId),
+                status: 'disponivel' as const,
+                dataEmissao: new Date(),
+                dataExpiracao: dataVencimento,
+                adicionadoPorAdmin: new mongoose.Types.ObjectId(adminId),
+                motivoAdicao: motivo
+            });
+        }
 
-        return await token.save();
+        return await TokenAvulso.insertMany(tokensToCreate) as ITokenAvulso[];
     }
 
     /**
@@ -401,20 +403,20 @@ export class PlanoService {
             const [activeTokens, expiredTokens] = await Promise.all([
                 // Active tokens (not expired)
                 TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $gt: now }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: 1 }),
+                    personalId: personalTrainerId,
+                    status: 'disponivel',
+                    dataExpiracao: { $gt: now }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataExpiracao: 1 }),
                 
                 // Recently expired tokens (for audit trail) - last 30 days
                 TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $lte: now, $gte: thirtyDaysAgo }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: -1 })
+                    personalId: personalTrainerId,
+                    status: 'expirado',
+                    dataExpiracao: { $lte: now, $gte: thirtyDaysAgo }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataExpiracao: -1 })
             ]);
 
-            const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            const totalActiveQuantity = activeTokens.length; // Each token represents 1 student slot
 
             console.log(`📊 Tokens detalhados para ${personalTrainerId}: ${activeTokens.length} ativos, ${expiredTokens.length} expirados recentes`);
 
@@ -476,12 +478,12 @@ export class PlanoService {
         
         const [plansResult, tokensResult] = await Promise.all([
             PersonalPlano.updateMany(
-                { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { dataFim: { $lt: now }, status: 'ativo' },
+                { status: 'expirado' }
             ),
             TokenAvulso.updateMany(
-                { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { dataExpiracao: { $lt: now }, status: { $ne: 'expirado' } },
+                { status: 'expirado', alunoId: undefined }
             )
         ]);
 

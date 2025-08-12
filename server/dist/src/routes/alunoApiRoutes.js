@@ -9,7 +9,6 @@ import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay 
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
-import { checkLimiteAlunos } from '../../middlewares/checkLimiteAlunos.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
@@ -62,7 +61,7 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     }
 });
 // POST /api/aluno/gerenciar - Criar um novo aluno
-router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res, next) => {
+router.post("/gerenciar", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -77,6 +76,17 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         if (alunoExistente) {
             return res.status(409).json({ erro: "Já existe um aluno com este email." });
         }
+        // Import SlotManagementService
+        const { default: SlotManagementService } = await import('../../services/SlotManagementService.js');
+        // Check for available slots
+        const slotResult = await SlotManagementService.verificarSlotDisponivel(trainerId);
+        if (!slotResult.slotsDisponiveis) {
+            return res.status(403).json({
+                erro: slotResult.message,
+                code: 'STUDENT_LIMIT_EXCEEDED',
+                details: slotResult.details
+            });
+        }
         const novoAluno = new Aluno({
             nome,
             email: email.toLowerCase(),
@@ -90,12 +100,20 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             startDate: startDate ? new Date(startDate) : new Date(),
             status: 'active'
         });
-        await novoAluno.save();
-        const alunoResponse = novoAluno.toObject();
+        const alunoSalvo = await novoAluno.save();
+        // Associate student with slot
+        if (slotResult.slotInfo) {
+            await SlotManagementService.associarAlunoASlot(alunoSalvo._id.toString(), slotResult.slotInfo);
+        }
+        const alunoResponse = alunoSalvo.toObject();
         delete alunoResponse.passwordHash;
         res.status(201).json({
             mensagem: "Aluno criado com sucesso!",
-            aluno: alunoResponse
+            aluno: alunoResponse,
+            consumoInfo: {
+                fonte: slotResult.slotInfo?.fonte,
+                validadeAcesso: slotResult.slotInfo?.validadeAcesso
+            }
         });
     }
     catch (error) {
@@ -175,6 +193,34 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
             status,
             notes
         };
+        // Handle status change logic
+        const statusMudou = alunoExistente.status !== status;
+        const tentandoAtivar = statusMudou && status === 'active' && alunoExistente.status === 'inactive';
+        // Import SlotManagementService for activation check
+        if (tentandoAtivar) {
+            const { default: SlotManagementService } = await import('../../services/SlotManagementService.js');
+            // Check if student can be reactivated with existing association
+            const reactivationResult = await SlotManagementService.podeReativarAluno(alunoId);
+            if (!reactivationResult.podeReativar && !reactivationResult.novaAssociacaoNecessaria) {
+                return res.status(403).json({
+                    erro: reactivationResult.motivoNegacao || 'Não é possível reativar este aluno',
+                    code: 'REACTIVATION_DENIED'
+                });
+            }
+            // If new association is needed, check for available slots
+            if (reactivationResult.novaAssociacaoNecessaria) {
+                const slotResult = await SlotManagementService.verificarSlotDisponivel(trainerId);
+                if (!slotResult.slotsDisponiveis) {
+                    return res.status(403).json({
+                        erro: 'Não é possível reativar: ' + slotResult.message,
+                        code: 'STUDENT_LIMIT_EXCEEDED',
+                        details: slotResult.details
+                    });
+                }
+                // Create new association after successful update
+                updateData.newSlotAssociation = slotResult.slotInfo;
+            }
+        }
         // Adicionar peso e altura se fornecidos
         if (weight !== null && weight !== undefined && weight !== '') {
             updateData.weight = parseFloat(weight);
@@ -182,8 +228,27 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (height !== null && height !== undefined && height !== '') {
             updateData.height = parseInt(height);
         }
+        // Remove the slot association data from updateData before saving
+        const newSlotAssociation = updateData.newSlotAssociation;
+        delete updateData.newSlotAssociation;
         // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
+        // If new slot association is needed, apply it now
+        if (tentandoAtivar && newSlotAssociation) {
+            const { default: SlotManagementService } = await import('../../services/SlotManagementService.js');
+            await SlotManagementService.associarAlunoASlot(alunoId, newSlotAssociation);
+            // Refetch updated student data
+            const alunoComAssociacao = await Aluno.findById(alunoId).select('-passwordHash');
+            res.status(200).json({
+                mensagem: "Aluno atualizado e reativado com sucesso!",
+                aluno: alunoComAssociacao,
+                consumoInfo: {
+                    fonte: newSlotAssociation.fonte,
+                    validadeAcesso: newSlotAssociation.validadeAcesso
+                }
+            });
+            return;
+        }
         res.status(200).json({
             mensagem: "Aluno atualizado com sucesso!",
             aluno: alunoAtualizado
@@ -213,6 +278,10 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!alunoExistente) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
+        // Import SlotManagementService
+        const { default: SlotManagementService } = await import('../../services/SlotManagementService.js');
+        // Free any consumed slots/tokens before deletion
+        await SlotManagementService.liberarSlotPorExclusao(alunoId, true);
         // Excluir o aluno
         await Aluno.findByIdAndDelete(new mongoose.Types.ObjectId(alunoId));
         res.status(200).json({

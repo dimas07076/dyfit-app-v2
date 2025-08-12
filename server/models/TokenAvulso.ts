@@ -2,44 +2,59 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ITokenAvulso extends Document {
-    personalTrainerId: mongoose.Types.ObjectId;
-    quantidade: number;
-    dataVencimento: Date;
-    ativo: boolean;
+    personalId: mongoose.Types.ObjectId;
+    alunoId?: mongoose.Types.ObjectId;
+    status: 'disponivel' | 'utilizado' | 'expirado';
+    dataEmissao: Date;
+    dataExpiracao: Date;
+    preco?: number;
+    // Admin tracking fields
+    adicionadoPorAdmin: mongoose.Types.ObjectId;
     motivoAdicao?: string;
-    adicionadoPorAdmin: mongoose.Types.ObjectId; // ID do admin que adicionou
     createdAt: Date;
     updatedAt: Date;
 }
 
 const tokenAvulsoSchema: Schema<ITokenAvulso> = new Schema(
     {
-        personalTrainerId: {
+        personalId: {
             type: Schema.Types.ObjectId,
             ref: 'PersonalTrainer',
             required: [true, 'O ID do Personal Trainer é obrigatório.'],
         },
-        quantidade: {
-            type: Number,
-            required: [true, 'A quantidade de tokens é obrigatória.'],
-            min: [1, 'A quantidade deve ser pelo menos 1.'],
+        alunoId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Aluno',
+            required: false,
         },
-        dataVencimento: {
-            type: Date,
-            required: [true, 'A data de vencimento é obrigatória.'],
-        },
-        ativo: {
-            type: Boolean,
-            default: true,
-        },
-        motivoAdicao: {
+        status: {
             type: String,
-            trim: true,
+            required: true,
+            enum: ['disponivel', 'utilizado', 'expirado'],
+            default: 'disponivel',
+        },
+        dataEmissao: {
+            type: Date,
+            required: true,
+            default: Date.now,
+        },
+        dataExpiracao: {
+            type: Date,
+            required: [true, 'A data de expiração é obrigatória.'],
+        },
+        preco: {
+            type: Number,
+            required: false,
+            min: [0, 'O preço não pode ser negativo.'],
         },
         adicionadoPorAdmin: {
             type: Schema.Types.ObjectId,
             ref: 'PersonalTrainer', // Assuming admin is also a PersonalTrainer with role 'Admin'
             required: [true, 'O ID do admin é obrigatório.'],
+        },
+        motivoAdicao: {
+            type: String,
+            trim: true,
         },
     },
     {
@@ -48,8 +63,9 @@ const tokenAvulsoSchema: Schema<ITokenAvulso> = new Schema(
 );
 
 // Index for efficient queries
-tokenAvulsoSchema.index({ personalTrainerId: 1, ativo: 1 });
-tokenAvulsoSchema.index({ dataVencimento: 1 });
+tokenAvulsoSchema.index({ personalId: 1, status: 1 });
+tokenAvulsoSchema.index({ dataExpiracao: 1 });
+tokenAvulsoSchema.index({ personalId: 1, status: 1, dataExpiracao: 1 });
 
 const TokenAvulso = mongoose.model<ITokenAvulso>('TokenAvulso', tokenAvulsoSchema);
 

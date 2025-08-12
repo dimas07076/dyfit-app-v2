@@ -30,6 +30,30 @@ const alunoSchema = new Schema({
         ref: 'PersonalTrainer',
         required: [true, 'O ID do treinador é obrigatório']
     },
+    // New fields for slot consumption tracking
+    consumoFonte: {
+        type: String,
+        enum: ['plano', 'token'],
+        required: false
+    },
+    consumidoDoPlanoId: {
+        type: Schema.Types.ObjectId,
+        ref: 'PersonalPlano',
+        required: false
+    },
+    consumidoDoTokenId: {
+        type: Schema.Types.ObjectId,
+        ref: 'TokenAvulso',
+        required: false
+    },
+    validadeAcesso: {
+        type: Date,
+        required: false
+    },
+    dataAssociacao: {
+        type: Date,
+        required: false
+    },
 }, {
     timestamps: true
 });

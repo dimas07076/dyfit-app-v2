@@ -17,6 +17,12 @@ export interface IAluno extends Document {
   status: 'active' | 'inactive';
   notes?: string;
   trainerId: mongoose.Types.ObjectId;
+  // New fields for slot consumption tracking
+  consumoFonte?: 'plano' | 'token';
+  consumidoDoPlanoId?: mongoose.Types.ObjectId;
+  consumidoDoTokenId?: mongoose.Types.ObjectId;
+  validadeAcesso?: Date;
+  dataAssociacao?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -51,6 +57,30 @@ const alunoSchema = new Schema<IAluno>(
       type: Schema.Types.ObjectId,
       ref: 'PersonalTrainer',
       required: [true, 'O ID do treinador é obrigatório']
+    },
+    // New fields for slot consumption tracking
+    consumoFonte: {
+      type: String,
+      enum: ['plano', 'token'],
+      required: false
+    },
+    consumidoDoPlanoId: {
+      type: Schema.Types.ObjectId,
+      ref: 'PersonalPlano',
+      required: false
+    },
+    consumidoDoTokenId: {
+      type: Schema.Types.ObjectId,
+      ref: 'TokenAvulso',
+      required: false
+    },
+    validadeAcesso: {
+      type: Date,
+      required: false
+    },
+    dataAssociacao: {
+      type: Date,
+      required: false
     },
   },
   {

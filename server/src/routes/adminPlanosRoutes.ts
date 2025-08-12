@@ -177,7 +177,7 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
             return res.status(404).json({ message: 'Personal trainer não encontrado' });
         }
 
-        const token = await PlanoService.addTokensToPersonal(
+        const tokens = await PlanoService.addTokensToPersonal(
             personalId,
             quantidade,
             adminId,
@@ -185,11 +185,11 @@ router.post('/personal/:personalId/add-tokens', async (req, res) => {
             motivo
         );
 
-        console.log('✅ Tokens adicionados com sucesso:', token._id);
+        console.log('✅ Tokens adicionados com sucesso:', tokens.map((t: any) => t._id).join(', '));
 
         res.status(201).json({
             message: 'Tokens adicionados com sucesso',
-            token,
+            tokens,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -309,8 +309,61 @@ router.get('/personal-trainers', async (req, res) => {
 });
 
 /**
- * POST /api/admin/cleanup-expired - Cleanup expired plans and tokens
+ * GET /api/admin/personal/:personalId/tokens - Get detailed tokens for personal trainer
  */
+router.get('/personal/:personalId/tokens', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const { personalId } = req.params;
+        const incluirExpirados = req.query.incluirExpirados === 'true';
+        
+        const personal = await PersonalTrainer.findById(personalId);
+        if (!personal) {
+            return res.status(404).json({ message: 'Personal trainer não encontrado' });
+        }
+
+        // Import TokenManagementService
+        const { default: TokenManagementService } = await import('../../services/TokenManagementService.js');
+        const tokenStatus = await TokenManagementService.listarTokensPersonal(personalId, incluirExpirados);
+
+        res.json(tokenStatus);
+    } catch (error) {
+        console.error('Error fetching tokens:', error);
+        res.status(500).json({ message: 'Erro ao buscar tokens' });
+    }
+});
+
+/**
+ * PUT /api/admin/tokens/:tokenId/status - Update token status
+ */
+router.put('/tokens/:tokenId/status', async (req, res) => {
+    try {
+        await dbConnect();
+        
+        const { tokenId } = req.params;
+        const { status } = req.body;
+        const adminId = (req as any).user.id;
+
+        if (!['disponivel', 'utilizado', 'expirado'].includes(status)) {
+            return res.status(400).json({ message: 'Status inválido' });
+        }
+
+        // Import TokenManagementService
+        const { default: TokenManagementService } = await import('../../services/TokenManagementService.js');
+        const token = await TokenManagementService.atualizarStatusToken(tokenId, status, adminId);
+
+        res.json({
+            message: 'Status do token atualizado com sucesso',
+            token
+        });
+    } catch (error) {
+        console.error('Error updating token status:', error);
+        res.status(500).json({ 
+            message: error instanceof Error ? error.message : 'Erro ao atualizar status do token'
+        });
+    }
+});
 router.post('/cleanup-expired', async (req, res) => {
     try {
         const result = await PlanoService.cleanupExpired();
