@@ -322,6 +322,30 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ id }) => {
                      {student?.status === 'active' ? 'Ativo' : 'Inativo'} 
                  </Badge>
               </div>
+              {student?.tokenInfo && (
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m0 0v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2m6 0V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2m6 0H9" />
+                  </svg>
+                  <strong>Token:</strong>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={student.tokenInfo.tipo === 'plano' ? 'default' : 'outline'}>
+                        {student.tokenInfo.tipo === 'plano' ? 'Plano' : 'Avulso'}
+                      </Badge>
+                      {student.tokenInfo.planoTipo && (
+                        <Badge variant="secondary">{student.tokenInfo.planoTipo}</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      ID: {student.tokenInfo.id.slice(-8)}
+                      {student.tokenInfo.vencimento && (
+                        <> • Vence: {formatDate(student.tokenInfo.vencimento)}</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
            {student?.notes && (
                <>

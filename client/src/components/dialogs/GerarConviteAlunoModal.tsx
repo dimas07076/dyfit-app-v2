@@ -11,9 +11,12 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, Copy, Check } from 'lucide-react';
+import { Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
+import { useSlotAvailability } from '@/hooks/use-slot-management';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const formSchema = z.object({
   email: z.string().email("Se preenchido, deve ser um e-mail válido.").optional().or(z.literal('')),
@@ -31,6 +34,9 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
   const [view, setView] = useState<'form' | 'success'>('form');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Check slot availability for invites
+  const { data: slotCheck, isLoading: isCheckingSlots, error: slotError } = useSlotAvailability(1);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -83,6 +89,8 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
     setInviteLink(null);
   };
 
+  const canCreateInvite = slotCheck?.podeAtivar === true;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
@@ -96,30 +104,67 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
         </DialogHeader>
         
         {view === 'form' && (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>E-mail do Aluno (Opcional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="email@exemplo.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <>
+            {isCheckingSlots ? (
+              <div className="py-8">
+                <LoadingSpinner text="Verificando disponibilidade de slots..." />
+              </div>
+            ) : !canCreateInvite ? (
+              <Alert className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p><strong>Limite de alunos atingido!</strong></p>
+                    <p>{slotCheck?.message || 'Você atingiu o limite de alunos do seu plano atual.'}</p>
+                    {slotCheck?.details && (
+                      <div className="text-sm mt-2">
+                        {slotCheck.details.plano && (
+                          <p>
+                            Plano {slotCheck.details.plano.tipo}: {slotCheck.details.plano.utilizados}/{slotCheck.details.plano.limite} alunos
+                          </p>
+                        )}
+                        {slotCheck.details.tokens && slotCheck.details.tokens.disponiveis > 0 && (
+                          <p>Tokens disponíveis: {slotCheck.details.tokens.disponiveis}</p>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-sm">Para convidar novos alunos, você precisa de slots disponíveis em seu plano ou tokens avulsos.</p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>E-mail do Aluno (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="email@exemplo.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button variant="outline" type="button" onClick={onClose}>Cancelar</Button>
+                    <Button type="submit" disabled={mutation.isPending || !canCreateInvite}>
+                      {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Gerar Link
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            )}
+            
+            {!canCreateInvite && (
               <DialogFooter>
-                <Button variant="outline" type="button" onClick={onClose}>Cancelar</Button>
-                <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Gerar Link
-                </Button>
+                <Button variant="outline" onClick={onClose}>Fechar</Button>
               </DialogFooter>
-            </form>
-          </Form>
+            )}
+          </>
         )}
 
         {view === 'success' && inviteLink && (

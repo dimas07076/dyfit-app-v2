@@ -77,11 +77,28 @@ export class PlanoService {
                 throw new Error('Personal trainer ID é obrigatório');
             }
 
-            // First, try to find an active plan
+            // First, try to find an active plan using both new and legacy field queries
             const personalPlanoAtivo = await PersonalPlano.findOne({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
+                $and: [
+                    {
+                        $or: [
+                            { personalId: personalTrainerId },
+                            { personalTrainerId: personalTrainerId }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { status: 'ativo' },
+                            { ativo: true }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { dataFim: { $gt: new Date() } },
+                            { dataVencimento: { $gt: new Date() } }
+                        ]
+                    }
+                ]
             }).populate({
                 path: 'planoId',
                 model: 'Plano'
@@ -91,13 +108,30 @@ export class PlanoService {
             let personalPlanoExpirado = null;
             if (!personalPlanoAtivo) {
                 personalPlanoExpirado = await PersonalPlano.findOne({
-                    personalTrainerId,
-                    ativo: true, // Still marked as active but expired by date
-                    dataVencimento: { $lte: new Date() }
+                    $and: [
+                        {
+                            $or: [
+                                { personalId: personalTrainerId },
+                                { personalTrainerId: personalTrainerId }
+                            ]
+                        },
+                        {
+                            $or: [
+                                { status: 'ativo' },
+                                { ativo: true }
+                            ]
+                        },
+                        {
+                            $or: [
+                                { dataFim: { $lte: new Date() } },
+                                { dataVencimento: { $lte: new Date() } }
+                            ]
+                        }
+                    ]
                 }).populate({
                     path: 'planoId',
                     model: 'Plano'
-                }).sort({ dataVencimento: -1 }); // Most recent expired plan
+                }).sort({ dataFim: -1, dataVencimento: -1 }); // Most recent expired plan
             }
 
             // --- DIAGNOSTIC LOG ---
@@ -210,13 +244,12 @@ export class PlanoService {
                 return 0;
             }
 
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
+            // Count individual available tokens
+            const total = await TokenAvulso.countDocuments({
+                personalId: personalTrainerId,
+                status: 'disponivel',
+                dataExpiracao: { $gt: new Date() }
             });
-
-            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
             
             if (total > 0) {
                 console.log(`✅ Encontrados ${total} tokens ativos para personal ${personalTrainerId}`);
@@ -244,8 +277,8 @@ export class PlanoService {
         
         // Deactivate current plan
         await PersonalPlano.updateMany(
-            { personalTrainerId, ativo: true },
-            { ativo: false }
+            { personalId: personalTrainerId, status: 'ativo' },
+            { status: 'inativo' }
         );
 
         const plano = await Plano.findById(planoId);
@@ -254,17 +287,24 @@ export class PlanoService {
         }
 
         const dataInicio = new Date();
-        const dataVencimento = new Date();
-        dataVencimento.setDate(dataVencimento.getDate() + (customDuration || plano.duracao));
+        const dataFim = new Date();
+        dataFim.setDate(dataFim.getDate() + (customDuration || plano.duracao));
 
         const personalPlano = new PersonalPlano({
-            personalTrainerId,
-            planoId,
+            personalId: new mongoose.Types.ObjectId(personalTrainerId),
+            planoTipo: plano.nome as 'Free' | 'Start' | 'Pro' | 'Elite' | 'Master',
+            limiteAlunos: plano.limiteAlunos,
             dataInicio,
-            dataVencimento,
-            atribuidoPorAdmin: adminId,
-            motivoAtribuicao: motivo,
-            ativo: true
+            dataFim,
+            status: 'ativo',
+            preco: plano.preco,
+            // Legacy fields for compatibility
+            personalTrainerId: new mongoose.Types.ObjectId(personalTrainerId),
+            planoId: new mongoose.Types.ObjectId(planoId),
+            dataVencimento: dataFim,
+            ativo: true,
+            atribuidoPorAdmin: new mongoose.Types.ObjectId(adminId),
+            motivoAtribuicao: motivo
         });
 
         // Save the PersonalPlano first
@@ -275,7 +315,7 @@ export class PlanoService {
             planoId: planoId,
             statusAssinatura: 'ativa',
             dataInicioAssinatura: dataInicio,
-            dataFimAssinatura: dataVencimento,
+            dataFimAssinatura: dataFim,
             limiteAlunos: plano.limiteAlunos
         });
 
@@ -283,7 +323,7 @@ export class PlanoService {
     }
 
     /**
-     * Add tokens to a personal trainer
+     * Add tokens to a personal trainer (now creates individual tokens)
      */
     async addTokensToPersonal(
         personalTrainerId: string,
@@ -291,20 +331,23 @@ export class PlanoService {
         adminId: string,
         customDays?: number,
         motivo?: string
-    ): Promise<ITokenAvulso> {
+    ): Promise<ITokenAvulso[]> {
         const dataVencimento = new Date();
         dataVencimento.setDate(dataVencimento.getDate() + (customDays || 30)); // Default 30 days
 
-        const token = new TokenAvulso({
-            personalTrainerId,
-            quantidade,
-            dataVencimento,
-            adicionadoPorAdmin: adminId,
-            motivoAdicao: motivo,
-            ativo: true
-        });
+        const tokensToCreate: Partial<ITokenAvulso>[] = [];
+        for (let i = 0; i < quantidade; i++) {
+            tokensToCreate.push({
+                personalId: new mongoose.Types.ObjectId(personalTrainerId),
+                status: 'disponivel' as const,
+                dataEmissao: new Date(),
+                dataExpiracao: dataVencimento,
+                adicionadoPorAdmin: new mongoose.Types.ObjectId(adminId),
+                motivoAdicao: motivo
+            });
+        }
 
-        return await token.save();
+        return await TokenAvulso.insertMany(tokensToCreate) as ITokenAvulso[];
     }
 
     /**
@@ -401,20 +444,20 @@ export class PlanoService {
             const [activeTokens, expiredTokens] = await Promise.all([
                 // Active tokens (not expired)
                 TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $gt: now }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: 1 }),
+                    personalId: personalTrainerId,
+                    status: 'disponivel',
+                    dataExpiracao: { $gt: now }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataExpiracao: 1 }),
                 
                 // Recently expired tokens (for audit trail) - last 30 days
                 TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $lte: now, $gte: thirtyDaysAgo }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: -1 })
+                    personalId: personalTrainerId,
+                    status: 'expirado',
+                    dataExpiracao: { $lte: now, $gte: thirtyDaysAgo }
+                }).populate('adicionadoPorAdmin', 'nome').sort({ dataExpiracao: -1 })
             ]);
 
-            const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
+            const totalActiveQuantity = activeTokens.length; // Each token represents 1 student slot
 
             console.log(`📊 Tokens detalhados para ${personalTrainerId}: ${activeTokens.length} ativos, ${expiredTokens.length} expirados recentes`);
 
@@ -476,12 +519,12 @@ export class PlanoService {
         
         const [plansResult, tokensResult] = await Promise.all([
             PersonalPlano.updateMany(
-                { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { dataFim: { $lt: now }, status: 'ativo' },
+                { status: 'expirado' }
             ),
             TokenAvulso.updateMany(
-                { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { dataExpiracao: { $lt: now }, status: { $ne: 'expirado' } },
+                { status: 'expirado', alunoId: undefined }
             )
         ]);
 

@@ -72,9 +72,9 @@ export interface StudentFormDataProcessed {
     password?: string;
 }
 
-interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; }
+interface StudentFormProps { onSubmit: (data: StudentFormDataProcessed) => void; isLoading?: boolean; initialData?: Aluno; isEditing?: boolean; onCancel?: () => void; disabled?: boolean; }
 
-export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel }: StudentFormProps) {
+export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initialData, isEditing = false, onCancel, disabled = false }: StudentFormProps) {
     // Form persistence for new students only
     const persistedForm = useFormPersistence({
         formKey: 'novo_aluno',
@@ -218,8 +218,8 @@ export function StudentForm({ onSubmit: onSubmitProp, isLoading = false, initial
                 
                 <Separator className="my-8" />
                 <div className="flex justify-end space-x-3">
-                    <Button variant="outline" type="button" onClick={handleCancel} disabled={isLoading}>Cancelar</Button>
-                    <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditing ? "Salvar Alterações" : "Adicionar Aluno"}</Button>
+                    <Button variant="outline" type="button" onClick={handleCancel} disabled={isLoading || disabled}>Cancelar</Button>
+                    <Button type="submit" disabled={isLoading || disabled}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditing ? "Salvar Alterações" : "Adicionar Aluno"}</Button>
                 </div>
             </form>
         </Form>
