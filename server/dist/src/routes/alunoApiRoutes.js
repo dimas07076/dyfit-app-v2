@@ -140,7 +140,38 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!aluno) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
-        res.status(200).json(aluno);
+        // Populate token information if available
+        let tokenInfo = null;
+        if (aluno.consumoFonte === 'plano' && aluno.consumidoDoPlanoId) {
+            const PersonalPlano = (await import('../../models/PersonalPlano.js')).default;
+            const plano = await PersonalPlano.findById(aluno.consumidoDoPlanoId);
+            if (plano) {
+                tokenInfo = {
+                    id: plano._id.toString(),
+                    tipo: 'plano',
+                    planoTipo: plano.planoTipo,
+                    vencimento: plano.dataFim?.toISOString(),
+                    status: plano.status
+                };
+            }
+        }
+        else if (aluno.consumoFonte === 'token' && aluno.consumidoDoTokenId) {
+            const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+            const token = await TokenAvulso.findById(aluno.consumidoDoTokenId);
+            if (token) {
+                tokenInfo = {
+                    id: token._id.toString(),
+                    tipo: 'token',
+                    vencimento: token.dataExpiracao?.toISOString(),
+                    status: token.status
+                };
+            }
+        }
+        const alunoWithTokenInfo = {
+            ...aluno.toObject(),
+            tokenInfo
+        };
+        res.status(200).json(alunoWithTokenInfo);
     }
     catch (error) {
         next(error);
