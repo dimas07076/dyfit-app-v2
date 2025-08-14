@@ -59,7 +59,7 @@ router.get('/can-activate/:quantidade?', async (req, res) => {
 });
 
 /**
- * GET /api/personal/tokens-ativos - Get active tokens for personal trainer
+ * GET /api/personal/tokens-ativos - Get active tokens for personal trainer (quantity only)
  */
 router.get('/tokens-ativos', async (req, res) => {
     try {
@@ -74,6 +74,28 @@ router.get('/tokens-ativos', async (req, res) => {
     } catch (error) {
         console.error('Error fetching active tokens:', error);
         res.status(500).json({ message: 'Erro ao buscar tokens ativos' });
+    }
+});
+
+/**
+ * GET /api/personal/meus-tokens - List all active tokens with dates for the personal
+ */
+router.get('/meus-tokens', async (req, res) => {
+    try {
+        await dbConnect();
+
+        const personalTrainerId = (req as any).user.id;
+        const detalhes = await PlanoService.getDetailedTokensForAdmin(personalTrainerId);
+        const tokens = detalhes.activeTokens.map(token => ({
+            id: token._id,
+            quantidade: token.quantidade,
+            dataAdicao: token.createdAt,
+            dataVencimento: token.dataVencimento
+        }));
+        res.json({ tokens });
+    } catch (error) {
+        console.error('Erro ao buscar tokens do personal:', error);
+        res.status(500).json({ mensagem: 'Erro ao buscar tokens' });
     }
 });
 
