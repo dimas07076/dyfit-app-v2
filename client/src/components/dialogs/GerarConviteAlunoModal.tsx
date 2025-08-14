@@ -37,6 +37,29 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
     defaultValues: { email: "" },
   });
 
+  // Verifica se o personal tem vagas antes de permitir gerar convite
+  useEffect(() => {
+    async function checkSlots() {
+      try {
+        const res: any = await apiRequest("GET", "/api/personal/can-activate/1");
+        if (!res?.canActivate) {
+          toast({
+            variant: "destructive",
+            title: "Limite de alunos atingido",
+            description: "Seu plano atual não permite convidar mais alunos. Faça upgrade ou compre tokens avulsos."
+          });
+          onClose(); // fecha a modal
+        }
+      } catch (error) {
+        console.error("Erro ao verificar limite de convites:", error);
+      }
+    }
+    if (isOpen) {
+      checkSlots();
+    }
+  }, [isOpen, onClose, toast]);
+
+  // Reseta o formulário quando a modal fecha
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
@@ -84,7 +107,7 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Convidar Novo Aluno</DialogTitle>
@@ -94,25 +117,26 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
               : "Link de convite gerado! Envie para o seu aluno."}
           </DialogDescription>
         </DialogHeader>
-        
         {view === 'form' && (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+            <form onSubmit={form.handleSubmit(onSubmit)}>
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="my-4">
                     <FormLabel>E-mail do Aluno (Opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="email@exemplo.com" {...field} />
+                      <Input type="email" placeholder="nome@exemplo.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={onClose}>Cancelar</Button>
+              <DialogFooter className="mt-4 flex flex-row gap-3">
+                <Button type="button" variant="outline" onClick={() => onClose()}>
+                  Cancelar
+                </Button>
                 <Button type="submit" disabled={mutation.isPending}>
                   {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Gerar Link
@@ -123,17 +147,17 @@ const GerarConviteAlunoModal: React.FC<GerarConviteAlunoModalProps> = ({ isOpen,
         )}
 
         {view === 'success' && inviteLink && (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center space-x-2">
-              <Input value={inviteLink} readOnly className="flex-1" />
-              <Button size="icon" onClick={handleCopyLink}>
-                {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          <div className="flex flex-col items-center space-y-4">
+            <div className="flex items-center justify-between w-full p-2 border rounded-md">
+              <span className="break-all text-sm">{inviteLink}</span>
+              <Button type="button" variant="ghost" size="icon" onClick={handleCopyLink}>
+                {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </Button>
             </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={handleInviteAnother}>Convidar Outro</Button>
-                <Button onClick={onClose}>Fechar</Button>
-            </DialogFooter>
+            <div className="flex justify-end w-full space-x-2">
+              <Button variant="outline" onClick={handleInviteAnother}>Convidar Outro</Button>
+              <Button onClick={() => onClose()}>Fechar</Button>
+            </div>
           </div>
         )}
       </DialogContent>

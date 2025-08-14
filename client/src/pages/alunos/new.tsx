@@ -1,4 +1,5 @@
 // client/src/pages/alunos/new.tsx
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StudentForm, StudentFormDataProcessed } from "@/forms/student-form";
@@ -13,7 +14,34 @@ export default function NewStudent() {
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
-    // <<< CORREÇÃO AQUI: Atualizado o caminho da API >>>
+    // Estado que controla se já checamos o limite de vagas
+    const [loadingCheck, setLoadingCheck] = useState(true);
+
+    useEffect(() => {
+        // Verifica se o personal tem vagas disponíveis antes de mostrar o formulário
+        async function checkSlots() {
+            try {
+                const res: any = await fetchWithAuth("/api/personal/can-activate/1");
+                if (!res?.canActivate) {
+                    toast({
+                        variant: "destructive",
+                        title: "Limite de alunos atingido",
+                        description: "Seu plano atual não permite adicionar mais alunos. Faça upgrade ou compre tokens avulsos."
+                    });
+                    // Redireciona para a lista de alunos
+                    navigate("/alunos");
+                } else {
+                    setLoadingCheck(false);
+                }
+            } catch (error) {
+                console.error("Erro ao verificar limite de alunos:", error);
+            }
+        }
+        checkSlots();
+        // desabilita warning do eslint caso esteja usando
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const mutation = useMutation<Aluno, Error, StudentFormDataProcessed>({
         mutationFn: (newStudentData: StudentFormDataProcessed) => {
             return fetchWithAuth<Aluno>("/api/aluno/gerenciar", {
@@ -30,6 +58,15 @@ export default function NewStudent() {
             toast({ variant: "destructive", title: "Erro ao Cadastrar", description: error.message || "Não foi possível adicionar o aluno." });
         },
     });
+
+    // Enquanto verifica o limite, mostra uma mensagem simples
+    if (loadingCheck) {
+        return (
+            <div className="p-4 md:p-6 lg:p-8">
+                <p className="text-sm text-muted-foreground">Verificando disponibilidade de vagas...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 md:p-6 lg:p-8">

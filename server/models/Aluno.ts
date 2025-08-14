@@ -8,15 +8,26 @@ export interface IAluno extends Document {
   passwordHash?: string;
   phone?: string;
   // <<< CORREÇÃO: Campos agora são opcionais >>>
-  birthDate?: string; 
+  birthDate?: string;
   gender?: string;
   goal?: string;
   weight?: number;
   height?: number;
-  startDate?: string; 
+  startDate?: string;
   status: 'active' | 'inactive';
   notes?: string;
   trainerId: mongoose.Types.ObjectId;
+  /**
+   * Informações de slot (plano ou token) que este aluno utiliza.
+   * slotType: 'plan' indica que o aluno conta dentro do limite do plano,
+   * 'token' indica que utiliza um token avulso. slotId referencia o registro
+   * de PersonalPlano ou TokenAvulso correspondente. slotStartDate e
+   * slotEndDate definem o período de validade desse slot.
+   */
+  slotType?: 'plan' | 'token';
+  slotId?: mongoose.Types.ObjectId;
+  slotStartDate?: Date;
+  slotEndDate?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -24,18 +35,22 @@ export interface IAluno extends Document {
 
 const alunoSchema = new Schema<IAluno>(
   {
-    nome: { type: String, required: [true, 'O nome completo é obrigatório'], trim: true },
+    nome: {
+      type: String,
+      required: [true, 'O nome completo é obrigatório'],
+      trim: true
+    },
     email: {
-        type: String,
-        required: [true, 'O email é obrigatório'],
-        unique: true, 
-        lowercase: true,
-        trim: true,
+      type: String,
+      required: [true, 'O email é obrigatório'],
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
     passwordHash: {
-        type: String,
-        required: [true, 'A senha é obrigatória'],
-        select: false,
+      type: String,
+      required: [true, 'A senha é obrigatória'],
+      select: false,
     },
     phone: { type: String, trim: true },
     // <<< CORREÇÃO: Removida a obrigatoriedade (required: true) dos campos abaixo >>>
@@ -45,39 +60,51 @@ const alunoSchema = new Schema<IAluno>(
     weight: { type: Number },
     height: { type: Number },
     startDate: { type: String },
-    status: { type: String, required: true, enum: ['active', 'inactive'], default: 'active' },
+    status: {
+      type: String,
+      required: true,
+      enum: ['active', 'inactive'],
+      default: 'active'
+    },
     notes: { type: String },
     trainerId: {
       type: Schema.Types.ObjectId,
       ref: 'PersonalTrainer',
       required: [true, 'O ID do treinador é obrigatório']
     },
+    // Novos campos para armazenar a vaga (slot) do aluno
+    slotType: { type: String, enum: ['plan', 'token'] },
+    slotId: { type: Schema.Types.ObjectId },
+    slotStartDate: { type: Date },
+    slotEndDate: { type: Date },
   },
   {
     timestamps: true
   }
 );
 
+// Hash de senha antes de salvar
 alunoSchema.pre<IAluno>('save', async function (next) {
-    if (!this.isModified('passwordHash')) { 
-        return next();
+  if (!this.isModified('passwordHash')) {
+    return next();
+  }
+  try {
+    const saltRounds = 10;
+    if (this.passwordHash) {
+      this.passwordHash = await bcrypt.hash(this.passwordHash, saltRounds);
     }
-    try {
-        const saltRounds = 10;
-        if (this.passwordHash) {
-            this.passwordHash = await bcrypt.hash(this.passwordHash, saltRounds);
-        }
-        next();
-    } catch (error: any) { 
-        next(error);
-    }
+    next();
+  } catch (error: any) {
+    next(error);
+  }
 });
 
+// Método para comparar senha
 alunoSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
-    if (!this.passwordHash) {
-        return false;
-    }
-    return bcrypt.compare(candidatePassword, this.passwordHash);
+  if (!this.passwordHash) {
+    return false;
+  }
+  return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
 export default mongoose.model<IAluno>("Aluno", alunoSchema);
