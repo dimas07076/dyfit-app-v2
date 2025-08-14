@@ -14,13 +14,16 @@ import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
-// CORREÇÃO: Removendo importação de Button, pois não é usado diretamente em App.tsx
 import { useToast } from '@/hooks/use-toast';
 
 // Unified PWA updates manager
 import { AppUpdatesManager } from '@/components/AppUpdatesManager';
 
 // --- Páginas ---
+// <<< NOVAS PÁGINAS IMPORTADAS AQUI >>>
+const SolicitarRenovacao = React.lazy(() => import("@/pages/solicitar-renovacao"));
+const AdminRenewalRequests = React.lazy(() => import("@/pages/admin/renewal-requests"));
+
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const StudentsIndex = lazy(() => import("@/pages/alunos/index"));
 const NewStudent = lazy(() => import("@/pages/alunos/new"));
@@ -85,7 +88,6 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
 
-  // Debug logging for production troubleshooting
   const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
   
   React.useEffect(() => {
@@ -96,10 +98,7 @@ function AppContent() {
     }
   }, [location, user, aluno, isDebugMode]);
 
-  // Route persistence implementation - Enhanced version with immediate coordination
   useEffect(() => {
-    // Save current route whenever location changes (for authenticated users only)
-    // Skip saving invitation routes as they are temporary
     if ((user || aluno) && !location.startsWith("/login") && !location.startsWith("/convite/") && !location.startsWith("/cadastrar-personal/convite/")) {
       localStorage.setItem("rotaAtual", location);
     }
@@ -110,7 +109,6 @@ function AppContent() {
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
-      // Check if user is authenticated via localStorage tokens
       const temTokenPersonal = localStorage.getItem("authToken") !== null;
       const temTokenAluno = localStorage.getItem("alunoAuthToken") !== null;
       const usuarioLogado = temTokenPersonal || temTokenAluno;
@@ -119,36 +117,30 @@ function AppContent() {
       if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
         console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
         
-        // Validate route based on token type (more reliable than context state)
         let rotaValida = false;
         
         if (temTokenPersonal && !rotaSalva.startsWith("/aluno/")) {
-          // Personal/Admin routes are valid for authToken
           rotaValida = true;
         } else if (temTokenAluno && rotaSalva.startsWith("/aluno/")) {
-          // Aluno routes are valid for alunoAuthToken
           rotaValida = true;
         }
         
         if (rotaValida) {
           console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
-          // Set flag to prevent default redirects during restoration
           localStorage.setItem("restaurandoRota", "true");
           navigate(rotaSalva, { replace: true });
           
-          // Clear flag after navigation completes
           setTimeout(() => {
             localStorage.removeItem("restaurandoRota");
           }, 200);
-          return true; // Indicate successful restoration
+          return true;
         } else {
           console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
         }
       }
-      return false; // No restoration needed/possible
+      return false;
     };
 
-    // Immediate restoration on app load/focus - no delays
     const handleAppFocus = () => {
       console.log("[Route Restoration] App focado/visível, executando restauração imediata");
       restabelecerRota();
@@ -160,18 +152,16 @@ function AppContent() {
       }
     };
 
-    // Listen for both visibility change and window focus events
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleAppFocus);
 
-    // Also attempt immediate restoration on mount
     restabelecerRota();
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleAppFocus);
     };
-  }, [navigate]); // Removed user/aluno dependencies to avoid conflicts
+  }, [navigate]);
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
@@ -180,8 +170,6 @@ function AppContent() {
 
       console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
 
-      // CORREÇÃO: Verificar contexto antes de processar evento
-      // Só processa eventos de aluno se há um aluno logado, e eventos de personal/admin se há user logado
       const shouldProcessAlunoEvent = forAluno && aluno;
       const shouldProcessPersonalEvent = forPersonalAdmin && user;
       
@@ -194,21 +182,18 @@ function AppContent() {
       let message = 'Sua sessão expirou ou é inválida. Por favor, faça login novamente.';
 
       if (forAluno && shouldProcessAlunoEvent) {
-        // CORREÇÃO: Só remove token se o evento é realmente para o aluno atual
         localStorage.removeItem('alunoAuthToken');
         localStorage.removeItem('alunoRefreshToken');
         localStorage.removeItem('alunoData');
         redirectPath = '/login/aluno';
       }
       if (forPersonalAdmin && shouldProcessPersonalEvent) {
-        // CORREÇÃO: Só remove token se o evento é realmente para o personal/admin atual
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userData');
         redirectPath = '/login';
       }
 
-      // CORREÇÃO: Só limpa queryClient se realmente processou um evento válido
       if (shouldProcessAlunoEvent || shouldProcessPersonalEvent) {
         queryClient.clear();
       }
@@ -251,7 +236,6 @@ function AppContent() {
         });
       }
       
-      // CORREÇÃO: Só redireciona se não já estamos na rota de destino
       if (window.location.pathname !== redirectPath && !location.startsWith(redirectPath)) {
         console.log(`[Global Auth Handler] Redirecionando para: ${redirectPath}`);
         navigate(redirectPath);
@@ -263,14 +247,13 @@ function AppContent() {
     return () => {
       window.removeEventListener('auth-failed', handleAuthFailed as EventListener);
     };
-  }, [location, navigate, toast, user, aluno]); // Adicionadas dependências user e aluno
+  }, [location, navigate, toast, user, aluno]);
 
 
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
 
-  // Check if route restoration is in progress - block default redirects
   const restaurandoRota = localStorage.getItem("restaurandoRota");
   if (restaurandoRota) {
     console.log("[AppContent] Route restoration in progress, blocking default redirects");
@@ -279,7 +262,6 @@ function AppContent() {
   
   if (user) {
     if (location.startsWith("/login")) {
-        // Check if there's a saved route before defaulting to admin/home
         const rotaSalva = localStorage.getItem("rotaAtual");
         if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
           return <Redirect to={rotaSalva} />;
@@ -294,7 +276,6 @@ function AppContent() {
   
   if (aluno) {
     if (location.startsWith("/aluno/")) return <AlunoApp />;
-    // Check if there's a saved aluno route before defaulting to dashboard
     const rotaSalva = localStorage.getItem("rotaAtual");
     if (rotaSalva && rotaSalva.startsWith("/aluno/")) {
       return <Redirect to={rotaSalva} />;
@@ -302,7 +283,6 @@ function AppContent() {
     return <Redirect to="/aluno/dashboard" />;
   } 
   
-  // For public routes, ensure invitation routes don't get redirected
   if (location.startsWith("/convite/") || location.startsWith("/cadastrar-personal/convite/")) {
     if (isDebugMode || import.meta.env.DEV) {
       console.log('[AppContent] Accessing invitation route:', location);
@@ -323,7 +303,9 @@ function AdminApp() {
           <AdminProtectedRoute path="/admin/planos" component={GerenciarPlanosPersonalPage} /> 
           <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} /> 
           <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} /> 
-          <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} /> 
+          <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} />
+          {/* <<< ROTA DE ADMIN ADICIONADA AQUI >>> */}
+          <AdminProtectedRoute path="/admin/solicitacoes-renovacao" component={AdminRenewalRequests} />
           <AdminProtectedRoute path="/exercises" component={ExercisesIndex} /> 
           <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> 
           <Route path="/admin/:rest*"><Redirect to="/admin" /></Route> 
@@ -341,6 +323,8 @@ function PersonalApp() {
         <Switch> 
           <ProtectedRoute path="/" component={Dashboard} /> 
           <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
+          {/* <<< ROTA DE PERSONAL ADICIONADA AQUI >>> */}
+          <ProtectedRoute path="/solicitar-renovacao" component={SolicitarRenovacao} />
           <ProtectedRoute path="/alunos" component={StudentsIndex} /> 
           <ProtectedRoute path="/alunos/novo" component={NewStudent} /> 
           <ProtectedRoute path="/alunos/editar/:id" component={EditStudentPage} /> 
@@ -373,7 +357,6 @@ function AlunoApp() {
 }
 
 function PublicRoutes() {
-  // Debug logging for production troubleshooting
   const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
   
   React.useEffect(() => {
@@ -411,7 +394,6 @@ function App() {
               <AlunoProvider>
                 <WorkoutPlayerProvider>
                   <Toaster />
-                  {/* Unified PWA updates manager - replaces conflicting ReloadPrompt and UpdateNotification */}
                   <AppUpdatesManager />
                   <AppContent />
                 </WorkoutPlayerProvider>
