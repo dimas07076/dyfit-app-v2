@@ -1,8 +1,8 @@
 // client/src/pages/solicitar-renovacao.tsx
 // <<< CORREÇÃO: 'useEffect' removido da importação do React >>>
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWithAuth } from "@/lib/apiClient";
+import { fetchWithAuth, uploadFileWithPresignedUrl } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 // <<< CORREÇÃO: Importação do 'Checkbox' removida, pois não é utilizada >>>
@@ -54,6 +54,10 @@ export default function SolicitarRenovacao() {
   const [proofPaymentType, setProofPaymentType] = useState<'link' | 'file'>('file'); // Para comprovante após pagamento
   const [proofPaymentLink, setProofPaymentLink] = useState(""); // Para comprovante após pagamento
   const [proofPaymentFile, setProofPaymentFile] = useState<File | null>(null);
+  
+  // Refs for mobile input forcing re-render
+  const paymentFileInputRef = useRef<HTMLInputElement>(null);
+  const proofFileInputRef = useRef<HTMLInputElement>(null);
 
   // Planos disponíveis
   const {
@@ -83,35 +87,44 @@ export default function SolicitarRenovacao() {
   const uploadProof = useMutation({
     mutationFn: async (requestId: string) => {
       console.log('[Upload Proof] Starting upload process...');
-      const formData = new FormData();
       
       if (proofPaymentType === 'link' && proofPaymentLink) {
+        // Use legacy upload for URL proof
+        const formData = new FormData();
         formData.append('paymentProofUrl', proofPaymentLink);
         console.log('[Upload Proof] Adding URL proof:', proofPaymentLink);
+
+        return fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof`, {
+          method: 'POST',
+          body: formData,
+        }, 'personalAdmin');
       } else if (proofPaymentType === 'file' && proofPaymentFile) {
-        formData.append('paymentProof', proofPaymentFile);
-        console.log('[Upload Proof] Adding file proof:', {
+        // Use new two-step upload for file proof
+        console.log('[Upload Proof] Using two-step upload for file:', {
           name: proofPaymentFile.name,
           size: proofPaymentFile.size,
           type: proofPaymentFile.type
         });
+
+        return uploadFileWithPresignedUrl(requestId, proofPaymentFile, 'personalAdmin');
       } else {
         throw new Error('É necessário fornecer um link de comprovante ou anexar um arquivo.');
       }
-
-      console.log('[Upload Proof] Sending request to:', `/api/personal/renewal-requests/${requestId}/proof`);
-      return fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof`, {
-        method: 'POST',
-        body: formData,
-      }, 'personalAdmin');
     },
     onSuccess: () => {
       console.log('[Upload Proof] Upload successful!');
       toast({ title: "Comprovante enviado", description: "Seu comprovante foi enviado com sucesso!" });
+      
+      // Force React Query invalidation for mobile compatibility
       queryClient.invalidateQueries({ queryKey: ["minhasRenewalRequests"] });
-      // Reset proof form
+      queryClient.refetchQueries({ queryKey: ["minhasRenewalRequests"] });
+      
+      // Reset proof form and force input re-render for mobile
       setProofPaymentLink("");
       setProofPaymentFile(null);
+      if (proofFileInputRef.current) {
+        proofFileInputRef.current.value = '';
+      }
     },
     onError: (error: any) => {
       console.error('[Upload Proof] Upload failed:', error);
@@ -150,12 +163,19 @@ export default function SolicitarRenovacao() {
     },
     onSuccess: () => {
       toast({ title: "Solicitação enviada", description: "Sua solicitação foi enviada com sucesso!" });
+      
+      // Force React Query invalidation for mobile compatibility
       queryClient.invalidateQueries({ queryKey: ["minhasRenewalRequests"] });
-      // Reset form
+      queryClient.refetchQueries({ queryKey: ["minhasRenewalRequests"] });
+      
+      // Reset form and force input re-render for mobile
       setSelectedPlanId(null);
       setPaymentFile(null);
       setNotes("");
       setProofType('none');
+      if (paymentFileInputRef.current) {
+        paymentFileInputRef.current.value = '';
+      }
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Erro ao solicitar", description: error?.message || "Erro inesperado." });
@@ -173,16 +193,24 @@ export default function SolicitarRenovacao() {
           title: "Arquivo inválido", 
           description: "Apenas arquivos JPEG, PNG e PDF são permitidos." 
         });
+        // Clear the input for mobile compatibility
+        if (paymentFileInputRef.current) {
+          paymentFileInputRef.current.value = '';
+        }
         return;
       }
       
-      // Validação de tamanho (10MB)
-      if (file.size > 10 * 1024 * 1024) {
+      // Validação de tamanho (5MB - updated from 10MB)
+      if (file.size > 5 * 1024 * 1024) {
         toast({ 
           variant: "destructive", 
           title: "Arquivo muito grande", 
-          description: "O arquivo deve ter no máximo 10MB." 
+          description: "O arquivo deve ter no máximo 5MB." 
         });
+        // Clear the input for mobile compatibility
+        if (paymentFileInputRef.current) {
+          paymentFileInputRef.current.value = '';
+        }
         return;
       }
 
@@ -201,16 +229,24 @@ export default function SolicitarRenovacao() {
           title: "Arquivo inválido", 
           description: "Apenas arquivos JPEG, PNG e PDF são permitidos." 
         });
+        // Clear the input for mobile compatibility
+        if (proofFileInputRef.current) {
+          proofFileInputRef.current.value = '';
+        }
         return;
       }
       
-      // Validação de tamanho (10MB)
-      if (file.size > 10 * 1024 * 1024) {
+      // Validação de tamanho (5MB - updated from 10MB)
+      if (file.size > 5 * 1024 * 1024) {
         toast({ 
           variant: "destructive", 
           title: "Arquivo muito grande", 
-          description: "O arquivo deve ter no máximo 10MB." 
+          description: "O arquivo deve ter no máximo 5MB." 
         });
+        // Clear the input for mobile compatibility
+        if (proofFileInputRef.current) {
+          proofFileInputRef.current.value = '';
+        }
         return;
       }
 
@@ -311,6 +347,7 @@ export default function SolicitarRenovacao() {
                   </p>
                   <Input
                     id="paymentFile"
+                    ref={paymentFileInputRef}
                     type="file"
                     onChange={handleFileChange}
                     accept=".jpg,.jpeg,.png,.pdf"
@@ -463,6 +500,7 @@ export default function SolicitarRenovacao() {
                       </p>
                       <Input
                         id="proofFile"
+                        ref={proofFileInputRef}
                         type="file"
                         onChange={handleProofFileChange}
                         accept=".jpg,.jpeg,.png,.pdf"
