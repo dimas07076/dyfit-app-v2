@@ -1,238 +1,192 @@
 // client/src/pages/renovar-plano.tsx
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Aluno } from "@/types/aluno";
-
-interface PlanoDisponivel {
-  _id: string;
-  nome: string;
-  descricao: string;
-  limiteAlunos: number;
-  preco: number;
-  duracao: number;
-  tipo: "free" | "paid";
-}
+import { PersonalPlanStatus } from "../../../shared/types/planos";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorMessage from "@/components/ErrorMessage";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info, Crown, Loader2 } from "lucide-react"; // <<< CORREÇÃO AQUI: Ícone 'Users' removido
+import { Badge } from "@/components/ui/badge";
 
 export default function RenovarPlanoPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [selectedPlanoId, setSelectedPlanoId] = useState<string | null>(null);
-  const [selectedAlunos, setSelectedAlunos] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+  const [selectedAlunos, setSelectedAlunos] = useState<Set<string>>(new Set());
 
-  // Busca planos disponíveis
-  const {
-    data: planos,
-    isLoading: loadingPlanos,
-    isError: errorPlanos,
-    error: planosError,
-  } = useQuery<PlanoDisponivel[]>({
-    queryKey: ["planosDisponiveis"],
-    queryFn: () => fetchWithAuth("/api/personal/planos-disponiveis"),
-    staleTime: 5 * 60 * 1000,
+  const { data: planStatus, isLoading: loadingPlan, error: planError } = useQuery<PersonalPlanStatus, Error>({
+    queryKey: ['meuPlanoParaRenovacao'],
+    queryFn: () => fetchWithAuth("/api/personal/meu-plano"),
   });
 
-  // Busca alunos do personal
-  const {
-    data: alunos,
-    isLoading: loadingAlunos,
-    isError: errorAlunos,
-    error: alunosError,
-  } = useQuery<Aluno[]>({
-    queryKey: ["alunosDoPersonal"],
-    queryFn: () => fetchWithAuth("/api/aluno/gerenciar"),
-    staleTime: 5 * 60 * 1000,
+  const { data: todosAlunos, isLoading: loadingAlunos, error: alunosError } = useQuery<Aluno[], Error>({
+    queryKey: ['todosAlunosParaRenovacao'],
+    queryFn: () => fetchWithAuth("/api/aluno/gerenciar?status=all"),
+    enabled: !!planStatus,
   });
 
-  // Descobre o limite do plano selecionado
-  const planoSelecionado = planos?.find((p) => p._id === selectedPlanoId);
-  const limitePlano = planoSelecionado?.limiteAlunos ?? 0;
+  useEffect(() => {
+    if (todosAlunos) {
+      const activeStudentIds = todosAlunos
+        .filter(aluno => aluno.status === 'active')
+        .map(aluno => aluno._id);
+      setSelectedAlunos(new Set(activeStudentIds));
+    }
+  }, [todosAlunos]);
 
-  // Alterna seleção de aluno
   const toggleAluno = (alunoId: string) => {
-    setSelectedAlunos((prev) =>
-      prev.includes(alunoId)
-        ? prev.filter((id) => id !== alunoId)
-        : [...prev, alunoId]
-    );
+    setSelectedAlunos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(alunoId)) {
+        newSet.delete(alunoId);
+      } else {
+        newSet.add(alunoId);
+      }
+      return newSet;
+    });
   };
 
-  // Mutação para renovar o plano
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (selectedIds: string[]) =>
       apiRequest("POST", "/api/personal/renovar-plano", {
-        novoPlanoId: selectedPlanoId,
-        alunosSelecionados: selectedAlunos,
+        alunosSelecionados: selectedIds,
       }),
     onSuccess: () => {
       toast({
-        title: "Plano renovado com sucesso!",
-        description:
-          "Seu plano foi renovado/atualizado e os alunos selecionados foram ajustados.",
+        title: "Alunos atualizados!",
+        description: "Os alunos para o novo ciclo do seu plano foram definidos com sucesso.",
       });
-      navigate("/perfil"); // ou a rota que desejar
+      queryClient.invalidateQueries({ queryKey: ['meuPlanoParaRenovacao'] });
+      queryClient.invalidateQueries({ queryKey: ['todosAlunosParaRenovacao'] });
+      navigate("/meu-plano");
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        title: "Erro ao renovar plano",
+        title: "Erro ao finalizar renovação",
         description: error?.message || "Ocorreu um erro inesperado.",
       });
     },
   });
 
   const handleSubmit = () => {
-    if (!selectedPlanoId) {
+    const limiteTotal = planStatus?.limiteAtual ?? 0;
+    if (selectedAlunos.size > limiteTotal) {
       toast({
         variant: "destructive",
-        title: "Selecione um plano",
-        description: "Escolha um plano para prosseguir.",
+        title: "Limite de alunos excedido",
+        description: `Você selecionou ${selectedAlunos.size} alunos, mas seu limite total de vagas é ${limiteTotal}.`,
       });
       return;
     }
-    if (selectedAlunos.length > limitePlano) {
-      toast({
-        variant: "destructive",
-        title: "Limite excedido",
-        description: `Você selecionou ${selectedAlunos.length} alunos, mas o limite deste plano é ${limitePlano}.`,
-      });
-      return;
-    }
-    mutation.mutate();
+    mutation.mutate(Array.from(selectedAlunos));
   };
 
-  if (loadingPlanos || loadingAlunos) {
-    return (
-      <div className="p-4">
-        <p>Carregando...</p>
-      </div>
-    );
+  if (loadingPlan || loadingAlunos) {
+    return <LoadingSpinner text="Carregando dados de renovação..." />;
   }
 
-  if (errorPlanos) {
-    return (
-      <div className="p-4">
-        <p>Erro ao carregar planos: {(planosError as Error)?.message}</p>
-      </div>
-    );
+  if (planError) return <ErrorMessage title="Erro ao carregar plano" message={(planError as Error)?.message} />;
+  if (alunosError) return <ErrorMessage title="Erro ao carregar alunos" message={(alunosError as Error)?.message} />;
+  if (!planStatus || !planStatus.plano) {
+    return <ErrorMessage title="Nenhum Plano Ativo" message="Não foi possível encontrar um plano ativo para renovar. Por favor, contate o suporte." />;
   }
-
-  if (errorAlunos) {
-    return (
-      <div className="p-4">
-        <p>Erro ao carregar alunos: {(alunosError as Error)?.message}</p>
-      </div>
-    );
-  }
+  
+  const limiteTotal = planStatus.limiteAtual;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8">
-      <h1 className="text-2xl font-bold mb-4">Renovar ou Alterar Plano</h1>
-      {/* Seleção de Planos */}
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">Selecione o Plano</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {planos?.map((plano) => (
-            <Card
-              key={plano._id}
-              className={`cursor-pointer ${
-                selectedPlanoId === plano._id
-                  ? "border-primary ring-2 ring-primary"
-                  : ""
-              }`}
-              onClick={() => {
-                setSelectedPlanoId(plano._id);
-                // Reinicia seleção de alunos ao trocar de plano
-                setSelectedAlunos([]);
-              }}
-            >
-              <CardHeader>
-                <CardTitle>{plano.nome}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {plano.descricao}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">
-                  Limite de alunos: <strong>{plano.limiteAlunos}</strong>
-                </p>
-                <p className="text-sm">
-                  Preço:{" "}
-                  {plano.tipo === "free"
-                    ? "Gratuito"
-                    : plano.preco.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
-                </p>
-                <p className="text-sm">Duração: {plano.duracao} dias</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Seleção de Alunos */}
-      {selectedPlanoId && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-2">
-            Selecione os alunos que continuarão no novo plano
-          </h2>
-          <p className="text-sm text-muted-foreground mb-2">
-            {selectedAlunos.length} selecionado(s) de um total de {limitePlano} vagas.
-          </p>
-          {alunos && alunos.length > 0 ? (
-            <div className="space-y-2">
-              {alunos.map((aluno) => (
-                <label
-                  key={aluno._id}
-                  className="flex items-center gap-2 p-2 border rounded-md cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                >
-                  <Checkbox
-                    id={aluno._id}
-                    checked={selectedAlunos.includes(aluno._id)}
-                    onCheckedChange={() => toggleAluno(aluno._id)}
-                    disabled={
-                      selectedAlunos.length >= limitePlano &&
-                      !selectedAlunos.includes(aluno._id)
-                    }
-                  />
-                  <span>
-                    {aluno.nome}
-                    {aluno.status === "inactive" && (
-                      <span className="ml-1 text-xs text-red-600">(Inativo)</span>
-                    )}
-                  </span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p>Nenhum aluno encontrado.</p>
+    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+      <Link href="/solicitar-renovacao">
+        <Button variant="ghost" className="mb-4 -ml-4">&larr; Voltar</Button>
+      </Link>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Selecionar Alunos para o Novo Ciclo</CardTitle>
+          <CardDescription>
+            Seu plano <Badge variant="default" className="mx-1">{planStatus.plano.nome}</Badge> foi renovado! Agora, selecione quais alunos continuarão ativos neste novo período. Os alunos não selecionados serão marcados como inativos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Card className="bg-slate-50 dark:bg-slate-800/50">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-primary" />
+                    <span className="font-semibold">{planStatus.plano.nome}</span>
+                </div>
+                <div className="text-right">
+                  <p className={`font-bold text-lg ${selectedAlunos.size > limiteTotal ? 'text-destructive' : 'text-primary'}`}>
+                    {selectedAlunos.size} / {limiteTotal}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Alunos Selecionados</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {selectedAlunos.size > limiteTotal && (
+            <Alert variant="destructive">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Você selecionou mais alunos do que o seu plano permite. Desmarque alguns alunos para poder continuar.
+              </AlertDescription>
+            </Alert>
           )}
-        </div>
-      )}
 
-      {/* Botões de ação */}
-      <div className="flex gap-4">
-        <Button variant="outline" onClick={() => navigate("/perfil")}>
-          Cancelar
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            !selectedPlanoId ||
-            mutation.isPending ||
-            selectedAlunos.length > limitePlano
-          }
-        >
-          {mutation.isPending ? "Salvando..." : "Confirmar Renovação"}
-        </Button>
-      </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Sua Lista de Alunos</h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+              {todosAlunos && todosAlunos.length > 0 ? (
+                todosAlunos.map((aluno) => (
+                  <label
+                    key={aluno._id}
+                    htmlFor={aluno._id}
+                    className={`flex items-center gap-3 p-3 border rounded-md cursor-pointer transition-all 
+                      ${selectedAlunos.has(aluno._id) ? 'bg-primary/10 border-primary' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`
+                    }
+                  >
+                    <Checkbox
+                      id={aluno._id}
+                      checked={selectedAlunos.has(aluno._id)}
+                      onCheckedChange={() => toggleAluno(aluno._id)}
+                    />
+                    <div className="flex-grow">
+                      <span className="font-medium">{aluno.nome}</span>
+                      <p className="text-xs text-muted-foreground">{aluno.email}</p>
+                    </div>
+                    <Badge variant={aluno.status === 'active' ? 'secondary' : 'outline'}>
+                      {aluno.status === 'active' ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </label>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-4">Nenhum aluno encontrado.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-4 pt-4 border-t">
+            <Button variant="outline" onClick={() => navigate("/meu-plano")}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={mutation.isPending || selectedAlunos.size > limiteTotal}
+            >
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Finalizar Renovação
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

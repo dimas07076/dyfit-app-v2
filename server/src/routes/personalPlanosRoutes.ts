@@ -1,5 +1,5 @@
 // server/src/routes/personalPlanosRoutes.ts
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import PlanoService from '../../services/PlanoService.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
@@ -15,7 +15,7 @@ router.use(authenticateToken);
 /**
  * GET /api/personal/meu-plano - Consulta o plano atual do personal
  */
-router.get('/meu-plano', async (req, res) => {
+router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
@@ -33,33 +33,33 @@ router.get('/meu-plano', async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao consultar plano do personal:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar status do plano' });
+    next(error);
   }
 });
 
 /**
  * GET /api/personal/can-activate/:quantidade? - Verifica se há vagas para cadastrar mais alunos
  */
-router.get('/can-activate/:quantidade?', async (req, res) => {
+router.get('/can-activate/:quantidade?', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
     const quantidade = parseInt(req.params.quantidade || '1');
-    if (quantidade < 1) {
+    if (isNaN(quantidade) || quantidade < 1) {
       return res.status(400).json({ mensagem: 'Quantidade deve ser pelo menos 1' });
     }
     const status = await PlanoService.canActivateMoreStudents(personalTrainerId, quantidade);
     res.json(status);
   } catch (error) {
     console.error('Erro ao verificar vagas disponíveis:', error);
-    res.status(500).json({ mensagem: 'Erro ao verificar capacidade de ativação' });
+    next(error);
   }
 });
 
 /**
  * GET /api/personal/tokens-ativos - Retorna a quantidade de tokens avulsos ativos
  */
-router.get('/tokens-ativos', async (req, res) => {
+router.get('/tokens-ativos', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
@@ -67,14 +67,14 @@ router.get('/tokens-ativos', async (req, res) => {
     res.json({ quantidadeTotal: tokensQuantity });
   } catch (error) {
     console.error('Erro ao buscar tokens ativos:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar tokens ativos' });
+    next(error);
   }
 });
 
 /**
  * GET /api/personal/meus-tokens - Lista detalhes dos tokens avulsos ativos do personal
  */
-router.get('/meus-tokens', async (req, res) => {
+router.get('/meus-tokens', async (req, res, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
@@ -88,14 +88,14 @@ router.get('/meus-tokens', async (req, res) => {
     res.json({ tokens });
   } catch (error) {
     console.error('Erro ao buscar tokens do personal:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar tokens' });
+    next(error);
   }
 });
 
 /**
  * GET /api/personal/planos-disponiveis - Lista todos os planos disponíveis para upgrade/downgrade
  */
-router.get('/planos-disponiveis', async (req, res) => {
+router.get('/planos-disponiveis', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await dbConnect();
     const planos = await PlanoService.getAllPlans();
@@ -111,88 +111,94 @@ router.get('/planos-disponiveis', async (req, res) => {
     res.json(planosPublicos);
   } catch (error) {
     console.error('Erro ao buscar planos disponíveis:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar planos disponíveis' });
+    next(error);
   }
 });
 
 /**
- * POST /api/personal/renovar-plano - Renova ou troca de plano e associa alunos à nova vigência
- *
- * Este endpoint recebe:
- *   - novoPlanoId: ID do plano a ser atribuído
- *   - alunosSelecionados: array de IDs de alunos que continuarão no novo plano
- *   - customDuration (opcional): duração em dias (caso queira personalizar)
- *   - motivo (opcional): motivo da renovação/upgrade/downgrade
- *
- * Lógica:
- *   1. Atribui o novo plano ao personal (cria um novo registro em PersonalPlano).
- *   2. Verifica o limite de alunos do plano.
- *   3. Atualiza os alunos selecionados, redefinindo:
- *        slotType: 'plan'
- *        slotId: ID do novo PersonalPlano
- *        slotStartDate: data de início do plano
- *        slotEndDate: data de vencimento do plano
- *   4. Caso o número de alunos selecionados seja maior que o limite, retorna erro.
- *
- * Alunos não incluídos na lista continuam com os slots do plano anterior e expirarão
- * de acordo com a data antiga. Assim, não liberam vagas no novo ciclo.
+ * POST /api/personal/renovar-plano - Finaliza o ciclo de renovação, definindo quais alunos continuam.
+ * Esta rota NÃO atribui um novo plano, ela assume que o plano já foi ativado pelo admin.
  */
-router.post('/renovar-plano', async (req, res) => {
-  await dbConnect();
-  try {
-    const personalTrainerId = (req as any).user.id;
-    const { novoPlanoId, alunosSelecionados, customDuration, motivo } = req.body;
+router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const session = await mongoose.startSession();
+    
+    try {
+        await session.withTransaction(async () => {
+            const personalTrainerId = req.user?.id;
+            const { alunosSelecionados } = req.body;
 
-    if (!novoPlanoId) {
-      return res.status(400).json({ mensagem: 'novoPlanoId é obrigatório' });
-    }
+            if (!personalTrainerId) {
+                throw new Error('Usuário não autenticado.');
+            }
+            if (!Array.isArray(alunosSelecionados)) {
+                throw new Error('A lista de alunos selecionados é inválida.');
+            }
 
-    // Atribui o novo plano ao personal
-    const personalPlano = await PlanoService.assignPlanToPersonal(
-      personalTrainerId,
-      novoPlanoId,
-      null,
-      customDuration,
-      motivo || 'Renovação de plano'
-    );
+            // 1. Encontra o plano ATUAL e ATIVO do personal (que foi recém atribuído pelo admin).
+            const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+            
+            if (!planStatus || !planStatus.personalPlano || planStatus.isExpired) {
+                throw new Error('Nenhum plano ativo foi encontrado. A renovação pode não ter sido concluída pelo administrador.');
+            }
+            const { personalPlano, plano, tokensAvulsos } = planStatus;
 
-    // Busca o plano para obter o limite de alunos
-    const plan = await Plano.findById(novoPlanoId);
-    const limiteAlunos = plan?.limiteAlunos || 0;
+            if (!plano) {
+               throw new Error('Detalhes do plano ativo não foram encontrados.');
+            }
 
-    // Se houver seleção de alunos, verifica se não excede o limite
-    if (Array.isArray(alunosSelecionados) && alunosSelecionados.length > limiteAlunos) {
-      return res.status(400).json({
-        mensagem: `Número de alunos selecionados excede o limite do novo plano (${limiteAlunos})`
-      });
-    }
+            const limiteTotal = (plano.limiteAlunos || 0) + (tokensAvulsos || 0);
 
-    // Atualiza alunos selecionados com os dados do novo plano
-    if (Array.isArray(alunosSelecionados)) {
-      for (const alunoId of alunosSelecionados) {
-        const aluno = await Aluno.findOne({
-          _id: new mongoose.Types.ObjectId(alunoId),
-          trainerId: personalTrainerId
+            // 2. Valida o limite de alunos.
+            if (alunosSelecionados.length > limiteTotal) {
+                throw new Error(`Limite de vagas excedido. Seu limite total é de ${limiteTotal} vagas (plano + tokens), mas ${alunosSelecionados.length} alunos foram selecionados.`);
+            }
+
+            const personalObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+            const alunosSelecionadosIds = alunosSelecionados.map(id => new mongoose.Types.ObjectId(id));
+
+            // 3. Inativa TODOS os alunos do personal que estavam ativos, limpando seus slots.
+            // Isso garante que alunos de ciclos antigos não mantenham vagas indevidamente.
+            await Aluno.updateMany(
+                { trainerId: personalObjectId, status: 'active' },
+                { 
+                    $set: { status: 'inactive' },
+                    $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+                },
+                { session }
+            );
+
+            // 4. Reativa os alunos SELECIONADOS, atribuindo o novo slot do plano.
+            if (alunosSelecionados.length > 0) {
+                await Aluno.updateMany(
+                    { _id: { $in: alunosSelecionadosIds }, trainerId: personalObjectId },
+                    {
+                        $set: {
+                            status: 'active',
+                            slotType: 'plan',
+                            slotId: personalPlano._id,
+                            slotStartDate: personalPlano.dataInicio,
+                            slotEndDate: personalPlano.dataVencimento,
+                        }
+                    },
+                    { session }
+                );
+            }
         });
 
-        if (aluno) {
-          aluno.slotType = 'plan';
-          aluno.slotId = new mongoose.Types.ObjectId(String(personalPlano._id)); // conversão explícita
-          aluno.slotStartDate = personalPlano.dataInicio;
-          aluno.slotEndDate = personalPlano.dataVencimento;
-          await aluno.save();
-        }
-      }
-    }
+        res.json({
+            mensagem: 'Ciclo de renovação finalizado e alunos atualizados com sucesso!',
+            dados: {
+                alunosMantidos: req.body.alunosSelecionados.length
+            }
+        });
 
-    res.json({
-      mensagem: 'Plano renovado/atualizado com sucesso e alunos atualizados.',
-      personalPlano
-    });
-  } catch (error) {
-    console.error('Erro ao renovar plano:', error);
-    res.status(500).json({ mensagem: 'Erro ao renovar plano' });
-  }
+    } catch (error) {
+        next(error);
+    } finally {
+        await session.endSession();
+    }
 });
+
 
 export default router;

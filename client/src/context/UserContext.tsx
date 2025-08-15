@@ -1,5 +1,5 @@
 // client/src/context/UserContext.tsx
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react"; // 'React' foi removido daqui
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 
 export interface User {
@@ -65,51 +65,33 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const shouldRedirect = options?.redirect ?? true;
     console.log(`[UserContext] logout chamado. Limpando dados do Personal/Admin. Redirecionar: ${shouldRedirect}`);
     handleSetUser(null);
-    if (shouldRedirect) {
-      // Check if route restoration is in progress
-      const restaurandoRota = localStorage.getItem("restaurandoRota");
-      if (restaurandoRota) {
-        console.log("[UserContext] Route restoration in progress, delaying logout redirect");
-        // Wait longer for route restoration to complete before redirecting
-        setTimeout(() => {
-          if (!localStorage.getItem("restaurandoRota")) {
-            console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
-            setLocationWouter("/login");
-          } else {
-            console.log("[UserContext] Route restoration still active, skipping logout redirect");
-          }
-        }, 2000); // Increased delay to 2 seconds
-      } else {
-        console.log("[UserContext] Redirecionando para /login (hub) após logout do Personal/Admin.");
-        setLocationWouter("/login");
-      }
+
+    // <<< CORREÇÃO PRINCIPAL AQUI >>>
+    // Só redireciona se um Aluno NÃO estiver logado.
+    // Isso impede que o logout do Personal (em background) expulse um Aluno logado.
+    const alunoToken = localStorage.getItem('alunoAuthToken');
+    if (shouldRedirect && !alunoToken) {
+      console.log("[UserContext] Nenhum Aluno logado. Redirecionando para /login.");
+      setLocationWouter("/login");
+    } else if (alunoToken) {
+      console.log("[UserContext] Aluno está logado. Logout do Personal efetuado sem redirecionamento.");
     }
   }, [setLocationWouter]);
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log("[UserContext] Evento 'auth-failed' recebido:", customEvent.detail);
-      
-      // CORREÇÃO: Só processa eventos destinados ao Personal/Admin e se há usuário logado
       if (customEvent.detail && customEvent.detail.status === 401) {
         if (customEvent.detail.forPersonalAdmin && user) {
           console.warn("[UserContext] Falha de autenticação (401) para Personal/Admin detectada. Fazendo logout...");
           logout();
-        } else if (!customEvent.detail.forPersonalAdmin) {
-          console.log("[UserContext] Evento auth-failed não é para Personal/Admin, ignorando.");
-        } else if (!user) {
-          console.log("[UserContext] Evento auth-failed recebido, mas nenhum usuário Personal/Admin logado. Ignorando.");
         }
       }
     };
 
-    window.addEventListener('auth-failed', handleAuthFailed);
-    console.log("[UserContext] Event listener para 'auth-failed' adicionado.");
-
+    window.addEventListener('auth-failed', handleAuthFailed as EventListener);
     return () => {
-      window.removeEventListener('auth-failed', handleAuthFailed);
-      console.log("[UserContext] Event listener para 'auth-failed' removido.");
+      window.removeEventListener('auth-failed', handleAuthFailed as EventListener);
     };
   }, [user, logout]);
 
