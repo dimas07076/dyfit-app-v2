@@ -48,10 +48,10 @@ export default function SolicitarRenovacao() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [proofType, setProofType] = useState<'link' | 'file'>('link');
-  const [paymentLink, setPaymentLink] = useState("");
+  const [proofType, setProofType] = useState<'file' | 'none'>('none'); // Changed: no more 'link' for initial request
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
+  const [proofPaymentType, setProofPaymentType] = useState<'link' | 'file'>('file'); // Para comprovante após pagamento
   const [proofPaymentLink, setProofPaymentLink] = useState(""); // Para comprovante após pagamento
   const [proofPaymentFile, setProofPaymentFile] = useState<File | null>(null);
 
@@ -84,9 +84,9 @@ export default function SolicitarRenovacao() {
     mutationFn: async (requestId: string) => {
       const formData = new FormData();
       
-      if (proofType === 'link' && proofPaymentLink) {
+      if (proofPaymentType === 'link' && proofPaymentLink) {
         formData.append('paymentProofUrl', proofPaymentLink);
-      } else if (proofType === 'file' && proofPaymentFile) {
+      } else if (proofPaymentType === 'file' && proofPaymentFile) {
         formData.append('paymentProof', proofPaymentFile);
       } else {
         throw new Error('É necessário fornecer um link de comprovante ou anexar um arquivo.');
@@ -119,7 +119,7 @@ export default function SolicitarRenovacao() {
     },
   });
 
-  // Mutação para solicitar renovação com suporte a arquivo e link
+  // Mutação para solicitar renovação - apenas com comprovante se já pagou
   const createRequest = useMutation({
     mutationFn: async () => {
       const formData = new FormData();
@@ -132,13 +132,11 @@ export default function SolicitarRenovacao() {
         formData.append('notes', notes);
       }
 
-      if (proofType === 'link' && paymentLink) {
-        formData.append('paymentLink', paymentLink);
-      } else if (proofType === 'file' && paymentFile) {
+      // Personal pode anexar comprovante se já efetuou pagamento antecipadamente
+      if (proofType === 'file' && paymentFile) {
         formData.append('paymentProof', paymentFile);
-      } else {
-        throw new Error('É necessário fornecer um link de pagamento ou anexar um comprovante.');
       }
+      // Se não tem comprovante, solicita apenas a renovação (admin enviará link)
 
       const response = await fetch('/api/personal/renewal-requests', {
         method: 'POST',
@@ -160,9 +158,9 @@ export default function SolicitarRenovacao() {
       queryClient.invalidateQueries({ queryKey: ["minhasRenewalRequests"] });
       // Reset form
       setSelectedPlanId(null);
-      setPaymentLink("");
       setPaymentFile(null);
       setNotes("");
+      setProofType('none');
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Erro ao solicitar", description: error?.message || "Erro inesperado." });
@@ -277,23 +275,26 @@ export default function SolicitarRenovacao() {
             ))}
           </div>
 
-          {/* Formulário de comprovante */}
+          {/* Formulário de solicitação */}
           <Card className="max-w-2xl">
             <CardHeader>
-              <CardTitle>Comprovante de Pagamento</CardTitle>
+              <CardTitle>Solicitar Renovação</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Tipo de comprovante - Botões simples */}
+              {/* Opção de comprovante */}
               <div>
-                <Label className="text-base font-medium">Como você quer enviar o comprovante?</Label>
-                <div className="flex gap-2 mt-2">
+                <Label className="text-base font-medium">Já efetuou o pagamento?</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Se já pagou, anexe o comprovante. Caso contrário, faremos uma solicitação e o administrador enviará o link de pagamento.
+                </p>
+                <div className="flex gap-2">
                   <Button
                     type="button"
-                    variant={proofType === 'link' ? 'default' : 'outline'}
-                    onClick={() => setProofType('link')}
+                    variant={proofType === 'none' ? 'default' : 'outline'}
+                    onClick={() => setProofType('none')}
                     className="flex-1"
                   >
-                    Link/URL do comprovante
+                    Ainda não paguei
                   </Button>
                   <Button
                     type="button"
@@ -301,29 +302,18 @@ export default function SolicitarRenovacao() {
                     onClick={() => setProofType('file')}
                     className="flex-1"
                   >
-                    Upload de arquivo
+                    Já paguei - Anexar comprovante
                   </Button>
                 </div>
               </div>
 
-              {/* Input de link */}
-              {proofType === 'link' && (
-                <div>
-                  <Label htmlFor="paymentLink">Link do comprovante</Label>
-                  <Input
-                    id="paymentLink"
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="Cole aqui o link do comprovante de pagamento"
-                    className="mt-1"
-                  />
-                </div>
-              )}
-
-              {/* Input de arquivo */}
+              {/* Input de arquivo para comprovante */}
               {proofType === 'file' && (
-                <div>
-                  <Label htmlFor="paymentFile">Arquivo do comprovante (JPEG, PNG, PDF - máx 10MB)</Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  <Label htmlFor="paymentFile" className="font-medium">Comprovante de Pagamento</Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Anexe seu comprovante (JPEG, PNG, PDF - máx 10MB)
+                  </p>
                   <Input
                     id="paymentFile"
                     type="file"
@@ -332,10 +322,23 @@ export default function SolicitarRenovacao() {
                     className="mt-1"
                   />
                   {paymentFile && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Arquivo selecionado: {paymentFile.name} ({(paymentFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
+                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                      <p className="text-sm text-green-800 font-medium">
+                        ✓ Arquivo selecionado: {paymentFile.name}
+                      </p>
+                      <p className="text-xs text-green-600">
+                        Tamanho: {(paymentFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
                   )}
+                </div>
+              )}
+
+              {proofType === 'none' && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    📋 Sua solicitação será enviada para análise. O administrador enviará um link de pagamento quando aprovado.
+                  </p>
                 </div>
               )}
 
@@ -353,9 +356,7 @@ export default function SolicitarRenovacao() {
 
               <Button
                 onClick={() => createRequest.mutate()}
-                disabled={!selectedPlanId || createRequest.isPending || 
-                         (proofType === 'link' && !paymentLink) || 
-                         (proofType === 'file' && !paymentFile)}
+                disabled={!selectedPlanId || createRequest.isPending}
                 className="w-full"
               >
                 {createRequest.isPending ? "Enviando..." : "Solicitar Renovação"}
@@ -435,53 +436,76 @@ export default function SolicitarRenovacao() {
                   
                   {/* Tipo de comprovante */}
                   <div className="mb-4">
-                    <div className="flex gap-2">
+                    <Label className="text-sm font-medium">Como você quer enviar o comprovante?</Label>
+                    <div className="flex gap-2 mt-2">
                       <Button
                         type="button"
-                        variant={proofType === 'link' ? 'default' : 'outline'}
-                        onClick={() => setProofType('link')}
+                        variant={proofPaymentType === 'file' ? 'default' : 'outline'}
+                        onClick={() => setProofPaymentType('file')}
                         className="flex-1"
                         size="sm"
                       >
-                        Link do comprovante
+                        📎 Upload de arquivo
                       </Button>
                       <Button
                         type="button"
-                        variant={proofType === 'file' ? 'default' : 'outline'}
-                        onClick={() => setProofType('file')}
+                        variant={proofPaymentType === 'link' ? 'default' : 'outline'}
+                        onClick={() => setProofPaymentType('link')}
                         className="flex-1"
                         size="sm"
                       >
-                        Upload de arquivo
+                        🔗 Link do comprovante
                       </Button>
                     </div>
                   </div>
 
-                  {/* Input de link para comprovante */}
-                  {proofType === 'link' && (
-                    <div className="mb-4">
-                      <Input
-                        placeholder="Cole aqui o link do comprovante"
-                        value={proofPaymentLink}
-                        onChange={(e) => setProofPaymentLink(e.target.value)}
-                        className="mb-2"
-                      />
-                    </div>
-                  )}
-
                   {/* Input de arquivo para comprovante */}
-                  {proofType === 'file' && (
-                    <div className="mb-4">
+                  {proofPaymentType === 'file' && (
+                    <div className="mb-4 border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <Label htmlFor="proofFile" className="font-medium">Comprovante de Pagamento</Label>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Anexe o comprovante do pagamento (JPEG, PNG, PDF - máx 10MB)
+                      </p>
                       <Input
+                        id="proofFile"
                         type="file"
                         onChange={handleProofFileChange}
                         accept=".jpg,.jpeg,.png,.pdf"
                         className="mb-2"
                       />
                       {proofPaymentFile && (
-                        <p className="text-sm text-muted-foreground">
-                          Arquivo selecionado: {proofPaymentFile.name} ({(proofPaymentFile.size / 1024 / 1024).toFixed(2)} MB)
-                        </p>
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm text-green-800 font-medium">
+                            ✓ Comprovante selecionado: {proofPaymentFile.name}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            Tamanho: {(proofPaymentFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Input de link para comprovante */}
+                  {proofPaymentType === 'link' && (
+                    <div className="mb-4">
+                      <Label htmlFor="proofLink" className="font-medium">Link do Comprovante</Label>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Cole aqui o link do comprovante de pagamento
+                      </p>
+                      <Input
+                        id="proofLink"
+                        placeholder="https://exemplo.com/comprovante.pdf"
+                        value={proofPaymentLink}
+                        onChange={(e) => setProofPaymentLink(e.target.value)}
+                        className="mb-2"
+                      />
+                      {proofPaymentLink && (
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm text-green-800 font-medium">
+                            ✓ Link informado: {proofPaymentLink.length > 50 ? proofPaymentLink.substring(0, 50) + '...' : proofPaymentLink}
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -489,11 +513,11 @@ export default function SolicitarRenovacao() {
                   <Button
                     onClick={() => uploadProof.mutate(currentRequest._id)}
                     disabled={uploadProof.isPending || 
-                             (proofType === 'link' && !proofPaymentLink) || 
-                             (proofType === 'file' && !proofPaymentFile)}
+                             (proofPaymentType === 'link' && !proofPaymentLink) || 
+                             (proofPaymentType === 'file' && !proofPaymentFile)}
                     className="w-full"
                   >
-                    {uploadProof.isPending ? "Enviando..." : "Enviar Comprovante"}
+                    {uploadProof.isPending ? "Enviando..." : "📤 Enviar Comprovante"}
                   </Button>
                 </div>
               </>

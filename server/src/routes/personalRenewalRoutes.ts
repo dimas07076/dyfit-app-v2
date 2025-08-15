@@ -34,14 +34,9 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
     const { planIdRequested, paymentLink, notes } = req.body;
     const file = req.file;
 
-    // Validação: pelo menos link OU arquivo deve estar presente
-    if (!paymentLink && !file) {
-      return res.status(400).json({ 
-        mensagem: 'Erro de validação: É necessário fornecer um link de pagamento ou anexar um comprovante.',
-        code: 'MISSING_PAYMENT_PROOF'
-      });
-    }
-
+    // Validação: link OU arquivo são opcionais na criação inicial
+    // Personal pode solicitar renovação sem comprovante (admin enviará link)
+    // OU pode anexar comprovante se já pagou antecipadamente
     if (paymentLink && file) {
       return res.status(400).json({ 
         mensagem: 'Erro de validação: Forneça apenas um link OU um arquivo, não ambos.',
@@ -50,6 +45,7 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
     }
 
     let proof = undefined;
+    let initialStatus = 'pending'; // Default: aguardando admin enviar link
 
     // Se um arquivo foi enviado, salva no GridFS
     if (file) {
@@ -78,6 +74,9 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
           size: file.size,
           uploadedAt: new Date()
         };
+        
+        // Se anexou comprovante, já está aguardando aprovação
+        initialStatus = 'payment_proof_uploaded';
       } catch (uploadError) {
         console.error('Erro ao fazer upload do arquivo:', uploadError);
         return res.status(500).json({ 
@@ -87,13 +86,16 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
       }
     }
 
-    // Se um link foi fornecido
+    // Se um link foi fornecido (caso raro, mas mantido para compatibilidade)
     if (paymentLink) {
       proof = {
         kind: 'link' as const,
         url: paymentLink,
         uploadedAt: new Date()
       };
+      
+      // Se forneceu link de comprovante, já está aguardando aprovação
+      initialStatus = 'payment_proof_uploaded';
     }
 
     const newRequest = new RenewalRequest({
@@ -101,9 +103,11 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
       personalId: personalTrainerId, // Novo campo
       planIdRequested,
       planId: planIdRequested, // Novo campo
-      status: 'pending',
+      status: initialStatus,
       notes,
       proof,
+      // Se anexou comprovante na criação, marcar timestamp
+      proofUploadedAt: proof ? new Date() : undefined,
       // Compatibilidade com campos legados
       paymentLink: paymentLink || undefined,
       paymentProofUrl: proof?.kind === 'file' ? `file:${proof.fileId}` : undefined
