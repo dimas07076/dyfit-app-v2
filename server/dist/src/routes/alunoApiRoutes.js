@@ -52,7 +52,7 @@ router.post("/convite", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// GET /api/aluno/gerenciar - Lista todos os alunos ativos do personal
+// GET /api/aluno/gerenciar - Lista alunos do personal com filtro de status
 router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -60,8 +60,19 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
         return res.status(401).json({ erro: "Usuário não autenticado." });
     }
     try {
-        // Filtra apenas alunos com status 'active' para não mostrar inativos
-        const alunos = await Aluno.find({ trainerId, status: 'active' }).sort({ nome: 1 }).select('-passwordHash');
+        const { status } = req.query;
+        const query = { trainerId };
+        // Se o status for fornecido e não for 'all', filtra por ele.
+        // Caso contrário (status='all' ou não fornecido), retorna todos.
+        if (status && typeof status === 'string' && status.toLowerCase() !== 'all') {
+            query.status = status;
+        }
+        else if (!status) {
+            // Comportamento padrão: retornar apenas ativos se nenhum status for especificado.
+            query.status = 'active';
+        }
+        // Se status === 'all', o filtro de status não é adicionado, retornando todos.
+        const alunos = await Aluno.find(query).sort({ nome: 1 }).select('-passwordHash');
         res.status(200).json(alunos);
     }
     catch (error) {
@@ -85,7 +96,7 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             return res.status(409).json({ erro: "Já existe um aluno com este email." });
         }
         // ======================================================================
-        // NOVA LÓGICA: Determinar o slot do aluno (plano ou token)
+        // LÓGICA DE SLOT: Determinar o slot do aluno (plano ou token)
         // ======================================================================
         let slotType = 'plan';
         let slotId;
@@ -94,8 +105,12 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         try {
             const status = await PlanoService.getPersonalCurrentPlan(trainerId);
             const planLimit = status.isExpired || !status.plano ? 0 : status.plano.limiteAlunos;
-            // Se ainda há vagas no plano (base), usar o slot do plano
-            if (status.alunosAtivos < planLimit) {
+            const alunosAtivosNoPlano = await Aluno.countDocuments({
+                trainerId: trainerId,
+                status: 'active',
+                slotType: 'plan'
+            });
+            if (alunosAtivosNoPlano < planLimit) {
                 slotType = 'plan';
                 if (status.personalPlano) {
                     slotId = new mongoose.Types.ObjectId(status.personalPlano._id);
@@ -104,7 +119,6 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
                 }
             }
             else {
-                // Sem vagas no plano: tentar usar token avulso
                 slotType = 'token';
                 const token = await TokenAvulso.findOne({
                     personalTrainerId: trainerId,
@@ -138,7 +152,6 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             height: height ? parseInt(height) : undefined,
             startDate: startDate ? new Date(startDate) : new Date(),
             status: 'active',
-            // Atribui os campos do slot
             slotType,
             slotId,
             slotStartDate,
@@ -168,7 +181,6 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ erro: "ID do aluno inválido." });
     }
     try {
-        // Verificar se o aluno pertence ao personal trainer autenticado
         const aluno = await Aluno.findOne({
             _id: new mongoose.Types.ObjectId(alunoId),
             trainerId: new mongoose.Types.ObjectId(trainerId)
@@ -195,11 +207,9 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     }
     try {
         const { nome, email, phone, birthDate, gender, goal, weight, height, startDate, status, notes } = req.body;
-        // Validação de campos obrigatórios
         if (!nome || !email || !birthDate || !gender || !goal || !startDate || !status) {
             return res.status(400).json({ erro: "Nome, email, data de nascimento, gênero, objetivo, data de início e status são obrigatórios." });
         }
-        // Verificar se o aluno pertence ao personal trainer autenticado
         const alunoExistente = await Aluno.findOne({
             _id: new mongoose.Types.ObjectId(alunoId),
             trainerId: new mongoose.Types.ObjectId(trainerId)
@@ -207,7 +217,6 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!alunoExistente) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
-        // Verificar se email já existe (exceto para este aluno)
         if (email.toLowerCase() !== alunoExistente.email) {
             const emailExistente = await Aluno.findOne({
                 email: email.toLowerCase(),
@@ -217,7 +226,6 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
                 return res.status(409).json({ erro: "Já existe outro aluno com este email." });
             }
         }
-        // Preparar dados para atualização
         const updateData = {
             nome,
             email: email.toLowerCase(),
@@ -229,14 +237,12 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
             status,
             notes
         };
-        // Adicionar peso e altura se fornecidos
         if (weight !== null && weight !== undefined && weight !== '') {
             updateData.weight = parseFloat(weight);
         }
         if (height !== null && height !== undefined && height !== '') {
             updateData.height = parseInt(height);
         }
-        // Atualizar o aluno
         const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
         res.status(200).json({
             mensagem: "Aluno atualizado com sucesso!",
@@ -247,7 +253,7 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// DELETE /api/aluno/gerenciar/:id - Marcar um aluno como inativo (não liberar slot)
+// DELETE /api/aluno/gerenciar/:id - Marcar um aluno como inativo
 router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -259,7 +265,6 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ erro: "ID do aluno inválido." });
     }
     try {
-        // Verificar se o aluno pertence ao personal trainer autenticado
         const alunoExistente = await Aluno.findOne({
             _id: new mongoose.Types.ObjectId(alunoId),
             trainerId: new mongoose.Types.ObjectId(trainerId)
@@ -267,10 +272,12 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!alunoExistente) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
-        // Em vez de remover o aluno, marque como inativo. Mantemos slot.
-        const alunoInativado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), { status: 'inactive' }, { new: true });
+        const alunoInativado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), {
+            status: 'inactive',
+            $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+        }, { new: true });
         res.status(200).json({
-            mensagem: "Aluno marcado como inativo com sucesso!",
+            mensagem: "Aluno marcado como inativo e vaga liberada com sucesso!",
             aluno: alunoInativado
         });
     }
@@ -281,7 +288,7 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
 // =======================================================
 // ROTAS DO ALUNO (DASHBOARD, FICHAS, HISTÓRICO)
 // =======================================================
-// GET /api/aluno/meus-treinos - Lista as rotinas do aluno logado
+// (O restante do arquivo permanece inalterado)
 router.get('/meus-treinos', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -304,8 +311,6 @@ router.get('/meus-treinos', authenticateAlunoToken, async (req, res, next) => {
         next(error);
     }
 });
-// <<< NOVA ROTA >>>
-// GET /api/aluno/meus-treinos/:id - Retorna uma rotina específica do aluno
 router.get('/meus-treinos/:id', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -336,7 +341,6 @@ router.get('/meus-treinos/:id', authenticateAlunoToken, async (req, res, next) =
         next(error);
     }
 });
-// GET /api/aluno/minhas-sessoes-concluidas-na-semana - Retorna sessões da semana para o gráfico de frequência
 router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -361,7 +365,6 @@ router.get('/minhas-sessoes-concluidas-na-semana', authenticateAlunoToken, async
         next(error);
     }
 });
-// GET /api/aluno/stats-progresso - Retorna estatísticas de progresso do aluno
 router.get('/stats-progresso', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -388,10 +391,9 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req, res, next) =>
                 .sort((a, b) => a.getTime() - b.getTime());
             if (datasDeTreinoUnicas.length > 0) {
                 let streakAtual = 0;
-                // Verifique se a data de hoje está na lista ou se a de ontem está para contar o streak atual.
                 const hoje = startOfDay(new Date());
                 const ontem = startOfDay(new Date(hoje.setDate(hoje.getDate() - 1)));
-                hoje.setDate(hoje.getDate() + 1); // Reset 'hoje'
+                hoje.setDate(hoje.getDate() + 1);
                 let ultimaData = startOfDay(new Date(2000, 0, 1));
                 for (const data of datasDeTreinoUnicas) {
                     if (differenceInCalendarDays(data, ultimaData) === 1) {
@@ -416,7 +418,6 @@ router.get('/stats-progresso', authenticateAlunoToken, async (req, res, next) =>
         next(error);
     }
 });
-// PATCH /api/aluno/meus-treinos/:id/cargas - Atualiza as cargas de exercícios no treino
 router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
@@ -431,7 +432,6 @@ router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req, res
         return res.status(400).json({ erro: 'diaDeTreinoId e cargas são obrigatórios.' });
     }
     try {
-        // Verificar se a rotina pertence ao aluno
         const rotina = await Treino.findOne({
             _id: new mongoose.Types.ObjectId(rotinaId),
             alunoId: new mongoose.Types.ObjectId(alunoId),
@@ -440,29 +440,23 @@ router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req, res
         if (!rotina) {
             return res.status(404).json({ erro: 'Rotina não encontrada ou não pertence a este aluno.' });
         }
-        // Encontrar o dia de treino
         const diaDeTreino = rotina.diasDeTreino.find(dia => dia._id.toString() === diaDeTreinoId);
         if (!diaDeTreino) {
             return res.status(404).json({ erro: 'Dia de treino não encontrado na rotina.' });
         }
-        // Atualizar as cargas dos exercícios
         let exerciciosAtualizados = 0;
         for (const [exercicioId, novaCarga] of Object.entries(cargas)) {
             const exercicio = diaDeTreino.exerciciosDoDia?.find(ex => ex._id.toString() === exercicioId);
             if (exercicio) {
-                // Só atualizar se a nova carga não estiver vazia/nula
-                // Preservar carga existente se nova carga for vazia
                 if (novaCarga && typeof novaCarga === 'string' && novaCarga.trim()) {
                     exercicio.carga = novaCarga.trim();
                     exerciciosAtualizados++;
                 }
-                // Se nova carga estiver vazia, manter a carga atual (não sobrescrever)
             }
         }
         if (exerciciosAtualizados === 0) {
             return res.status(400).json({ erro: 'Nenhum exercício foi encontrado para atualizar.' });
         }
-        // Salvar as mudanças
         await rotina.save();
         res.status(200).json({
             mensagem: `${exerciciosAtualizados} carga(s) atualizada(s) com sucesso.`,
@@ -474,8 +468,6 @@ router.patch('/meus-treinos/:id/cargas', authenticateAlunoToken, async (req, res
         next(error);
     }
 });
-// <<< NOVA ROTA >>>
-// GET /api/aluno/meu-historico-sessoes - Retorna o histórico paginado de sessões do aluno
 router.get('/meu-historico-sessoes', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
