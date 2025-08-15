@@ -32,8 +32,89 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/renewal-requests/:id/proof/sign
+ * Generate signed download URL for admin to download proof files
+ * Handles both Vercel Blob (new) and GridFS (legacy) files
+ */
+router.get('/:id/proof/sign', async (req, res) => {
+  await dbConnect();
+  try {
+    const requestId = req.params.id;
+
+    // findById(:id) and validate existence of renewalRequest.proof
+    const request = await RenewalRequest.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({ 
+        mensagem: 'Solicitação não encontrada.',
+        code: 'REQUEST_NOT_FOUND'
+      });
+    }
+
+    if (!request.proof) {
+      return res.status(404).json({ 
+        mensagem: 'Comprovante não encontrado.',
+        code: 'PROOF_NOT_FOUND'
+      });
+    }
+
+    // Read { url, filename, mime, size, legacyId } from proof
+    const { url, filename, mime, size, legacyId } = {
+      url: request.paymentProofUrl,
+      filename: request.proof.filename || 'comprovante.pdf',
+      mime: request.proof.contentType || 'application/octet-stream',
+      size: request.proof.size,
+      legacyId: request.proof.fileId
+    };
+
+    // If url starts with http (Blob)
+    if (url && url.startsWith('http')) {
+      // For public blobs, return direct URL
+      // For this implementation, we assume Vercel Blob files are public
+      return res.status(200).json({
+        downloadUrl: url,
+        filename,
+        mime,
+        isLegacyFile: false
+      });
+    }
+
+    // If arquivo for legado (legacyId or absence of url)
+    if (legacyId || !url) {
+      if (!legacyId) {
+        return res.status(404).json({ 
+          mensagem: 'Arquivo legado não possui ID.',
+          code: 'LEGACY_FILE_ID_MISSING'
+        });
+      }
+
+      // Return legacy download endpoint URL
+      return res.status(200).json({
+        downloadUrl: `/api/admin/renewal-requests/${requestId}/proof/download`,
+        filename,
+        mime,
+        isLegacyFile: true
+      });
+    }
+
+    return res.status(404).json({ 
+      mensagem: 'URL do arquivo não encontrada.',
+      code: 'FILE_URL_NOT_FOUND'
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar URL de download:', error);
+    // Never return 500, always return specific error codes
+    return res.status(503).json({ 
+      mensagem: 'Serviço temporariamente indisponível.',
+      code: 'SERVICE_TEMPORARILY_UNAVAILABLE'
+    });
+  }
+});
+
+/**
  * GET /api/admin/renewal-requests/:id/proof/download
- * Admin baixa comprovante de pagamento (arquivo)
+ * Admin baixa comprovante de pagamento (arquivo) - Legacy GridFS files
  */
 router.get('/:id/proof/download', async (req, res) => {
   await dbConnect();
@@ -43,32 +124,47 @@ router.get('/:id/proof/download', async (req, res) => {
     const request = await RenewalRequest.findById(requestId);
 
     if (!request) {
-      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+      return res.status(404).json({ 
+        mensagem: 'Solicitação não encontrada.',
+        code: 'REQUEST_NOT_FOUND'
+      });
     }
 
     if (!request.proof || request.proof.kind !== 'file' || !request.proof.fileId) {
-      return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link.' });
+      return res.status(404).json({ 
+        mensagem: 'Comprovante não encontrado ou é um link.',
+        code: 'PROOF_NOT_FOUND'
+      });
     }
 
     const bucket = getPaymentProofBucket();
+    
+    // Fazer stream do GridFS/FS with proper headers
     const downloadStream = bucket.openDownloadStream(request.proof.fileId);
 
-    res.set({
-      'Content-Type': request.proof.contentType || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${request.proof.filename || 'comprovante.pdf'}"`
-    });
+    res.setHeader('Content-Type', request.proof.contentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${request.proof.filename || 'comprovante.pdf'}"`);
 
     downloadStream.pipe(res);
     
     downloadStream.on('error', (error) => {
       console.error('Erro ao baixar arquivo:', error);
       if (!res.headersSent) {
-        res.status(404).json({ mensagem: 'Arquivo não encontrado.' });
+        res.status(404).json({ 
+          mensagem: 'Arquivo não encontrado.',
+          code: 'FILE_NOT_FOUND'
+        });
       }
     });
   } catch (error) {
     console.error('Erro ao baixar comprovante:', error);
-    res.status(500).json({ mensagem: 'Erro ao baixar comprovante' });
+    // Return specific error code instead of 500
+    if (!res.headersSent) {
+      res.status(503).json({ 
+        mensagem: 'Serviço temporariamente indisponível.',
+        code: 'SERVICE_TEMPORARILY_UNAVAILABLE'
+      });
+    }
   }
 });
 

@@ -563,6 +563,14 @@ export const getSignedDownloadUrl = async (
   filename?: string;
   isLegacyFile: boolean;
 }> => {
+  // Use the specific admin endpoint for admin downloads
+  if (tokenType === 'personalAdmin') {
+    return fetchWithAuth(`/api/admin/renewal-requests/${proofId}/proof/sign`, {
+      method: 'GET'
+    }, tokenType);
+  }
+  
+  // Fallback to the generic endpoint for other token types
   return fetchWithAuth(`/api/files/sign?proofId=${proofId}`, {
     method: 'GET'
   }, tokenType);
