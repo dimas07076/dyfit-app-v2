@@ -7,6 +7,7 @@ import dbConnect from '../../lib/dbConnect.js';
 import { authenticateAdmin } from '../../middlewares/authenticateAdmin.js'; // Import ajustado
 import mongoose from 'mongoose';
 import { sendNotification } from '../../services/NotificationService.js';
+import { getPaymentProofBucket } from '../../utils/gridfs.js';
 
 const router = express.Router();
 
@@ -27,6 +28,99 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Erro ao listar solicitações:', error);
     res.status(500).json({ mensagem: 'Erro ao buscar solicitações' });
+  }
+});
+
+/**
+ * GET /api/admin/renewal-requests/:id/proof/download
+ * Admin baixa comprovante de pagamento (arquivo)
+ */
+router.get('/:id/proof/download', async (req, res) => {
+  await dbConnect();
+  try {
+    const requestId = req.params.id;
+
+    const request = await RenewalRequest.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
+
+    if (!request.proof || request.proof.kind !== 'file' || !request.proof.fileId) {
+      return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link.' });
+    }
+
+    const bucket = getPaymentProofBucket();
+    const downloadStream = bucket.openDownloadStream(request.proof.fileId);
+
+    res.set({
+      'Content-Type': request.proof.contentType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${request.proof.filename || 'comprovante.pdf'}"`
+    });
+
+    downloadStream.pipe(res);
+    
+    downloadStream.on('error', (error) => {
+      console.error('Erro ao baixar arquivo:', error);
+      if (!res.headersSent) {
+        res.status(404).json({ mensagem: 'Arquivo não encontrado.' });
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao baixar comprovante:', error);
+    res.status(500).json({ mensagem: 'Erro ao baixar comprovante' });
+  }
+});
+
+/**
+ * PATCH /api/admin/renewal-requests/:id/status
+ * Atualiza status da solicitação (APPROVED|REJECTED|FULFILLED)
+ */
+router.patch('/:id/status', async (req, res) => {
+  await dbConnect();
+  const requestId = req.params.id;
+  const { status, notes } = req.body;
+
+  try {
+    const request = await RenewalRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
+
+    // Validação de status
+    const validStatuses = ['APPROVED', 'REJECTED', 'FULFILLED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ mensagem: 'Status inválido.' });
+    }
+
+    request.status = status;
+    if (notes) request.notes = notes;
+    request.processedAt = new Date();
+    request.adminId = (req as any).admin.id;
+
+    // Se aprovado, ativa o plano (ponto de injeção)
+    if (status === 'APPROVED') {
+      try {
+        // Aqui você conecta com sua lógica de ativação existente
+        // await activatePlanForPersonal(request.personalTrainerId.toString(), request.planIdRequested?.toString());
+        console.log(`[ATIVAÇÃO] Plano aprovado para personal ${request.personalTrainerId}`);
+      } catch (activationError) {
+        console.error('Erro na ativação do plano:', activationError);
+        // Não falha a requisição, apenas loga
+      }
+    }
+
+    await request.save();
+
+    res.json({
+      _id: request._id,
+      status: request.status,
+      notes: request.notes,
+      processedAt: request.processedAt
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar status:', error);
+    res.status(500).json({ mensagem: 'Erro ao atualizar status' });
   }
 });
 
