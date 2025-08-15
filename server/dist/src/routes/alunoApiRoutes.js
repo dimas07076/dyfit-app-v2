@@ -10,6 +10,8 @@ import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos } from '../../middlewares/checkLimiteAlunos.js';
+import PlanoService from '../../services/PlanoService.js';
+import TokenAvulso from '../../models/TokenAvulso.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
@@ -28,7 +30,11 @@ router.post("/convite", authenticateToken, async (req, res, next) => {
             if (alunoExistente) {
                 return res.status(409).json({ erro: "Este aluno já está cadastrado com você." });
             }
-            const convitePendente = await ConviteAluno.findOne({ emailConvidado, status: 'pendente', criadoPor: trainerId });
+            const convitePendente = await ConviteAluno.findOne({
+                emailConvidado,
+                status: 'pendente',
+                criadoPor: trainerId
+            });
             if (convitePendente) {
                 const linkConvite = `${process.env.FRONTEND_URL}/convite/aluno/${convitePendente.token}`;
                 return res.status(200).json({ mensagem: "Já existe um convite pendente para este email.", linkConvite });
@@ -46,7 +52,7 @@ router.post("/convite", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// GET /api/aluno/gerenciar - Lista todos os alunos do personal
+// GET /api/aluno/gerenciar - Lista todos os alunos ativos do personal
 router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -54,7 +60,8 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
         return res.status(401).json({ erro: "Usuário não autenticado." });
     }
     try {
-        const alunos = await Aluno.find({ trainerId }).sort({ nome: 1 }).select('-passwordHash');
+        // Filtra apenas alunos com status 'active' para não mostrar inativos
+        const alunos = await Aluno.find({ trainerId, status: 'active' }).sort({ nome: 1 }).select('-passwordHash');
         res.status(200).json(alunos);
     }
     catch (error) {
@@ -77,6 +84,48 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
         if (alunoExistente) {
             return res.status(409).json({ erro: "Já existe um aluno com este email." });
         }
+        // ======================================================================
+        // NOVA LÓGICA: Determinar o slot do aluno (plano ou token)
+        // ======================================================================
+        let slotType = 'plan';
+        let slotId;
+        let slotStartDate;
+        let slotEndDate;
+        try {
+            const status = await PlanoService.getPersonalCurrentPlan(trainerId);
+            const planLimit = status.isExpired || !status.plano ? 0 : status.plano.limiteAlunos;
+            // Se ainda há vagas no plano (base), usar o slot do plano
+            if (status.alunosAtivos < planLimit) {
+                slotType = 'plan';
+                if (status.personalPlano) {
+                    slotId = new mongoose.Types.ObjectId(status.personalPlano._id);
+                    slotStartDate = status.personalPlano.dataInicio;
+                    slotEndDate = status.personalPlano.dataVencimento;
+                }
+            }
+            else {
+                // Sem vagas no plano: tentar usar token avulso
+                slotType = 'token';
+                const token = await TokenAvulso.findOne({
+                    personalTrainerId: trainerId,
+                    ativo: true,
+                    dataVencimento: { $gt: new Date() }
+                }).sort({ dataVencimento: 1 });
+                if (token) {
+                    slotId = new mongoose.Types.ObjectId(token._id);
+                    slotStartDate = token.createdAt;
+                    slotEndDate = token.dataVencimento;
+                }
+                else {
+                    slotId = undefined;
+                    slotStartDate = undefined;
+                    slotEndDate = undefined;
+                }
+            }
+        }
+        catch (e) {
+            console.error('Erro ao determinar slot do aluno:', e);
+        }
         const novoAluno = new Aluno({
             nome,
             email: email.toLowerCase(),
@@ -88,7 +137,12 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res,
             weight: weight ? parseFloat(weight) : undefined,
             height: height ? parseInt(height) : undefined,
             startDate: startDate ? new Date(startDate) : new Date(),
-            status: 'active'
+            status: 'active',
+            // Atribui os campos do slot
+            slotType,
+            slotId,
+            slotStartDate,
+            slotEndDate
         });
         await novoAluno.save();
         const alunoResponse = novoAluno.toObject();
@@ -193,7 +247,7 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// DELETE /api/aluno/gerenciar/:id - Excluir um aluno
+// DELETE /api/aluno/gerenciar/:id - Marcar um aluno como inativo (não liberar slot)
 router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -213,10 +267,11 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!alunoExistente) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
-        // Excluir o aluno
-        await Aluno.findByIdAndDelete(new mongoose.Types.ObjectId(alunoId));
+        // Em vez de remover o aluno, marque como inativo. Mantemos slot.
+        const alunoInativado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), { status: 'inactive' }, { new: true });
         res.status(200).json({
-            mensagem: "Aluno excluído com sucesso!"
+            mensagem: "Aluno marcado como inativo com sucesso!",
+            aluno: alunoInativado
         });
     }
     catch (error) {
