@@ -499,6 +499,7 @@ export const uploadFileWithPresignedUrl = async (
     blobUrl: string;
     filename: string;
     originalFilename: string;
+    isMock?: boolean;
   }>(`/api/personal/renewal-requests/${requestId}/proof/presign`, {
     method: 'POST',
     headers: {
@@ -513,22 +514,26 @@ export const uploadFileWithPresignedUrl = async (
 
   console.log('[Upload] Got presigned URL:', presignResponse.uploadUrl);
 
-  // Step 2: Upload directly to Vercel Blob using PUT (overwrite the placeholder)
-  const uploadResponse = await fetch(presignResponse.uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': file.type,
-    },
-    body: file
-  });
+  // Step 2: Upload directly to Vercel Blob using PUT (or skip if mock)
+  if (!presignResponse.isMock) {
+    const uploadResponse = await fetch(presignResponse.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+      },
+      body: file
+    });
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    console.error('[Upload] Vercel Blob upload failed:', errorText);
-    throw new Error(`Erro no upload: ${uploadResponse.status} ${errorText}`);
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('[Upload] Vercel Blob upload failed:', errorText);
+      throw new Error(`Erro no upload: ${uploadResponse.status} ${errorText}`);
+    }
+
+    console.log('[Upload] File uploaded successfully to Vercel Blob');
+  } else {
+    console.log('[Upload] Using mock upload (Vercel Blob not configured)');
   }
-
-  console.log('[Upload] File uploaded successfully to Vercel Blob');
 
   // Step 3: Confirm with backend
   const confirmResponse = await fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof/confirm`, {

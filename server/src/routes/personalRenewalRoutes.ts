@@ -464,21 +464,41 @@ router.post('/:id/proof/presign', async (req, res) => {
 
     console.log('[Presign] Generated safe filename:', safeFilename);
 
+    // Check if Vercel Blob is configured
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.warn('[Presign] Vercel Blob not configured, using mock response');
+      // Return a mock response for testing/development
+      const mockUrl = `https://mock-blob-storage.vercel.app/${safeFilename}`;
+      return res.json({
+        uploadUrl: mockUrl,
+        blobUrl: mockUrl,
+        filename: safeFilename,
+        originalFilename: filename,
+        isMock: true
+      });
+    }
+
     // Create presigned URL for Vercel Blob
-    const blobResult = await put(safeFilename, Buffer.from(''), {
-      access: 'public',
-      contentType,
-      addRandomSuffix: false,
-    });
+    try {
+      const blobResult = await put(safeFilename, Buffer.from(''), {
+        access: 'public',
+        contentType,
+        addRandomSuffix: false,
+      });
 
-    console.log('[Presign] Blob result:', blobResult);
+      console.log('[Presign] Blob result:', blobResult);
 
-    res.json({
-      uploadUrl: blobResult.url,
-      blobUrl: blobResult.url,
-      filename: safeFilename,
-      originalFilename: filename
-    });
+      res.json({
+        uploadUrl: blobResult.url,
+        blobUrl: blobResult.url,
+        filename: safeFilename,
+        originalFilename: filename
+      });
+    } catch (blobError) {
+      console.error('[Presign] Vercel Blob error:', blobError);
+      // Fallback to legacy upload if Vercel Blob fails
+      throw new Error('Vercel Blob upload não está disponível. Use o upload tradicional.');
+    }
 
   } catch (error) {
     console.error('[Presign] Error occurred:', error);
