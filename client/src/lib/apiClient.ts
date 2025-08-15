@@ -1,42 +1,38 @@
 // client/src/lib/apiClient.ts
 
-// Etapa 1: Definir uma classe de erro customizada para falhas de autenticação.
 export class AuthError extends Error {
-  // Adicionamos uma propriedade 'code' para armazenar o código de erro específico
   public code?: string; 
 
   constructor(message = 'Authentication failed', code?: string) {
     super(message);
     this.name = 'AuthError';
-    this.code = code; // Atribui o código de erro
+    this.code = code;
   }
 }
 
-// Adicionamos um tipo para o tokenType para maior segurança de código
 export type TokenType = 'personalAdmin' | 'aluno';
 
-// Variável para controlar se já estamos tentando renovar um token (evita loops infinitos)
+interface FetchOptions extends RequestInit {
+  returnAs?: 'json' | 'response';
+}
+
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
 
-// Configurações para retry com backoff exponencial
 const RETRY_CONFIG = {
   maxRetries: 3,
-  baseDelay: 1000, // 1 segundo
-  maxDelay: 10000, // 10 segundos
+  baseDelay: 1000,
+  maxDelay: 10000,
   backoffFactor: 2
 };
 
-// Função para calcular delay com backoff exponencial
 const calculateBackoffDelay = (attempt: number): number => {
   const delay = RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffFactor, attempt);
-  return Math.min(delay + Math.random() * 1000, RETRY_CONFIG.maxDelay); // Adiciona jitter
+  return Math.min(delay + Math.random() * 1000, RETRY_CONFIG.maxDelay);
 };
 
-// Função para aguardar um determinado tempo
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-// Função para validar se localStorage está corrompido - agora token-type aware
 const validateAndCleanStorage = (tokenType: TokenType): boolean => {
   try {
     const tokenKey = tokenType === 'aluno' ? 'alunoAuthToken' : 'authToken';
@@ -45,17 +41,13 @@ const validateAndCleanStorage = (tokenType: TokenType): boolean => {
     const token = localStorage.getItem(tokenKey);
     const refreshToken = localStorage.getItem(refreshTokenKey);
     
-    // CORREÇÃO: Só limpa tokens do tipo específico solicitado
-    // Não remove tokens de outros tipos durante a validação
     console.log(`[validateAndCleanStorage] Validando storage para ${tokenType}...`);
     
-    // Se há token mas está vazio ou inválido, limpa APENAS o token do tipo solicitado
     if (token === '' || token === 'null' || token === 'undefined') {
       console.warn(`[validateAndCleanStorage] Token ${tokenType} corrompido, limpando apenas este tipo...`);
       localStorage.removeItem(tokenKey);
       localStorage.removeItem(refreshTokenKey);
       
-      // IMPORTANTE: Não remove dados de outros tipos de usuário
       if (tokenType === 'aluno') {
         localStorage.removeItem('alunoData');
       } else {
@@ -64,13 +56,11 @@ const validateAndCleanStorage = (tokenType: TokenType): boolean => {
       return false;
     }
     
-    // Se há refresh token mas está vazio ou inválido, limpa apenas este refresh token
     if (refreshToken === '' || refreshToken === 'null' || refreshToken === 'undefined') {
       console.warn(`[validateAndCleanStorage] Refresh token ${tokenType} corrompido, limpando apenas este tipo...`);
       localStorage.removeItem(refreshTokenKey);
     }
     
-    // Verifica se o token é válido estruturalmente (tem formato JWT)
     if (token && !token.includes('.')) {
       console.warn(`[validateAndCleanStorage] Token ${tokenType} não tem formato JWT válido, limpando...`);
       localStorage.removeItem(tokenKey);
@@ -97,9 +87,7 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Função para renovar o token com retry e backoff
 const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Promise<string | null> => {
-  // Valida e limpa storage corrompido antes de tentar renovar
   if (!validateAndCleanStorage(tokenType)) {
     console.warn(`[refreshToken] Storage corrompido para ${tokenType}, abortando renovação`);
     return null;
@@ -135,7 +123,6 @@ const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Pro
       
       console.warn(`[refreshToken] Falha ao renovar token ${tokenType}:`, parsedError.message);
       
-      // Se for erro 5xx e ainda temos tentativas, faz retry com backoff
       if (response.status >= 500 && retryAttempt < RETRY_CONFIG.maxRetries) {
         const delay = calculateBackoffDelay(retryAttempt);
         console.log(`[refreshToken] Erro ${response.status}, tentativa ${retryAttempt + 1}/${RETRY_CONFIG.maxRetries + 1} em ${delay}ms`);
@@ -143,7 +130,6 @@ const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Pro
         return refreshToken(tokenType, retryAttempt + 1);
       }
       
-      // Remove tokens inválidos
       localStorage.removeItem(refreshTokenKey);
       if (tokenType === 'aluno') {
         localStorage.removeItem('alunoAuthToken');
@@ -157,7 +143,6 @@ const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Pro
     const data = await response.json();
     const newToken = data.token;
     
-    // Armazena o novo token
     if (tokenType === 'aluno') {
       localStorage.setItem('alunoAuthToken', newToken);
     } else {
@@ -170,7 +155,6 @@ const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Pro
   } catch (error) {
     console.error(`[refreshToken] Erro ao renovar token ${tokenType}:`, error);
     
-    // Se for erro de rede e ainda temos tentativas, faz retry com backoff
     if (retryAttempt < RETRY_CONFIG.maxRetries) {
       const delay = calculateBackoffDelay(retryAttempt);
       console.log(`[refreshToken] Erro de rede, tentativa ${retryAttempt + 1}/${RETRY_CONFIG.maxRetries + 1} em ${delay}ms`);
@@ -182,14 +166,12 @@ const refreshToken = async (tokenType: TokenType, retryAttempt: number = 0): Pro
   }
 };
 
-// Função interna para fetchWithAuth com retry para erros 500
+// <<< CORREÇÃO AQUI: Parâmetro 'retryAttempt' foi removido >>>
 const fetchWithAuthInternal = async <T = any>(
   url: string,
-  options: RequestInit = {},
-  tokenType: TokenType = 'personalAdmin',
-  retryAttempt: number = 0
+  options: FetchOptions = {},
+  tokenType: TokenType = 'personalAdmin'
 ): Promise<T> => {
-  // Valida e limpa storage corrompido antes de fazer a requisição
   if (!url.startsWith('/api/auth/')) {
     validateAndCleanStorage(tokenType);
   }
@@ -197,7 +179,6 @@ const fetchWithAuthInternal = async <T = any>(
   let token: string | null = null;
   const isPublicAuthRoute = url.startsWith('/api/auth/');
   
-  // A lógica de rotas exclusivas foi removida. A decisão agora é explícita.
   if (!isPublicAuthRoute) {
       if (tokenType === 'aluno') {
           token = localStorage.getItem('alunoAuthToken');
@@ -208,8 +189,6 @@ const fetchWithAuthInternal = async <T = any>(
 
   const headers = new Headers(options.headers || {});
   
-  // Only set Accept header for non-FormData requests
-  // FormData uploads should not have Accept forced to application/json
   const isFormData = options.body instanceof FormData;
   if (!isFormData) {
     headers.set('Accept', 'application/json');
@@ -223,13 +202,9 @@ const fetchWithAuthInternal = async <T = any>(
       console.log(`[fetchWithAuth] Authorization header set for FormData upload`);
     }
   } else if (!isPublicAuthRoute) {
-    // Mensagem de erro agora usa o tokenType explícito
     console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota protegida '${url}' (tipo esperado: ${tokenType})`);
   }
 
-  // Only set Content-Type for string bodies (JSON)
-  // FormData requests MUST NOT have Content-Type set manually
-  // as the browser needs to set it with the correct boundary
   if (options.body && typeof options.body === 'string') {
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
@@ -238,6 +213,15 @@ const fetchWithAuthInternal = async <T = any>(
 
   try {
     const response = await fetch(url, { ...options, headers });
+    
+    if (options.returnAs === 'response') {
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `Erro ${response.status} ao buscar o arquivo.` }));
+            throw new Error(errorData.message);
+        }
+        return response as T;
+    }
+
     if (response.status === 204) return null as T;
 
     const contentType = response.headers.get('content-type');
@@ -260,30 +244,22 @@ const fetchWithAuthInternal = async <T = any>(
     }
     
     if (!response.ok) {
-      // Captura a mensagem e o código de erro do backend, se existirem
       const errorMessage = data?.message || data?.mensagem || data?.erro || `Erro ${response.status}: ${response.statusText || 'Ocorreu um erro na comunicação.'}`;
-      const errorCode = data?.code; // Captura o código de erro enviado pelo backend
+      const errorCode = data?.code;
 
       if (response.status === 401 || response.status === 403) {
-          // Tentar renovar o token apenas em caso de 401 (não 403, que é falta de permissão)
           if (response.status === 401 && !isPublicAuthRoute) {
-              // Se já estamos renovando, adiciona à fila
               if (isRefreshing) {
                   return new Promise((resolve, reject) => {
                       failedQueue.push({ resolve, reject });
                   }).then((token) => {
-                      // Retry com o novo token
                       const newHeaders = new Headers(options.headers || {});
                       newHeaders.set('Authorization', `Bearer ${token}`);
-                      
-                      // For FormData, don't set Accept header
                       if (!(options.body instanceof FormData)) {
                         newHeaders.set('Accept', 'application/json');
                       }
-                      
                       return fetch(url, { ...options, headers: newHeaders });
                   }).then(async (retryResponse) => {
-                      // Processa a resposta da tentativa com o novo token
                       if (retryResponse.status === 204) return null as T;
                       const retryData = await retryResponse.json();
                       if (!retryResponse.ok) {
@@ -293,22 +269,18 @@ const fetchWithAuthInternal = async <T = any>(
                   });
               }
 
-              // Marca que estamos renovando
               isRefreshing = true;
               
               try {
                   const newToken = await refreshToken(tokenType);
                   
                   if (newToken) {
-                      // Processa a fila com sucesso
                       processQueue(null, newToken);
                       isRefreshing = false;
                       
-                      // Retry da requisição original com o novo token
                       const newHeaders = new Headers(options.headers || {});
                       newHeaders.set('Authorization', `Bearer ${newToken}`);
                       
-                      // For FormData, don't set Accept header
                       if (!(options.body instanceof FormData)) {
                         newHeaders.set('Accept', 'application/json');
                       }
@@ -343,12 +315,10 @@ const fetchWithAuthInternal = async <T = any>(
                       
                       return retryData as T;
                   } else {
-                      // Renovação falhou, processa a fila com erro
                       const refreshError = new AuthError('Token expirado e não foi possível renovar', 'REFRESH_FAILED');
                       processQueue(refreshError, null);
                       isRefreshing = false;
                       
-                      // Dispara evento de falha de autenticação
                       window.dispatchEvent(new CustomEvent('auth-failed', { 
                         detail: { 
                           status: response.status,
@@ -361,11 +331,9 @@ const fetchWithAuthInternal = async <T = any>(
                       throw refreshError;
                   }
               } catch (refreshError) {
-                  // Processa a fila com erro
                   processQueue(refreshError, null);
                   isRefreshing = false;
                   
-                  // Se o erro não é de renovação, dispara o evento original
                   if (!(refreshError instanceof AuthError)) {
                       window.dispatchEvent(new CustomEvent('auth-failed', { 
                         detail: { 
@@ -380,7 +348,6 @@ const fetchWithAuthInternal = async <T = any>(
                   throw refreshError;
               }
           } else {
-              // Para 403 ou rotas públicas, comportamento original
               window.dispatchEvent(new CustomEvent('auth-failed', { 
                 detail: { 
                   status: response.status,
@@ -393,7 +360,6 @@ const fetchWithAuthInternal = async <T = any>(
           }
       }
       
-      // Tratamento específico para erros 500 (servidor) com retry e backoff
       if (response.status >= 500) {
         const serverError = new Error(`Erro ${response.status}: ${errorMessage}`);
         (serverError as any).status = response.status;
@@ -419,17 +385,15 @@ const fetchWithAuthInternal = async <T = any>(
   }
 };
 
-// A função agora aceita um terceiro parâmetro 'tokenType'
 export const fetchWithAuth = async <T = any>(
     url: string,
-    options: RequestInit = {},
+    options: FetchOptions = {},
     tokenType: TokenType = 'personalAdmin'
   ): Promise<T> => {
 
     try {
       return await fetchWithAuthInternal<T>(url, options, tokenType);
     } catch (error: any) {
-      // Se for erro 500 e ainda temos tentativas, faz retry com backoff
       if (error?.isServerError && error?.status >= 500) {
         console.log(`[fetchWithAuth] Erro ${error.status} detectado para ${url}, implementando retry com backoff`);
         
@@ -439,14 +403,13 @@ export const fetchWithAuth = async <T = any>(
             console.log(`[fetchWithAuth] Tentativa ${attempt + 1}/${RETRY_CONFIG.maxRetries} em ${delay}ms`);
             await sleep(delay);
             
-            return await fetchWithAuthInternal<T>(url, options, tokenType, attempt + 1);
+            // <<< CORREÇÃO AQUI: A chamada interna não precisa mais do 'retryAttempt' >>>
+            return await fetchWithAuthInternal<T>(url, options, tokenType);
           } catch (retryError: any) {
             if (attempt === RETRY_CONFIG.maxRetries - 1) {
-              // Última tentativa falhou, lança o erro original
               console.error(`[fetchWithAuth] Todas as tentativas falharam para ${url}`);
               throw error;
             }
-            // Se não for erro 500, não continua tentando
             if (!retryError?.isServerError || retryError?.status < 500) {
               throw retryError;
             }
@@ -458,14 +421,13 @@ export const fetchWithAuth = async <T = any>(
     }
   };
 
-// NOVO: Função auxiliar para requisições API que não precisam de autenticação específica ou que já usam fetchWithAuth internamente
 export const apiRequest = async <T = any>(
   method: string,
   url: string,
   body?: any,
-  tokenType: TokenType = 'personalAdmin' // Default para personalAdmin, pode ser 'aluno' se necessário
+  tokenType: TokenType = 'personalAdmin'
 ): Promise<T> => {
-  const options: RequestInit = {
+  const options: FetchOptions = {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -476,6 +438,5 @@ export const apiRequest = async <T = any>(
     options.body = JSON.stringify(body);
   }
 
-  // Reutiliza fetchWithAuth para lidar com autenticação e tratamento de erros
   return fetchWithAuth<T>(url, options, tokenType);
 };

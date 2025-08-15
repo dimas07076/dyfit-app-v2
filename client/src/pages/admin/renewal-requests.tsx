@@ -1,3 +1,4 @@
+// client/src/pages/admin/renewal-requests.tsx
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Download, Loader2 } from "lucide-react"; // Adicionado Loader2
 
 interface AdminRenewalRequest {
   _id: string;
@@ -25,6 +27,7 @@ interface AdminRenewalRequest {
     kind: 'link' | 'file';
     url?: string;
     filename?: string;
+    fileId?: string;
   };
   notes?: string;
   linkSentAt?: string;
@@ -38,6 +41,7 @@ export default function AdminRenewalRequests() {
   const queryClient = useQueryClient();
   const [paymentLinks, setPaymentLinks] = useState<Record<string, string>>({});
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const {
     data: requests,
@@ -48,7 +52,41 @@ export default function AdminRenewalRequests() {
     queryFn: () => fetchWithAuth("/api/admin/renewal-requests"),
   });
 
-  // Mutação para enviar link de pagamento
+  const handleDownloadProof = async (requestId: string, filename?: string) => {
+    setDownloadingId(requestId);
+    try {
+      // <<< ALTERAÇÃO PRINCIPAL AQUI >>>
+      // Usamos a nova opção `returnAs: 'response'` e tratamos o resultado como `Response`.
+      const response = await fetchWithAuth<Response>(
+        `/api/admin/renewal-requests/${requestId}/proof/download`, 
+        { method: 'GET', returnAs: 'response' }, // Passa a nova opção
+        'personalAdmin'
+      );
+
+      // Agora 'response' é um objeto Response válido e podemos chamar .blob()
+      const blob = await response.blob();
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `comprovante-${requestId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+    } catch (err: any) {
+      console.error("[Download] Erro ao baixar o arquivo:", err);
+      toast({
+        variant: "destructive",
+        title: "Erro no Download",
+        description: err.message || "Não foi possível baixar o comprovante.",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const sendLink = useMutation({
     mutationFn: ({ id, link }: { id: string; link: string }) =>
       apiRequest("PUT", `/api/admin/renewal-requests/${id}/payment-link`, { paymentLink: link }),
@@ -61,7 +99,6 @@ export default function AdminRenewalRequests() {
     },
   });
 
-  // Mutação para decisão (aprovar/rejeitar)
   const makeDecision = useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiRequest("PATCH", `/api/admin/renewal-requests/${id}/decision`, { approved, note }),
@@ -99,16 +136,7 @@ export default function AdminRenewalRequests() {
               <p>Plano solicitado: {req.planIdRequested?.nome || "Manter categoria"}</p>
               <p>Status: {statusLabel(req.status)}</p>
               
-              {req.paymentLink && req.linkSentAt && (
-                <p>
-                  Link enviado em {new Date(req.linkSentAt).toLocaleString('pt-BR')}:{" "}
-                  <a href={req.paymentLink} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
-                    {req.paymentLink}
-                  </a>
-                </p>
-              )}
-              
-              {req.paymentLink && !req.linkSentAt && (
+              {req.paymentLink && (
                 <p>
                   Link enviado:{" "}
                   <a href={req.paymentLink} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
@@ -117,21 +145,6 @@ export default function AdminRenewalRequests() {
                 </p>
               )}
               
-              {req.proofUploadedAt && (
-                <p>Comprovante enviado em {new Date(req.proofUploadedAt).toLocaleString('pt-BR')}</p>
-              )}
-              
-              {req.paymentDecisionAt && req.paymentDecisionNote && (
-                <p>Decisão tomada em {new Date(req.paymentDecisionAt).toLocaleString('pt-BR')}: {req.paymentDecisionNote}</p>
-              )}
-              {req.paymentProofUrl && (
-                <p>
-                  Comprovante enviado:{" "}
-                  <a href={req.paymentProofUrl} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
-                    Abrir comprovante
-                  </a>
-                </p>
-              )}
               {req.proof && (
                 <div>
                   <p className="text-sm font-medium">Comprovante enviado:</p>
@@ -146,22 +159,23 @@ export default function AdminRenewalRequests() {
                     </a>
                   )}
                   {req.proof.kind === 'file' && (
-                    <p className="text-sm">
-                      Arquivo: {req.proof.filename}
-                      <a
-                        href={`/api/admin/renewal-requests/${req._id}/proof/download`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-primary underline"
+                    <div className="text-sm flex items-center gap-2">
+                      <span>Arquivo: {req.proof.filename}</span>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto text-primary"
+                        onClick={() => handleDownloadProof(req._id, req.proof?.filename)}
+                        disabled={downloadingId === req._id}
                       >
-                        Baixar
-                      </a>
-                    </p>
+                        {downloadingId === req._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-3 w-3" />}
+                        {downloadingId === req._id ? 'Baixando...' : 'Baixar'}
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Ações baseadas no status */}
               {req.status === "pending" && (
                 <div className="mt-4 space-y-2">
                   <Input
@@ -228,7 +242,7 @@ function statusLabel(status: string) {
       return "Link enviado, aguardando comprovante";
     case "payment_proof_uploaded":
     case "proof_submitted":
-      return "Comprovante anexado, aguardando aprovação";
+      return "Comprovante anexado, aguarde validação";
     case "approved":
       return "Aprovado";
     case "rejected":

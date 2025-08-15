@@ -4,7 +4,7 @@ import RenewalRequest from '../../models/RenewalRequest.js';
 import PlanoService from '../../services/PlanoService.js';
 import Plano from '../../models/Plano.js';
 import dbConnect from '../../lib/dbConnect.js';
-import { authenticateAdmin } from '../../middlewares/authenticateAdmin.js'; // Import ajustado
+import { authenticateAdmin } from '../../middlewares/authenticateAdmin.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../../services/NotificationService.js';
 import { getPaymentProofBucket } from '../../utils/gridfs.js';
@@ -36,9 +36,14 @@ router.get('/', async (req, res) => {
  * Admin baixa comprovante de pagamento (arquivo)
  */
 router.get('/:id/proof/download', async (req, res) => {
+  // A chamada dbConnect() é agora gerenciada por getPaymentProofBucket, mas é bom manter por consistência.
   await dbConnect();
   try {
     const requestId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        return res.status(400).json({ mensagem: 'ID da solicitação inválido.' });
+    }
 
     const request = await RenewalRequest.findById(requestId);
 
@@ -50,7 +55,9 @@ router.get('/:id/proof/download', async (req, res) => {
       return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link.' });
     }
 
-    const bucket = getPaymentProofBucket();
+    // <<< ALTERAÇÃO PRINCIPAL AQUI >>>
+    // Agora aguardamos a função assíncrona que garante a conexão com o DB.
+    const bucket = await getPaymentProofBucket();
     const downloadStream = bucket.openDownloadStream(request.proof.fileId);
 
     res.set({
@@ -61,14 +68,21 @@ router.get('/:id/proof/download', async (req, res) => {
     downloadStream.pipe(res);
     
     downloadStream.on('error', (error) => {
-      console.error('Erro ao baixar arquivo:', error);
+      console.error('Erro ao baixar arquivo do GridFS:', error);
       if (!res.headersSent) {
-        res.status(404).json({ mensagem: 'Arquivo não encontrado.' });
+        res.status(404).json({ mensagem: 'Arquivo não encontrado no storage.' });
       }
     });
+
+    downloadStream.on('finish', () => {
+      console.log(`Download do arquivo ${request.proof?.fileId} concluído.`);
+    });
+
   } catch (error) {
-    console.error('Erro ao baixar comprovante:', error);
-    res.status(500).json({ mensagem: 'Erro ao baixar comprovante' });
+    console.error('Erro geral ao processar download do comprovante:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ mensagem: 'Erro interno ao processar o download do comprovante.' });
+    }
   }
 });
 
@@ -102,7 +116,7 @@ router.patch('/:id/status', async (req, res) => {
     request.status = status;
     if (notes) request.notes = notes;
     request.processedAt = new Date();
-    request.adminId = (req as any).user.id; // Fix: use req.user.id instead of req.admin.id
+    request.adminId = (req as any).user.id;
 
     // Se aprovado, ativa o plano (ponto de injeção)
     if (status === 'APPROVED') {
@@ -181,7 +195,7 @@ router.put('/:id/payment-link', async (req, res) => {
     request.paymentLink = paymentLink;
     request.status = 'payment_link_sent';
     request.linkSentAt = new Date(); // Add timestamp when link is sent
-    request.adminId = (req as any).user.id; // Fix: use req.user.id instead of req.admin.id
+    request.adminId = (req as any).user.id;
     await request.save();
 
     // Notificar o personal informando que o link está disponível (opcional)
@@ -243,7 +257,7 @@ router.put('/:id/approve', async (req, res) => {
     const newPersonalPlano = await PlanoService.assignPlanToPersonal(
       request.personalTrainerId.toString(),
       planId,
-      (req as any).user.id, // Fix: use req.user.id instead of req.admin.id
+      (req as any).user.id,
       customDuration,
       motivo || 'Renovação aprovada'
     );
@@ -251,7 +265,7 @@ router.put('/:id/approve', async (req, res) => {
     // Atualiza a solicitação
     request.status = 'approved';
     request.processedAt = new Date();
-    request.adminId = (req as any).user.id; // Fix: use req.user.id instead of req.admin.id
+    request.adminId = (req as any).user.id;
     await request.save();
 
     // Notificar o personal para escolher os alunos no novo ciclo (opcional)

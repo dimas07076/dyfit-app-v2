@@ -1,3 +1,4 @@
+// server/src/routes/personalRenewalRoutes.ts
 import express from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
@@ -34,9 +35,6 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
     const { planIdRequested, paymentLink, notes } = req.body;
     const file = req.file;
 
-    // Validação: link OU arquivo são opcionais na criação inicial
-    // Personal pode solicitar renovação sem comprovante (admin enviará link)
-    // OU pode anexar comprovante se já pagou antecipadamente
     if (paymentLink && file) {
       return res.status(400).json({ 
         mensagem: 'Erro de validação: Forneça apenas um link OU um arquivo, não ambos.',
@@ -45,12 +43,13 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
     }
 
     let proof = undefined;
-    let initialStatus = 'pending'; // Default: aguardando admin enviar link
+    let initialStatus = 'pending';
 
-    // Se um arquivo foi enviado, salva no GridFS
     if (file) {
       try {
-        const bucket = getPaymentProofBucket();
+        // <<< CORREÇÃO AQUI >>>
+        // Adicionado 'await' para garantir que a conexão com o DB e o bucket estejam prontos.
+        const bucket = await getPaymentProofBucket();
         const uploadStream = bucket.openUploadStream(file.originalname, {
           metadata: {
             contentType: file.mimetype,
@@ -75,7 +74,6 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
           uploadedAt: new Date()
         };
         
-        // Se anexou comprovante, já está aguardando aprovação
         initialStatus = 'payment_proof_uploaded';
       } catch (uploadError) {
         console.error('Erro ao fazer upload do arquivo:', uploadError);
@@ -86,37 +84,29 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
       }
     }
 
-    // Se um link foi fornecido (caso raro, mas mantido para compatibilidade)
     if (paymentLink) {
       proof = {
         kind: 'link' as const,
         url: paymentLink,
         uploadedAt: new Date()
       };
-      
-      // Se forneceu link de comprovante, já está aguardando aprovação
       initialStatus = 'payment_proof_uploaded';
     }
 
     const newRequest = new RenewalRequest({
       personalTrainerId,
-      personalId: personalTrainerId, // Novo campo
+      personalId: personalTrainerId,
       planIdRequested,
-      planId: planIdRequested, // Novo campo
+      planId: planIdRequested,
       status: initialStatus,
       notes,
       proof,
-      // Se anexou comprovante na criação, marcar timestamp
       proofUploadedAt: proof ? new Date() : undefined,
-      // Compatibilidade com campos legados
       paymentLink: paymentLink || undefined,
       paymentProofUrl: proof?.kind === 'file' ? `file:${proof.fileId}` : undefined
     });
 
     await newRequest.save();
-
-    // Notifica admin (id do admin pode ser salvo em config ou buscado)
-    // Ex.: sendNotification(adminId, `${personalTrainer.nome} solicitou renovação de plano.`);
     
     res.status(201).json({
       _id: newRequest._id,
@@ -130,7 +120,6 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
   } catch (error: any) {
     console.error('Erro ao criar solicitação:', error);
     
-    // Verifica se é erro de validação do Mongoose
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
         mensagem: 'Dados inválidos fornecidos.',
@@ -139,7 +128,6 @@ router.post('/', upload.single('paymentProof'), async (req, res) => {
       });
     }
     
-    // Verifica se é erro de multer (arquivo)
     if (error instanceof multer.MulterError) {
       return res.status(400).json({ 
         mensagem: `Erro no upload: ${error.message}`,
@@ -174,7 +162,8 @@ router.get('/:id/proof/download', async (req, res) => {
       return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link.' });
     }
 
-    const bucket = getPaymentProofBucket();
+    // A correção anterior já está aqui (await)
+    const bucket = await getPaymentProofBucket();
     const downloadStream = bucket.openDownloadStream(request.proof.fileId);
 
     res.set({
@@ -201,7 +190,7 @@ router.put('/:id/payment-proof', async (req, res) => {
   await dbConnect();
   try {
     const requestId = req.params.id;
-    const { paymentProofUrl } = req.body; // pode ser URL de upload; para upload real use multer
+    const { paymentProofUrl } = req.body;
 
     const request = await RenewalRequest.findOne({
       _id: requestId,
@@ -214,9 +203,8 @@ router.put('/:id/payment-proof', async (req, res) => {
 
     request.paymentProofUrl = paymentProofUrl;
     request.status = 'payment_proof_uploaded';
-    request.proofUploadedAt = new Date(); // Add timestamp when proof is uploaded
+    request.proofUploadedAt = new Date();
     
-    // Atualiza também o novo campo proof
     request.proof = {
       kind: 'link',
       url: paymentProofUrl,
@@ -225,8 +213,6 @@ router.put('/:id/payment-proof', async (req, res) => {
     
     await request.save();
 
-    // Notifica admin que o comprovante foi enviado
-    // sendNotification(adminId, `${personalTrainer.nome} enviou comprovante de pagamento.`);
     res.json(request);
   } catch (error) {
     console.error('Erro ao anexar comprovante:', error);
@@ -234,47 +220,15 @@ router.put('/:id/payment-proof', async (req, res) => {
   }
 });
 
-// GET: personal lista as próprias solicitações
-router.get('/', async (req, res) => {
-  await dbConnect();
-  try {
-    const personalTrainerId = (req as any).user.id;
-    const requests = await RenewalRequest.find({ personalTrainerId }).sort({ createdAt: -1 });
-    res.json(requests);
-  } catch (error) {
-    console.error('Erro ao listar solicitações:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar solicitações' });
-  }
-});
-
 // POST: personal envia comprovante após receber link de pagamento (novo endpoint dedicado)
 router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
   await dbConnect();
   try {
-    console.log('[Personal Proof Upload] Starting upload process for request:', req.params.id);
-    console.log('[Personal Proof Upload] Headers:', Object.keys(req.headers));
-    console.log('[Personal Proof Upload] Content-Type:', req.headers['content-type']);
-    console.log('[Personal Proof Upload] File received:', req.file ? {
-      fieldname: req.file.fieldname,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : 'No file');
-    console.log('[Personal Proof Upload] Body:', req.body);
-    
     const requestId = req.params.id;
     const personalTrainerId = (req as any).user.id;
-    const { paymentProofUrl } = req.body; // Para URL, se não enviou arquivo
-    const file = req.file; // Para arquivo
+    const { paymentProofUrl } = req.body;
+    const file = req.file;
 
-    console.log('[Personal Proof Upload] Processing:', {
-      requestId,
-      personalTrainerId,
-      hasFile: !!file,
-      hasUrl: !!paymentProofUrl
-    });
-
-    // Validação: pelo menos link OU arquivo deve estar presente
     if (!paymentProofUrl && !file) {
       return res.status(400).json({ 
         mensagem: 'É necessário fornecer um link de comprovante ou anexar um arquivo.',
@@ -307,10 +261,11 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
 
     let proof = undefined;
 
-    // Se um arquivo foi enviado, salva no GridFS
     if (file) {
       try {
-        const bucket = getPaymentProofBucket();
+        // <<< CORREÇÃO AQUI >>>
+        // Adicionado 'await' para garantir que a conexão com o DB e o bucket estejam prontos.
+        const bucket = await getPaymentProofBucket();
         const uploadStream = bucket.openUploadStream(file.originalname, {
           metadata: {
             contentType: file.mimetype,
@@ -343,7 +298,6 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
       }
     }
 
-    // Se um link foi fornecido
     if (paymentProofUrl) {
       proof = {
         kind: 'link' as const,
@@ -352,13 +306,6 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
       };
     }
 
-    // Atualiza a solicitação
-    console.log('[Personal Proof Upload] Updating request with:', {
-      paymentProofUrl: paymentProofUrl || `file:${proof?.fileId}`,
-      status: 'payment_proof_uploaded',
-      proofKind: proof?.kind
-    });
-    
     request.paymentProofUrl = paymentProofUrl || `file:${proof?.fileId}`;
     request.status = 'payment_proof_uploaded';
     request.proofUploadedAt = new Date();
@@ -366,8 +313,6 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
     
     await request.save();
     
-    console.log('[Personal Proof Upload] Request updated successfully');
-
     res.json({
       _id: request._id,
       status: request.status,
@@ -375,15 +320,7 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
       proof: request.proof
     });
   } catch (error: any) {
-    console.error('[Personal Proof Upload] Error occurred:', error);
-    console.error('[Personal Proof Upload] Error stack:', error.stack);
-    
     if (error instanceof multer.MulterError) {
-      console.error('[Personal Proof Upload] Multer error details:', {
-        code: error.code,
-        field: error.field,
-        message: error.message
-      });
       return res.status(400).json({ 
         mensagem: `Erro no upload: ${error.message}`,
         code: 'UPLOAD_ERROR'
@@ -394,6 +331,20 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
       mensagem: 'Erro interno do servidor ao enviar comprovante.',
       code: 'INTERNAL_SERVER_ERROR'
     });
+  }
+});
+
+
+// GET: personal lista as próprias solicitações
+router.get('/', async (req, res) => {
+  await dbConnect();
+  try {
+    const personalTrainerId = (req as any).user.id;
+    const requests = await RenewalRequest.find({ personalTrainerId }).sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (error) {
+    console.error('Erro ao listar solicitações:', error);
+    res.status(500).json({ mensagem: 'Erro ao buscar solicitações' });
   }
 });
 
