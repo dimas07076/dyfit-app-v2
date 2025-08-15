@@ -180,6 +180,7 @@ router.put('/:id/payment-link', async (req, res) => {
 
     request.paymentLink = paymentLink;
     request.status = 'payment_link_sent';
+    request.linkSentAt = new Date(); // Add timestamp when link is sent
     request.adminId = (req as any).user.id; // Fix: use req.user.id instead of req.admin.id
     await request.save();
 
@@ -190,6 +191,7 @@ router.put('/:id/payment-link', async (req, res) => {
       _id: request._id,
       paymentLink: request.paymentLink,
       status: request.status,
+      linkSentAt: request.linkSentAt,
       adminId: request.adminId,
       updatedAt: request.updatedAt
     });
@@ -268,6 +270,74 @@ router.put('/:id/approve', async (req, res) => {
     console.error('Erro ao aprovar solicitação:', error);
     res.status(500).json({ 
       mensagem: 'Erro interno do servidor ao aprovar solicitação.',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
+  }
+});
+
+/**
+ * PATCH /api/admin/renewal-requests/:id/decision
+ * Admin decide (aprovar/rejeitar) após comprovante enviado
+ * Body: { approved: boolean, note?: string }
+ */
+router.patch('/:id/decision', async (req, res) => {
+  await dbConnect();
+  const requestId = req.params.id;
+  const { approved, note } = req.body;
+
+  try {
+    const request = await RenewalRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({ 
+        mensagem: 'Solicitação não encontrada.',
+        code: 'REQUEST_NOT_FOUND'
+      });
+    }
+
+    if (request.status !== 'payment_proof_uploaded') {
+      return res.status(400).json({ 
+        mensagem: `Solicitação em estado inválido: ${request.status}. Apenas solicitações com comprovante enviado podem ser decididas.`,
+        code: 'INVALID_STATUS'
+      });
+    }
+
+    if (typeof approved !== 'boolean') {
+      return res.status(400).json({ 
+        mensagem: 'Campo "approved" deve ser true ou false.',
+        code: 'INVALID_DECISION'
+      });
+    }
+
+    request.status = approved ? 'approved' : 'rejected';
+    request.paymentDecisionAt = new Date();
+    request.paymentDecisionNote = note || '';
+    request.processedAt = new Date();
+    request.adminId = (req as any).user.id;
+
+    // Se aprovado, ativar plano (ponto de injeção)
+    if (approved) {
+      try {
+        // Conectar com lógica de ativação existente
+        console.log(`[ATIVAÇÃO] Plano aprovado para personal ${request.personalTrainerId}`);
+      } catch (activationError) {
+        console.error('Erro na ativação do plano:', activationError);
+      }
+    }
+
+    await request.save();
+
+    res.json({
+      _id: request._id,
+      status: request.status,
+      paymentDecisionAt: request.paymentDecisionAt,
+      paymentDecisionNote: request.paymentDecisionNote,
+      processedAt: request.processedAt,
+      adminId: request.adminId
+    });
+  } catch (error) {
+    console.error('Erro ao processar decisão:', error);
+    res.status(500).json({ 
+      mensagem: 'Erro interno do servidor ao processar decisão.',
       code: 'INTERNAL_SERVER_ERROR'
     });
   }

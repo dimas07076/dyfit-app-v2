@@ -37,7 +37,10 @@ interface RenewalRequest {
     filename?: string;
   };
   notes?: string;
-  // outros campos omitidos
+  linkSentAt?: string;
+  proofUploadedAt?: string;
+  paymentDecisionAt?: string;
+  paymentDecisionNote?: string;
 }
 
 export default function SolicitarRenovacao() {
@@ -49,6 +52,8 @@ export default function SolicitarRenovacao() {
   const [paymentLink, setPaymentLink] = useState("");
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
+  const [proofPaymentLink, setProofPaymentLink] = useState(""); // Para comprovante após pagamento
+  const [proofPaymentFile, setProofPaymentFile] = useState<File | null>(null);
 
   // Planos disponíveis
   const {
@@ -73,6 +78,46 @@ export default function SolicitarRenovacao() {
 
   // Conside apenas a solicitação mais recente (ou nenhuma)
   const currentRequest = renewalRequests && renewalRequests.length > 0 ? renewalRequests[0] : null;
+
+  // Mutação para enviar comprovante após pagamento
+  const uploadProof = useMutation({
+    mutationFn: async (requestId: string) => {
+      const formData = new FormData();
+      
+      if (proofType === 'link' && proofPaymentLink) {
+        formData.append('paymentProofUrl', proofPaymentLink);
+      } else if (proofType === 'file' && proofPaymentFile) {
+        formData.append('paymentProof', proofPaymentFile);
+      } else {
+        throw new Error('É necessário fornecer um link de comprovante ou anexar um arquivo.');
+      }
+
+      const response = await fetch(`/api/personal/renewal-requests/${requestId}/proof`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.mensagem || 'Erro inesperado');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Comprovante enviado", description: "Seu comprovante foi enviado com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["minhasRenewalRequests"] });
+      // Reset proof form
+      setProofPaymentLink("");
+      setProofPaymentFile(null);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Erro ao enviar comprovante", description: error?.message || "Erro inesperado." });
+    },
+  });
 
   // Mutação para solicitar renovação com suporte a arquivo e link
   const createRequest = useMutation({
@@ -149,6 +194,34 @@ export default function SolicitarRenovacao() {
       }
 
       setPaymentFile(file);
+    }
+  };
+
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validação de tipo de arquivo
+      const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({ 
+          variant: "destructive", 
+          title: "Arquivo inválido", 
+          description: "Apenas arquivos JPEG, PNG e PDF são permitidos." 
+        });
+        return;
+      }
+      
+      // Validação de tamanho (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ 
+          variant: "destructive", 
+          title: "Arquivo muito grande", 
+          description: "O arquivo deve ter no máximo 10MB." 
+        });
+        return;
+      }
+
+      setProofPaymentFile(file);
     }
   };
 
@@ -345,15 +418,116 @@ export default function SolicitarRenovacao() {
               <p>Sua solicitação foi recebida e está sendo processada.</p>
             )}
 
+            {(currentRequest.status === "payment_link_sent" || currentRequest.status === "link_sent") && currentRequest.paymentLink && (
+              <>
+                <div className="mb-4">
+                  <p className="mb-2">Link de pagamento disponível!</p>
+                  <Button 
+                    onClick={() => window.open(currentRequest.paymentLink, '_blank')}
+                    className="w-full mb-4 bg-green-600 hover:bg-green-700"
+                  >
+                    💳 Pagar Agora
+                  </Button>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium mb-2">Após efetuar o pagamento, envie o comprovante:</p>
+                  
+                  {/* Tipo de comprovante */}
+                  <div className="mb-4">
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={proofType === 'link' ? 'default' : 'outline'}
+                        onClick={() => setProofType('link')}
+                        className="flex-1"
+                        size="sm"
+                      >
+                        Link do comprovante
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={proofType === 'file' ? 'default' : 'outline'}
+                        onClick={() => setProofType('file')}
+                        className="flex-1"
+                        size="sm"
+                      >
+                        Upload de arquivo
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Input de link para comprovante */}
+                  {proofType === 'link' && (
+                    <div className="mb-4">
+                      <Input
+                        placeholder="Cole aqui o link do comprovante"
+                        value={proofPaymentLink}
+                        onChange={(e) => setProofPaymentLink(e.target.value)}
+                        className="mb-2"
+                      />
+                    </div>
+                  )}
+
+                  {/* Input de arquivo para comprovante */}
+                  {proofType === 'file' && (
+                    <div className="mb-4">
+                      <Input
+                        type="file"
+                        onChange={handleProofFileChange}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="mb-2"
+                      />
+                      {proofPaymentFile && (
+                        <p className="text-sm text-muted-foreground">
+                          Arquivo selecionado: {proofPaymentFile.name} ({(proofPaymentFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={() => uploadProof.mutate(currentRequest._id)}
+                    disabled={uploadProof.isPending || 
+                             (proofType === 'link' && !proofPaymentLink) || 
+                             (proofType === 'file' && !proofPaymentFile)}
+                    className="w-full"
+                  >
+                    {uploadProof.isPending ? "Enviando..." : "Enviar Comprovante"}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {(currentRequest.status === "payment_proof_uploaded" || currentRequest.status === "proof_submitted") && (
+              <p>Comprovante enviado. Aguarde a análise do administrador.</p>
+            )}
+
             {currentRequest.status === "approved" && (
               <>
-                <p>Solicitação aprovada! Seu plano foi renovado.</p>
+                <p className="text-green-600 font-medium">Solicitação aprovada! Seu plano foi renovado.</p>
+                {currentRequest.paymentDecisionNote && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Observação: {currentRequest.paymentDecisionNote}
+                  </p>
+                )}
                 <Button
                   className="mt-4"
                   onClick={() => navigate("/renovar-plano")}
                 >
                   Selecionar Alunos no Novo Ciclo
                 </Button>
+              </>
+            )}
+
+            {currentRequest.status === "rejected" && (
+              <>
+                <p className="text-red-600 font-medium">Solicitação rejeitada.</p>
+                {currentRequest.paymentDecisionNote && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Motivo: {currentRequest.paymentDecisionNote}
+                  </p>
+                )}
               </>
             )}
           </CardContent>
@@ -367,15 +541,18 @@ export default function SolicitarRenovacao() {
 function statusLabel(status: string) {
   switch (status) {
     case "pending":
-      return "Aguardando processamento";
+    case "requested":
+      return "Aguardando análise da solicitação";
     case "payment_link_sent":
-      return "Pagamento pendente";
+    case "link_sent":
+      return "Link de pagamento enviado";
     case "payment_proof_uploaded":
-      return "Comprovante enviado";
+    case "proof_submitted":
+      return "Comprovante enviado. Aguarde validação";
     case "approved":
-      return "Aprovado";
+      return "Pagamento aprovado. Renovação concluída";
     case "rejected":
-      return "Rejeitado";
+      return "Pagamento rejeitado";
     default:
       return status;
   }

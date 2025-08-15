@@ -210,6 +210,7 @@ router.put('/:id/payment-proof', async (req, res) => {
 
     request.paymentProofUrl = paymentProofUrl;
     request.status = 'payment_proof_uploaded';
+    request.proofUploadedAt = new Date(); // Add timestamp when proof is uploaded
     
     // Atualiza também o novo campo proof
     request.proof = {
@@ -239,6 +240,124 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Erro ao listar solicitações:', error);
     res.status(500).json({ mensagem: 'Erro ao buscar solicitações' });
+  }
+});
+
+// POST: personal envia comprovante após receber link de pagamento (novo endpoint dedicado)
+router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
+  await dbConnect();
+  try {
+    const requestId = req.params.id;
+    const personalTrainerId = (req as any).user.id;
+    const { paymentProofUrl } = req.body; // Para URL, se não enviou arquivo
+    const file = req.file; // Para arquivo
+
+    // Validação: pelo menos link OU arquivo deve estar presente
+    if (!paymentProofUrl && !file) {
+      return res.status(400).json({ 
+        mensagem: 'É necessário fornecer um link de comprovante ou anexar um arquivo.',
+        code: 'MISSING_PAYMENT_PROOF'
+      });
+    }
+
+    if (paymentProofUrl && file) {
+      return res.status(400).json({ 
+        mensagem: 'Forneça apenas um link OU um arquivo, não ambos.',
+        code: 'CONFLICTING_PAYMENT_PROOF'
+      });
+    }
+
+    const request = await RenewalRequest.findOne({
+      _id: requestId,
+      personalTrainerId: personalTrainerId,
+    });
+
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
+
+    if (request.status !== 'payment_link_sent') {
+      return res.status(400).json({ 
+        mensagem: `Solicitação em estado inválido: ${request.status}. Apenas solicitações com link enviado podem receber comprovante.`,
+        code: 'INVALID_STATUS'
+      });
+    }
+
+    let proof = undefined;
+
+    // Se um arquivo foi enviado, salva no GridFS
+    if (file) {
+      try {
+        const bucket = getPaymentProofBucket();
+        const uploadStream = bucket.openUploadStream(file.originalname, {
+          metadata: {
+            contentType: file.mimetype,
+            personalId: personalTrainerId,
+            uploadedAt: new Date()
+          }
+        });
+
+        uploadStream.end(file.buffer);
+        
+        await new Promise((resolve, reject) => {
+          uploadStream.on('finish', resolve);
+          uploadStream.on('error', reject);
+        });
+
+        proof = {
+          kind: 'file' as const,
+          fileId: uploadStream.id,
+          filename: file.originalname,
+          contentType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date()
+        };
+      } catch (uploadError) {
+        console.error('Erro ao fazer upload do arquivo:', uploadError);
+        return res.status(500).json({ 
+          mensagem: 'Erro ao processar o arquivo enviado.',
+          code: 'FILE_UPLOAD_ERROR'
+        });
+      }
+    }
+
+    // Se um link foi fornecido
+    if (paymentProofUrl) {
+      proof = {
+        kind: 'link' as const,
+        url: paymentProofUrl,
+        uploadedAt: new Date()
+      };
+    }
+
+    // Atualiza a solicitação
+    request.paymentProofUrl = paymentProofUrl || `file:${proof?.fileId}`;
+    request.status = 'payment_proof_uploaded';
+    request.proofUploadedAt = new Date();
+    request.proof = proof;
+    
+    await request.save();
+
+    res.json({
+      _id: request._id,
+      status: request.status,
+      proofUploadedAt: request.proofUploadedAt,
+      proof: request.proof
+    });
+  } catch (error: any) {
+    console.error('Erro ao enviar comprovante:', error);
+    
+    if (error instanceof multer.MulterError) {
+      return res.status(400).json({ 
+        mensagem: `Erro no upload: ${error.message}`,
+        code: 'UPLOAD_ERROR'
+      });
+    }
+    
+    res.status(500).json({ 
+      mensagem: 'Erro interno do servidor ao enviar comprovante.',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
   }
 });
 

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type RenewalStatus = 'pending' | 'payment_link_sent' | 'payment_proof_uploaded' | 'approved' | 'rejected' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'FULFILLED';
+export type RenewalStatus = 'pending' | 'payment_link_sent' | 'payment_proof_uploaded' | 'approved' | 'rejected' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'FULFILLED' | 'requested' | 'link_sent' | 'proof_submitted';
 
 export interface IRenewalProof {
   kind: 'link' | 'file';
@@ -30,6 +30,12 @@ export interface IRenewalRequest extends Document {
   requestedAt: Date;
   processedAt?: Date;
   adminId?: mongoose.Types.ObjectId;
+  
+  // Novos campos para timestamping do fluxo
+  linkSentAt?: Date;             // quando o link foi enviado pelo admin
+  proofUploadedAt?: Date;        // quando o personal enviou o comprovante
+  paymentDecisionAt?: Date;      // quando admin aprovou/rejeitou
+  paymentDecisionNote?: string;  // observação opcional do admin
 }
 
 const ProofSchema = new Schema<IRenewalProof>({
@@ -49,7 +55,7 @@ const RenewalRequestSchema = new Schema<IRenewalRequest>({
   studentId: { type: Schema.Types.ObjectId, ref: 'Aluno' },
   status: { 
     type: String, 
-    enum: ['pending', 'payment_link_sent', 'payment_proof_uploaded', 'approved', 'rejected', 'PENDING', 'APPROVED', 'REJECTED', 'FULFILLED'], 
+    enum: ['pending', 'payment_link_sent', 'payment_proof_uploaded', 'approved', 'rejected', 'PENDING', 'APPROVED', 'REJECTED', 'FULFILLED', 'requested', 'link_sent', 'proof_submitted'], 
     default: 'pending' 
   },
   notes: { type: String },
@@ -63,6 +69,12 @@ const RenewalRequestSchema = new Schema<IRenewalRequest>({
   requestedAt: { type: Date, default: Date.now },
   processedAt: { type: Date },
   adminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
+  
+  // Novos campos para timestamping do fluxo
+  linkSentAt: { type: Date },
+  proofUploadedAt: { type: Date },
+  paymentDecisionAt: { type: Date },
+  paymentDecisionNote: { type: String },
 }, { timestamps: true });
 
 export default mongoose.model<IRenewalRequest>('RenewalRequest', RenewalRequestSchema);
