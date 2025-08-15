@@ -1,4 +1,5 @@
 // server/src/routes/personalPlanosRoutes.ts
+
 import express, { Request, Response, NextFunction } from 'express';
 import PlanoService from '../../services/PlanoService.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
@@ -115,6 +116,7 @@ router.get('/planos-disponiveis', async (req: Request, res: Response, next: Next
   }
 });
 
+// <<< INÍCIO DA ALTERAÇÃO >>>
 /**
  * POST /api/personal/renovar-plano - Finaliza o ciclo de renovação, definindo quais alunos continuam.
  * Esta rota NÃO atribui um novo plano, ela assume que o plano já foi ativado pelo admin.
@@ -199,6 +201,7 @@ router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunc
         await session.endSession();
     }
 });
+// <<< FIM DA ALTERAÇÃO >>>
 
 
 export default router;

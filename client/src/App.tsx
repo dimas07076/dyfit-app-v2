@@ -10,7 +10,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
 import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
+// <<< INÍCIO DA CORREÇÃO >>>
 import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
+// <<< FIM DA CORREÇÃO >>>
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
@@ -20,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AppUpdatesManager } from '@/components/AppUpdatesManager';
 
 // --- Páginas ---
-// <<< NOVAS PÁGINAS IMPORTADAS AQUI >>>
+const RenovarPlanoPage = React.lazy(() => import("@/pages/renovar-plano"));
 const SolicitarRenovacao = React.lazy(() => import("@/pages/solicitar-renovacao"));
 const AdminRenewalRequests = React.lazy(() => import("@/pages/admin/renewal-requests"));
 
@@ -304,7 +306,6 @@ function AdminApp() {
           <AdminProtectedRoute path="/admin/criar-personal" component={CriarPersonalPage} /> 
           <AdminProtectedRoute path="/admin/personais/editar/:id" component={EditarPersonalPage} /> 
           <AdminProtectedRoute path="/admin/convites" component={GerenciarConvitesPage} />
-          {/* <<< ROTA DE ADMIN ADICIONADA AQUI >>> */}
           <AdminProtectedRoute path="/admin/solicitacoes-renovacao" component={AdminRenewalRequests} />
           <AdminProtectedRoute path="/exercises" component={ExercisesIndex} /> 
           <AdminProtectedRoute path="/perfil/editar" component={ProfileEditPage} /> 
@@ -323,7 +324,7 @@ function PersonalApp() {
         <Switch> 
           <ProtectedRoute path="/" component={Dashboard} /> 
           <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
-          {/* <<< ROTA DE PERSONAL ADICIONADA AQUI >>> */}
+          <ProtectedRoute path="/renovar-plano" component={RenovarPlanoPage} />
           <ProtectedRoute path="/solicitar-renovacao" component={SolicitarRenovacao} />
           <ProtectedRoute path="/alunos" component={StudentsIndex} /> 
           <ProtectedRoute path="/alunos/novo" component={NewStudent} /> 

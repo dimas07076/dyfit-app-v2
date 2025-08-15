@@ -1,7 +1,7 @@
 // client/src/pages/solicitar-renovacao.tsx
-import { useState } from "react"; // <<< CORREÇÃO: 'useEffect' removido
+import { useState } from "react"; 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWithAuth } from "@/lib/apiClient"; // <<< CORREÇÃO: 'apiRequest' removido
+import { fetchWithAuth } from "@/lib/apiClient"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-// <<< CORREÇÃO: Importação de 'Aluno' removida pois não é usada aqui
 import { Download, Loader2 } from "lucide-react";
 
 interface PlanoDisponivel {
@@ -372,7 +371,16 @@ export default function SolicitarRenovacao() {
             )}
             
             {(currentRequest.status === "payment_proof_uploaded" || currentRequest.status === "proof_submitted") && (<p>Comprovante enviado. Aguarde a análise do administrador.</p>)}
-            {currentRequest.status === "approved" && (<><p className="text-green-600 font-medium">Solicitação aprovada! Seu plano foi renovado.</p><Button className="mt-4" onClick={() => navigate("/renovar-plano")}>Selecionar Alunos no Novo Ciclo</Button></>)}
+            {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
+            {currentRequest.status === "approved" && (
+                <>
+                    <p className="text-green-600 font-medium">Solicitação aprovada! Seu plano foi renovado.</p>
+                    <Button className="mt-4 w-full" onClick={() => navigate("/renovar-plano")}>
+                        Selecionar Alunos no Novo Ciclo
+                    </Button>
+                </>
+            )}
+            {/* <<< FIM DA ALTERAÇÃO >>> */}
             {currentRequest.status === "rejected" && (<><p className="text-red-600 font-medium">Solicitação rejeitada.</p>{currentRequest.paymentDecisionNote && <p className="text-sm text-muted-foreground mt-2">Motivo: {currentRequest.paymentDecisionNote}</p>}</>)}
           </CardContent>
         </Card>
