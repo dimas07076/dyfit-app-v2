@@ -20,6 +20,12 @@ interface AdminRenewalRequest {
   status: string;
   paymentLink?: string;
   paymentProofUrl?: string;
+  proof?: {
+    kind: 'link' | 'file';
+    url?: string;
+    filename?: string;
+  };
+  notes?: string;
 }
 
 export default function AdminRenewalRequests() {
@@ -101,6 +107,34 @@ export default function AdminRenewalRequests() {
                     Abrir comprovante
                   </a>
                 </p>
+              )}
+              {req.proof && (
+                <div>
+                  <p className="text-sm font-medium">Comprovante enviado:</p>
+                  {req.proof.kind === 'link' && (
+                    <a
+                      href={req.proof.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline break-all text-sm"
+                    >
+                      {req.proof.url}
+                    </a>
+                  )}
+                  {req.proof.kind === 'file' && (
+                    <p className="text-sm">
+                      Arquivo: {req.proof.filename}
+                      <a
+                        href={`/api/admin/renewal-requests/${req._id}/proof/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-primary underline"
+                      >
+                        Baixar
+                      </a>
+                    </p>
+                  )}
+                </div>
               )}
 
               {/* Ações baseadas no status */}

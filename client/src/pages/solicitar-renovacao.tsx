@@ -2,14 +2,13 @@
 // <<< CORREÇÃO: 'useEffect' removido da importação do React >>>
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
+import { fetchWithAuth } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 // <<< CORREÇÃO: Importação do 'Checkbox' removida, pois não é utilizada >>>
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -211,19 +210,27 @@ export default function SolicitarRenovacao() {
               <CardTitle>Comprovante de Pagamento</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Tipo de comprovante */}
+              {/* Tipo de comprovante - Botões simples */}
               <div>
                 <Label className="text-base font-medium">Como você quer enviar o comprovante?</Label>
-                <RadioGroup value={proofType} onValueChange={(value: 'link' | 'file') => setProofType(value)} className="mt-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="link" id="link" />
-                    <Label htmlFor="link">Link/URL do comprovante</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="file" id="file" />
-                    <Label htmlFor="file">Upload do arquivo (JPEG, PNG, PDF)</Label>
-                  </div>
-                </RadioGroup>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant={proofType === 'link' ? 'default' : 'outline'}
+                    onClick={() => setProofType('link')}
+                    className="flex-1"
+                  >
+                    Link/URL do comprovante
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={proofType === 'file' ? 'default' : 'outline'}
+                    onClick={() => setProofType('file')}
+                    className="flex-1"
+                  >
+                    Upload de arquivo
+                  </Button>
+                </div>
               </div>
 
               {/* Input de link */}
@@ -243,7 +250,7 @@ export default function SolicitarRenovacao() {
               {/* Input de arquivo */}
               {proofType === 'file' && (
                 <div>
-                  <Label htmlFor="paymentFile">Arquivo do comprovante</Label>
+                  <Label htmlFor="paymentFile">Arquivo do comprovante (JPEG, PNG, PDF - máx 10MB)</Label>
                   <Input
                     id="paymentFile"
                     type="file"
