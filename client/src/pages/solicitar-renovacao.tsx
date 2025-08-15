@@ -92,20 +92,10 @@ export default function SolicitarRenovacao() {
         throw new Error('É necessário fornecer um link de comprovante ou anexar um arquivo.');
       }
 
-      const response = await fetch(`/api/personal/renewal-requests/${requestId}/proof`, {
+      return fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
         body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.mensagem || 'Erro inesperado');
-      }
-
-      return response.json();
+      }, 'personalAdmin');
     },
     onSuccess: () => {
       toast({ title: "Comprovante enviado", description: "Seu comprovante foi enviado com sucesso!" });
@@ -138,20 +128,10 @@ export default function SolicitarRenovacao() {
       }
       // Se não tem comprovante, solicita apenas a renovação (admin enviará link)
 
-      const response = await fetch('/api/personal/renewal-requests', {
+      return fetchWithAuth('/api/personal/renewal-requests', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
         body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.mensagem || 'Erro inesperado');
-      }
-
-      return response.json();
+      }, 'personalAdmin');
     },
     onSuccess: () => {
       toast({ title: "Solicitação enviada", description: "Sua solicitação foi enviada com sucesso!" });
