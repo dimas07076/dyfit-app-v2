@@ -207,15 +207,29 @@ const fetchWithAuthInternal = async <T = any>(
   }
 
   const headers = new Headers(options.headers || {});
-  headers.set('Accept', 'application/json');
+  
+  // Only set Accept header for non-FormData requests
+  // FormData uploads should not have Accept forced to application/json
+  const isFormData = options.body instanceof FormData;
+  if (!isFormData) {
+    headers.set('Accept', 'application/json');
+  } else {
+    console.log(`[fetchWithAuth] FormData upload detected for ${url}`);
+  }
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+    if (isFormData) {
+      console.log(`[fetchWithAuth] Authorization header set for FormData upload`);
+    }
   } else if (!isPublicAuthRoute) {
     // Mensagem de erro agora usa o tokenType explícito
     console.warn(`[fetchWithAuth] Nenhum token encontrado para a rota protegida '${url}' (tipo esperado: ${tokenType})`);
   }
 
+  // Only set Content-Type for string bodies (JSON)
+  // FormData requests MUST NOT have Content-Type set manually
+  // as the browser needs to set it with the correct boundary
   if (options.body && typeof options.body === 'string') {
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
@@ -261,6 +275,12 @@ const fetchWithAuthInternal = async <T = any>(
                       // Retry com o novo token
                       const newHeaders = new Headers(options.headers || {});
                       newHeaders.set('Authorization', `Bearer ${token}`);
+                      
+                      // For FormData, don't set Accept header
+                      if (!(options.body instanceof FormData)) {
+                        newHeaders.set('Accept', 'application/json');
+                      }
+                      
                       return fetch(url, { ...options, headers: newHeaders });
                   }).then(async (retryResponse) => {
                       // Processa a resposta da tentativa com o novo token
@@ -287,6 +307,11 @@ const fetchWithAuthInternal = async <T = any>(
                       // Retry da requisição original com o novo token
                       const newHeaders = new Headers(options.headers || {});
                       newHeaders.set('Authorization', `Bearer ${newToken}`);
+                      
+                      // For FormData, don't set Accept header
+                      if (!(options.body instanceof FormData)) {
+                        newHeaders.set('Accept', 'application/json');
+                      }
                       
                       const retryResponse = await fetch(url, { ...options, headers: newHeaders });
                       

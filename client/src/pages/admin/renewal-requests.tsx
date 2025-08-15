@@ -4,6 +4,7 @@ import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminRenewalRequest {
@@ -20,12 +21,23 @@ interface AdminRenewalRequest {
   status: string;
   paymentLink?: string;
   paymentProofUrl?: string;
+  proof?: {
+    kind: 'link' | 'file';
+    url?: string;
+    filename?: string;
+  };
+  notes?: string;
+  linkSentAt?: string;
+  proofUploadedAt?: string;
+  paymentDecisionAt?: string;
+  paymentDecisionNote?: string;
 }
 
 export default function AdminRenewalRequests() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [paymentLinks, setPaymentLinks] = useState<Record<string, string>>({});
+  const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
 
   const {
     data: requests,
@@ -49,16 +61,16 @@ export default function AdminRenewalRequests() {
     },
   });
 
-  // Mutação para aprovar solicitação
-  const approve = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("PUT", `/api/admin/renewal-requests/${id}/approve`, {}),
+  // Mutação para decisão (aprovar/rejeitar)
+  const makeDecision = useMutation({
+    mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
+      apiRequest("PATCH", `/api/admin/renewal-requests/${id}/decision`, { approved, note }),
     onSuccess: () => {
-      toast({ title: "Solicitação aprovada", description: "Plano renovado com sucesso." });
+      toast({ title: "Decisão processada", description: "Decisão registrada com sucesso." });
       queryClient.invalidateQueries({ queryKey: ["adminRenewalRequests"] });
     },
     onError: (err: any) => {
-      toast({ variant: "destructive", title: "Erro ao aprovar", description: err?.message || "Erro inesperado." });
+      toast({ variant: "destructive", title: "Erro ao processar decisão", description: err?.message || "Erro inesperado." });
     },
   });
 
@@ -86,13 +98,31 @@ export default function AdminRenewalRequests() {
               <p>Personal: <strong>{req.personalTrainerId?.nome}</strong> ({req.personalTrainerId?.email})</p>
               <p>Plano solicitado: {req.planIdRequested?.nome || "Manter categoria"}</p>
               <p>Status: {statusLabel(req.status)}</p>
-              {req.paymentLink && (
+              
+              {req.paymentLink && req.linkSentAt && (
+                <p>
+                  Link enviado em {new Date(req.linkSentAt).toLocaleString('pt-BR')}:{" "}
+                  <a href={req.paymentLink} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
+                    {req.paymentLink}
+                  </a>
+                </p>
+              )}
+              
+              {req.paymentLink && !req.linkSentAt && (
                 <p>
                   Link enviado:{" "}
                   <a href={req.paymentLink} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
                     {req.paymentLink}
                   </a>
                 </p>
+              )}
+              
+              {req.proofUploadedAt && (
+                <p>Comprovante enviado em {new Date(req.proofUploadedAt).toLocaleString('pt-BR')}</p>
+              )}
+              
+              {req.paymentDecisionAt && req.paymentDecisionNote && (
+                <p>Decisão tomada em {new Date(req.paymentDecisionAt).toLocaleString('pt-BR')}: {req.paymentDecisionNote}</p>
               )}
               {req.paymentProofUrl && (
                 <p>
@@ -101,6 +131,34 @@ export default function AdminRenewalRequests() {
                     Abrir comprovante
                   </a>
                 </p>
+              )}
+              {req.proof && (
+                <div>
+                  <p className="text-sm font-medium">Comprovante enviado:</p>
+                  {req.proof.kind === 'link' && (
+                    <a
+                      href={req.proof.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline break-all text-sm"
+                    >
+                      {req.proof.url}
+                    </a>
+                  )}
+                  {req.proof.kind === 'file' && (
+                    <p className="text-sm">
+                      Arquivo: {req.proof.filename}
+                      <a
+                        href={`/api/admin/renewal-requests/${req._id}/proof/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-primary underline"
+                      >
+                        Baixar
+                      </a>
+                    </p>
+                  )}
+                </div>
               )}
 
               {/* Ações baseadas no status */}
@@ -128,13 +186,28 @@ export default function AdminRenewalRequests() {
               )}
 
               {req.status === "payment_proof_uploaded" && (
-                <div className="mt-4">
-                  <Button
-                    onClick={() => approve.mutate(req._id)}
-                    disabled={approve.isPending}
-                  >
-                    {approve.isPending ? "Aprovando..." : "Aprovar Renovação"}
-                  </Button>
+                <div className="mt-4 space-y-2">
+                  <Textarea
+                    placeholder="Observação (opcional)"
+                    value={decisionNotes[req._id] || ""}
+                    onChange={(e) => setDecisionNotes({ ...decisionNotes, [req._id]: e.target.value })}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => makeDecision.mutate({ id: req._id, approved: true, note: decisionNotes[req._id] })}
+                      disabled={makeDecision.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {makeDecision.isPending ? "Processando..." : "Aprovar"}
+                    </Button>
+                    <Button
+                      onClick={() => makeDecision.mutate({ id: req._id, approved: false, note: decisionNotes[req._id] })}
+                      disabled={makeDecision.isPending}
+                      variant="destructive"
+                    >
+                      {makeDecision.isPending ? "Processando..." : "Rejeitar"}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -148,10 +221,13 @@ export default function AdminRenewalRequests() {
 function statusLabel(status: string) {
   switch (status) {
     case "pending":
+    case "requested":
       return "Aguardando envio de link";
     case "payment_link_sent":
+    case "link_sent":
       return "Link enviado, aguardando comprovante";
     case "payment_proof_uploaded":
+    case "proof_submitted":
       return "Comprovante anexado, aguardando aprovação";
     case "approved":
       return "Aprovado";
