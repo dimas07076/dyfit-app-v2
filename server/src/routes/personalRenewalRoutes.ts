@@ -251,10 +251,28 @@ router.get('/', async (req, res) => {
 router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
   await dbConnect();
   try {
+    console.log('[Personal Proof Upload] Starting upload process for request:', req.params.id);
+    console.log('[Personal Proof Upload] Headers:', Object.keys(req.headers));
+    console.log('[Personal Proof Upload] Content-Type:', req.headers['content-type']);
+    console.log('[Personal Proof Upload] File received:', req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
+    console.log('[Personal Proof Upload] Body:', req.body);
+    
     const requestId = req.params.id;
     const personalTrainerId = (req as any).user.id;
     const { paymentProofUrl } = req.body; // Para URL, se não enviou arquivo
     const file = req.file; // Para arquivo
+
+    console.log('[Personal Proof Upload] Processing:', {
+      requestId,
+      personalTrainerId,
+      hasFile: !!file,
+      hasUrl: !!paymentProofUrl
+    });
 
     // Validação: pelo menos link OU arquivo deve estar presente
     if (!paymentProofUrl && !file) {
@@ -335,12 +353,20 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
     }
 
     // Atualiza a solicitação
+    console.log('[Personal Proof Upload] Updating request with:', {
+      paymentProofUrl: paymentProofUrl || `file:${proof?.fileId}`,
+      status: 'payment_proof_uploaded',
+      proofKind: proof?.kind
+    });
+    
     request.paymentProofUrl = paymentProofUrl || `file:${proof?.fileId}`;
     request.status = 'payment_proof_uploaded';
     request.proofUploadedAt = new Date();
     request.proof = proof;
     
     await request.save();
+    
+    console.log('[Personal Proof Upload] Request updated successfully');
 
     res.json({
       _id: request._id,
@@ -349,9 +375,15 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
       proof: request.proof
     });
   } catch (error: any) {
-    console.error('Erro ao enviar comprovante:', error);
+    console.error('[Personal Proof Upload] Error occurred:', error);
+    console.error('[Personal Proof Upload] Error stack:', error.stack);
     
     if (error instanceof multer.MulterError) {
+      console.error('[Personal Proof Upload] Multer error details:', {
+        code: error.code,
+        field: error.field,
+        message: error.message
+      });
       return res.status(400).json({ 
         mensagem: `Erro no upload: ${error.message}`,
         code: 'UPLOAD_ERROR'

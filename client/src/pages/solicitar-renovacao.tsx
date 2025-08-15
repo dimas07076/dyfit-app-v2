@@ -82,22 +82,31 @@ export default function SolicitarRenovacao() {
   // Mutação para enviar comprovante após pagamento
   const uploadProof = useMutation({
     mutationFn: async (requestId: string) => {
+      console.log('[Upload Proof] Starting upload process...');
       const formData = new FormData();
       
       if (proofPaymentType === 'link' && proofPaymentLink) {
         formData.append('paymentProofUrl', proofPaymentLink);
+        console.log('[Upload Proof] Adding URL proof:', proofPaymentLink);
       } else if (proofPaymentType === 'file' && proofPaymentFile) {
         formData.append('paymentProof', proofPaymentFile);
+        console.log('[Upload Proof] Adding file proof:', {
+          name: proofPaymentFile.name,
+          size: proofPaymentFile.size,
+          type: proofPaymentFile.type
+        });
       } else {
         throw new Error('É necessário fornecer um link de comprovante ou anexar um arquivo.');
       }
 
+      console.log('[Upload Proof] Sending request to:', `/api/personal/renewal-requests/${requestId}/proof`);
       return fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof`, {
         method: 'POST',
         body: formData,
       }, 'personalAdmin');
     },
     onSuccess: () => {
+      console.log('[Upload Proof] Upload successful!');
       toast({ title: "Comprovante enviado", description: "Seu comprovante foi enviado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["minhasRenewalRequests"] });
       // Reset proof form
@@ -105,7 +114,13 @@ export default function SolicitarRenovacao() {
       setProofPaymentFile(null);
     },
     onError: (error: any) => {
-      toast({ variant: "destructive", title: "Erro ao enviar comprovante", description: error?.message || "Erro inesperado." });
+      console.error('[Upload Proof] Upload failed:', error);
+      const errorMessage = error?.message || "Erro inesperado ao enviar comprovante.";
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao enviar comprovante", 
+        description: errorMessage 
+      });
     },
   });
 
