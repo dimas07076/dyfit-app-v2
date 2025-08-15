@@ -187,7 +187,7 @@ const fetchWithAuthInternal = async <T = any>(
   url: string,
   options: RequestInit = {},
   tokenType: TokenType = 'personalAdmin',
-  retryAttempt: number = 0
+  _retryAttempt: number = 0 // Currently unused but may be needed for future retry tracking
 ): Promise<T> => {
   // Valida e limpa storage corrompido antes de fazer a requisição
   if (!url.startsWith('/api/auth/')) {
@@ -478,4 +478,143 @@ export const apiRequest = async <T = any>(
 
   // Reutiliza fetchWithAuth para lidar com autenticação e tratamento de erros
   return fetchWithAuth<T>(url, options, tokenType);
+};
+
+/**
+ * Two-step file upload using Vercel Blob presigned URLs
+ * Step 1: Get presigned URL from backend
+ * Step 2: Upload directly to Vercel Blob
+ * Step 3: Confirm upload with backend
+ */
+export const uploadFileWithPresignedUrl = async (
+  requestId: string,
+  file: File,
+  tokenType: TokenType = 'personalAdmin'
+): Promise<any> => {
+  console.log('[Upload] Starting two-step upload process for:', file.name);
+
+  // Step 1: Get presigned URL
+  const presignResponse = await fetchWithAuth<{
+    uploadUrl: string;
+    blobUrl: string;
+    filename: string;
+    originalFilename: string;
+    isMock?: boolean;
+  }>(`/api/personal/renewal-requests/${requestId}/proof/presign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      fileSize: file.size
+    })
+  }, tokenType);
+
+  console.log('[Upload] Got presigned URL:', presignResponse.uploadUrl);
+
+  // Step 2: Upload directly to Vercel Blob using PUT (or skip if mock)
+  if (!presignResponse.isMock) {
+    const uploadResponse = await fetch(presignResponse.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+      },
+      body: file
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('[Upload] Vercel Blob upload failed:', errorText);
+      throw new Error(`Erro no upload: ${uploadResponse.status} ${errorText}`);
+    }
+
+    console.log('[Upload] File uploaded successfully to Vercel Blob');
+  } else {
+    console.log('[Upload] Using mock upload (Vercel Blob not configured)');
+  }
+
+  // Step 3: Confirm with backend
+  const confirmResponse = await fetchWithAuth(`/api/personal/renewal-requests/${requestId}/proof/confirm`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      blobUrl: presignResponse.blobUrl,
+      filename: presignResponse.filename,
+      originalFilename: presignResponse.originalFilename
+    })
+  }, tokenType);
+
+  console.log('[Upload] Upload confirmed with backend');
+  return confirmResponse;
+};
+
+/**
+ * Get a signed download URL for a file attachment
+ */
+export const getSignedDownloadUrl = async (
+  proofId: string,
+  tokenType: TokenType = 'personalAdmin'
+): Promise<{
+  downloadUrl: string;
+  filename?: string;
+  isLegacyFile: boolean;
+}> => {
+  // Use the specific admin endpoint for admin downloads
+  if (tokenType === 'personalAdmin') {
+    return fetchWithAuth(`/api/admin/renewal-requests/${proofId}/proof/sign`, {
+      method: 'GET'
+    }, tokenType);
+  }
+  
+  // Fallback to the generic endpoint for other token types
+  return fetchWithAuth(`/api/files/sign?proofId=${proofId}`, {
+    method: 'GET'
+  }, tokenType);
+};
+
+/**
+ * Download a file using a signed URL (handles both legacy and new files)
+ */
+export const downloadFile = async (
+  proofId: string,
+  tokenType: TokenType = 'personalAdmin'
+): Promise<void> => {
+  try {
+    const signedUrlResponse = await getSignedDownloadUrl(proofId, tokenType);
+    
+    // For new Vercel Blob files, open the direct URL
+    if (!signedUrlResponse.isLegacyFile) {
+      window.open(signedUrlResponse.downloadUrl, '_blank');
+      return;
+    }
+
+    // For legacy GridFS files, use the authenticated download endpoint
+    const response = await fetchWithAuth(signedUrlResponse.downloadUrl, {
+      method: 'GET'
+    }, tokenType);
+
+    // Handle the file download
+    if (response instanceof Response) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = signedUrlResponse.filename || 'comprovante';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } else {
+      // If fetchWithAuth returned a direct URL, open it
+      window.open(signedUrlResponse.downloadUrl, '_blank');
+    }
+  } catch (error) {
+    console.error('[Download] Error downloading file:', error);
+    throw error;
+  }
 };

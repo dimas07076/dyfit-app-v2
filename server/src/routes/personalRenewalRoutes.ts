@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import { put, del } from '@vercel/blob';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import dbConnect from '../../lib/dbConnect.js';
 import RenewalRequest from '../../models/RenewalRequest.js';
@@ -14,7 +15,7 @@ router.use(authenticateToken);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 5 * 1024 * 1024, // 5MB (reduced from 10MB as per requirements)
   },
   fileFilter: (req, file, cb) => {
     // Aceita apenas JPEG, PNG e PDF
@@ -354,12 +355,13 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
 
     // Atualiza a solicitação
     console.log('[Personal Proof Upload] Updating request with:', {
-      paymentProofUrl: paymentProofUrl || `file:${proof?.fileId}`,
+      paymentProofUrl: paymentProofUrl || `legacy-file:${proof?.fileId}`,
       status: 'payment_proof_uploaded',
       proofKind: proof?.kind
     });
     
-    request.paymentProofUrl = paymentProofUrl || `file:${proof?.fileId}`;
+    // FIXED: Don't store invalid file:// URLs. For legacy GridFS files, store a legacy marker
+    request.paymentProofUrl = paymentProofUrl || `legacy-file:${proof?.fileId}`;
     request.status = 'payment_proof_uploaded';
     request.proofUploadedAt = new Date();
     request.proof = proof;
@@ -392,6 +394,198 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res) => {
     
     res.status(500).json({ 
       mensagem: 'Erro interno do servidor ao enviar comprovante.',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
+  }
+});
+
+/**
+ * POST /api/personal/renewal-requests/:id/proof/presign
+ * Generate presigned URL for direct upload to Vercel Blob
+ */
+router.post('/:id/proof/presign', async (req, res) => {
+  await dbConnect();
+  
+  try {
+    const requestId = req.params.id;
+    const personalTrainerId = (req as any).user.id;
+    const { filename, contentType, fileSize } = req.body;
+
+    console.log('[Presign] Starting presign process for request:', requestId);
+    console.log('[Presign] File details:', { filename, contentType, fileSize });
+
+    // Validation
+    if (!filename || !contentType) {
+      return res.status(400).json({ 
+        mensagem: 'Nome do arquivo e tipo de conteúdo são obrigatórios.',
+        code: 'MISSING_FILE_INFO'
+      });
+    }
+
+    // File type validation
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(contentType)) {
+      return res.status(400).json({ 
+        mensagem: 'Apenas arquivos JPEG, PNG e PDF são permitidos.',
+        code: 'INVALID_FILE_TYPE'
+      });
+    }
+
+    // File size validation (5MB)
+    if (fileSize && fileSize > 5 * 1024 * 1024) {
+      return res.status(400).json({ 
+        mensagem: 'O arquivo deve ter no máximo 5MB.',
+        code: 'FILE_TOO_LARGE'
+      });
+    }
+
+    // Find the renewal request
+    const request = await RenewalRequest.findOne({
+      _id: requestId,
+      personalTrainerId: personalTrainerId,
+    });
+
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
+
+    // Check if request can receive proof
+    if (request.status !== 'payment_link_sent') {
+      return res.status(400).json({ 
+        mensagem: `Solicitação em estado inválido: ${request.status}. Apenas solicitações com link enviado podem receber comprovante.`,
+        code: 'INVALID_STATUS'
+      });
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const extension = filename.split('.').pop();
+    const safeFilename = `proof-${requestId}-${timestamp}.${extension}`;
+
+    console.log('[Presign] Generated safe filename:', safeFilename);
+
+    // Check if Vercel Blob is configured
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.warn('[Presign] Vercel Blob not configured, using mock response');
+      // Return a mock response for testing/development
+      const mockUrl = `https://mock-blob-storage.vercel.app/${safeFilename}`;
+      return res.json({
+        uploadUrl: mockUrl,
+        blobUrl: mockUrl,
+        filename: safeFilename,
+        originalFilename: filename,
+        isMock: true
+      });
+    }
+
+    // Create presigned URL for Vercel Blob
+    try {
+      const blobResult = await put(safeFilename, Buffer.from(''), {
+        access: 'public',
+        contentType,
+        addRandomSuffix: false,
+      });
+
+      console.log('[Presign] Blob result:', blobResult);
+
+      res.json({
+        uploadUrl: blobResult.url,
+        blobUrl: blobResult.url,
+        filename: safeFilename,
+        originalFilename: filename
+      });
+    } catch (blobError) {
+      console.error('[Presign] Vercel Blob error:', blobError);
+      // Fallback to legacy upload if Vercel Blob fails
+      throw new Error('Vercel Blob upload não está disponível. Use o upload tradicional.');
+    }
+
+  } catch (error) {
+    console.error('[Presign] Error occurred:', error);
+    res.status(500).json({ 
+      mensagem: 'Erro interno do servidor ao gerar URL de upload.',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
+  }
+});
+
+/**
+ * POST /api/personal/renewal-requests/:id/proof/confirm
+ * Confirm successful upload and update the renewal request
+ */
+router.post('/:id/proof/confirm', async (req, res) => {
+  await dbConnect();
+  
+  try {
+    const requestId = req.params.id;
+    const personalTrainerId = (req as any).user.id;
+    const { blobUrl, filename, originalFilename } = req.body;
+
+    console.log('[Confirm] Starting confirm process for request:', requestId);
+    console.log('[Confirm] Blob details:', { blobUrl, filename, originalFilename });
+
+    // Validation
+    if (!blobUrl || !filename) {
+      return res.status(400).json({ 
+        mensagem: 'URL do blob e nome do arquivo são obrigatórios.',
+        code: 'MISSING_BLOB_INFO'
+      });
+    }
+
+    // Validate blob URL is HTTPS and from Vercel
+    if (!blobUrl.startsWith('https://') || !blobUrl.includes('vercel-storage.com')) {
+      return res.status(400).json({ 
+        mensagem: 'URL do blob inválida.',
+        code: 'INVALID_BLOB_URL'
+      });
+    }
+
+    // Find the renewal request
+    const request = await RenewalRequest.findOne({
+      _id: requestId,
+      personalTrainerId: personalTrainerId,
+    });
+
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
+
+    // Check if request can receive proof
+    if (request.status !== 'payment_link_sent') {
+      return res.status(400).json({ 
+        mensagem: `Solicitação em estado inválido: ${request.status}. Apenas solicitações com link enviado podem receber comprovante.`,
+        code: 'INVALID_STATUS'
+      });
+    }
+
+    // Update the request with the blob URL
+    const proof = {
+      kind: 'file' as const,
+      filename: originalFilename || filename,
+      uploadedAt: new Date()
+    };
+
+    request.paymentProofUrl = blobUrl; // Store the HTTPS URL
+    request.status = 'payment_proof_uploaded';
+    request.proofUploadedAt = new Date();
+    request.proof = proof;
+    
+    await request.save();
+    
+    console.log('[Confirm] Request updated successfully with blob URL');
+
+    res.json({
+      _id: request._id,
+      status: request.status,
+      proofUploadedAt: request.proofUploadedAt,
+      proof: request.proof,
+      paymentProofUrl: request.paymentProofUrl
+    });
+
+  } catch (error) {
+    console.error('[Confirm] Error occurred:', error);
+    res.status(500).json({ 
+      mensagem: 'Erro interno do servidor ao confirmar upload.',
       code: 'INTERNAL_SERVER_ERROR'
     });
   }

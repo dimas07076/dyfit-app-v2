@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
+import { fetchWithAuth, apiRequest, downloadFile } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,9 +127,30 @@ export default function AdminRenewalRequests() {
               {req.paymentProofUrl && (
                 <p>
                   Comprovante enviado:{" "}
-                  <a href={req.paymentProofUrl} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
-                    Abrir comprovante
-                  </a>
+                  {req.paymentProofUrl.startsWith('https://') ? (
+                    <a href={req.paymentProofUrl} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
+                      Abrir comprovante
+                    </a>
+                  ) : (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-primary underline"
+                      onClick={async () => {
+                        try {
+                          await downloadFile(req._id, 'personalAdmin');
+                        } catch (error) {
+                          toast({
+                            variant: "destructive",
+                            title: "Erro no download",
+                            description: "Não foi possível baixar o arquivo."
+                          });
+                        }
+                      }}
+                    >
+                      Baixar comprovante
+                    </Button>
+                  )}
                 </p>
               )}
               {req.proof && (
@@ -148,14 +169,24 @@ export default function AdminRenewalRequests() {
                   {req.proof.kind === 'file' && (
                     <p className="text-sm">
                       Arquivo: {req.proof.filename}
-                      <a
-                        href={`/api/admin/renewal-requests/${req._id}/proof/download`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-primary underline"
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="ml-2 h-auto p-0 text-primary underline"
+                        onClick={async () => {
+                          try {
+                            await downloadFile(req._id, 'personalAdmin');
+                          } catch (error) {
+                            toast({
+                              variant: "destructive",
+                              title: "Erro no download",
+                              description: "Não foi possível baixar o arquivo."
+                            });
+                          }
+                        }}
                       >
                         Baixar
-                      </a>
+                      </Button>
                     </p>
                   )}
                 </div>
