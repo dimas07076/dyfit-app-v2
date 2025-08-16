@@ -24,12 +24,16 @@ export default function RenovarPlanoPage() {
   const { data: planStatus, isLoading: loadingPlan, error: planError } = useQuery<PersonalPlanStatus, Error>({
     queryKey: ['meuPlanoParaRenovacao'],
     queryFn: () => fetchWithAuth("/api/personal/meu-plano"),
+    staleTime: 0, // Always fetch fresh data for plan renewal
+    refetchOnMount: true,
   });
 
   const { data: todosAlunos, isLoading: loadingAlunos, error: alunosError } = useQuery<Aluno[], Error>({
     queryKey: ['todosAlunosParaRenovacao'],
     queryFn: () => fetchWithAuth("/api/aluno/gerenciar?status=all"),
     enabled: !!planStatus,
+    staleTime: 0, // Always fetch fresh data for plan renewal
+    refetchOnMount: true,
   });
 
   useEffect(() => {
@@ -59,12 +63,18 @@ export default function RenovarPlanoPage() {
         alunosSelecionados: selectedIds,
       }),
     onSuccess: () => {
+      const planName = planStatus?.plano?.nome || 'seu plano';
+      const planLimit = planStatus?.limiteAtual || 0;
+      const selectedCount = selectedAlunos.size;
       toast({
-        title: "Alunos atualizados!",
-        description: "Os alunos para o novo ciclo do seu plano foram definidos com sucesso.",
+        title: "Plano atualizado com sucesso!",
+        description: `Plano atualizado para ${planName}. ${selectedCount}/${planLimit} alunos selecionados.`,
       });
       queryClient.invalidateQueries({ queryKey: ['meuPlanoParaRenovacao'] });
       queryClient.invalidateQueries({ queryKey: ['todosAlunosParaRenovacao'] });
+      // Also invalidate other related queries that might exist
+      queryClient.invalidateQueries({ queryKey: ['meuPlano'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
       navigate("/meu-plano");
     },
     onError: (error: any) => {
@@ -111,7 +121,7 @@ export default function RenovarPlanoPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Selecionar Alunos para o Novo Ciclo</CardTitle>
           <CardDescription>
-            Seu plano <Badge variant="default" className="mx-1">{planStatus.plano.nome}</Badge> foi renovado! Agora, selecione quais alunos continuarão ativos neste novo período. Os alunos não selecionados serão marcados como inativos.
+            Seu plano <Badge variant="default" className="mx-1">{planStatus.plano?.nome || 'Carregando...'}</Badge> está ativo! Selecione quais alunos continuarão ativos neste período. Os alunos não selecionados serão marcados como inativos.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -120,7 +130,7 @@ export default function RenovarPlanoPage() {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <Crown className="w-5 h-5 text-primary" />
-                    <span className="font-semibold">{planStatus.plano.nome}</span>
+                    <span className="font-semibold">{planStatus.plano?.nome || 'Carregando...'}</span>
                 </div>
                 <div className="text-right">
                   <p className={`font-bold text-lg ${selectedAlunos.size > limiteTotal ? 'text-destructive' : 'text-primary'}`}>
