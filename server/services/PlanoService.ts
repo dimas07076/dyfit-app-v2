@@ -87,6 +87,14 @@ export class PlanoService {
                 model: 'Plano'
             }).sort({ dataInicio: -1 });
 
+            console.log(`🔍 Plano ativo encontrado para ${personalTrainerId}:`, personalPlanoAtivo ? {
+                id: personalPlanoAtivo._id,
+                planoId: personalPlanoAtivo.planoId,
+                planoNome: (personalPlanoAtivo.planoId as any)?.nome,
+                dataVencimento: personalPlanoAtivo.dataVencimento,
+                ativo: personalPlanoAtivo.ativo
+            } : 'Nenhum plano ativo');
+
             // Buscar plano expirado se não houver ativo
             let personalPlanoExpirado = null;
             if (!personalPlanoAtivo) {

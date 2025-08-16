@@ -20,7 +20,16 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    console.log(`📋 Consultando plano para personal ${personalTrainerId}`);
+    
     const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+    
+    console.log(`📊 Status do plano: ${JSON.stringify({
+      planoNome: status.plano?.nome,
+      limiteAtual: status.limiteAtual,
+      alunosAtivos: status.alunosAtivos,
+      isExpired: status.isExpired
+    })}`);
 
     res.json({
       plano: status.plano,
@@ -188,10 +197,15 @@ router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunc
             }
         });
 
+        const finalPlanName = plano?.nome || 'Desconhecido';
+        console.log(`✅ Renovação finalizada para personal ${personalTrainerId}: ${alunosSelecionados.length} alunos ativados no plano ${finalPlanName}`);
+
         res.json({
             mensagem: 'Ciclo de renovação finalizado e alunos atualizados com sucesso!',
             dados: {
-                alunosMantidos: req.body.alunosSelecionados.length
+                alunosMantidos: req.body.alunosSelecionados.length,
+                planoNome: finalPlanName,
+                limiteTotal: limiteTotal
             }
         });
 

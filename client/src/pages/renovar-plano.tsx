@@ -63,12 +63,10 @@ export default function RenovarPlanoPage() {
         alunosSelecionados: selectedIds,
       }),
     onSuccess: () => {
-      const planName = planStatus?.plano?.nome || 'seu plano';
-      const planLimit = planStatus?.limiteAtual || 0;
       const selectedCount = selectedAlunos.size;
       toast({
         title: "Plano atualizado com sucesso!",
-        description: `Plano atualizado para ${planName}. ${selectedCount}/${planLimit} alunos selecionados.`,
+        description: `Plano atualizado para ${planName}. ${selectedCount}/${limiteTotal} alunos selecionados.`,
       });
       queryClient.invalidateQueries({ queryKey: ['meuPlanoParaRenovacao'] });
       queryClient.invalidateQueries({ queryKey: ['todosAlunosParaRenovacao'] });
@@ -105,11 +103,15 @@ export default function RenovarPlanoPage() {
 
   if (planError) return <ErrorMessage title="Erro ao carregar plano" message={(planError as Error)?.message} />;
   if (alunosError) return <ErrorMessage title="Erro ao carregar alunos" message={(alunosError as Error)?.message} />;
-  if (!planStatus || !planStatus.plano) {
-    return <ErrorMessage title="Nenhum Plano Ativo" message="Não foi possível encontrar um plano ativo para renovar. Por favor, contate o suporte." />;
+  if (!planStatus) {
+    return <ErrorMessage title="Dados do plano não encontrados" message="Não foi possível carregar os dados do seu plano. Tente recarregar a página." />;
+  }
+  if (!planStatus.plano || !planStatus.plano.nome) {
+    return <ErrorMessage title="Plano incompleto" message="Os dados do plano estão incompletos. Aguarde alguns instantes e tente novamente." />;
   }
   
-  const limiteTotal = planStatus.limiteAtual;
+  const limiteTotal = planStatus.limiteAtual || 0;
+  const planName = planStatus.plano.nome;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
@@ -121,7 +123,7 @@ export default function RenovarPlanoPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Selecionar Alunos para o Novo Ciclo</CardTitle>
           <CardDescription>
-            Seu plano <Badge variant="default" className="mx-1">{planStatus.plano?.nome || 'Carregando...'}</Badge> está ativo! Selecione quais alunos continuarão ativos neste período. Os alunos não selecionados serão marcados como inativos.
+            Seu plano <Badge variant="default" className="mx-1">{planName}</Badge> está ativo! Selecione quais alunos continuarão ativos neste período. Os alunos não selecionados serão marcados como inativos.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -130,7 +132,7 @@ export default function RenovarPlanoPage() {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <Crown className="w-5 h-5 text-primary" />
-                    <span className="font-semibold">{planStatus.plano?.nome || 'Carregando...'}</span>
+                    <span className="font-semibold">{planName}</span>
                 </div>
                 <div className="text-right">
                   <p className={`font-bold text-lg ${selectedAlunos.size > limiteTotal ? 'text-destructive' : 'text-primary'}`}>
