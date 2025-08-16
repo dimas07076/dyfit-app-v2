@@ -55,21 +55,18 @@ export default function AdminRenewalRequests() {
   const handleDownloadProof = async (requestId: string, filename?: string) => {
     setDownloadingId(requestId);
     try {
-      // <<< ALTERAÇÃO PRINCIPAL AQUI >>>
-      // Usamos a nova opção `returnAs: 'response'` e tratamos o resultado como `Response`.
+      // Usamos a opção `returnAs: 'response'` para pegar o Response bruto
       const response = await fetchWithAuth<Response>(
-        `/api/admin/renewal-requests/${requestId}/proof/download`, 
-        { method: 'GET', returnAs: 'response' }, // Passa a nova opção
+        `/api/admin/renewal-requests/${requestId}/proof/download`,
+        { method: 'GET', returnAs: 'response' },
         'personalAdmin'
       );
 
-      // Agora 'response' é um objeto Response válido e podemos chamar .blob()
       const blob = await response.blob();
-      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename || `comprovante-${requestId}.pdf`; // Nome do arquivo
+      a.download = filename || `comprovante-${requestId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -99,9 +96,19 @@ export default function AdminRenewalRequests() {
     },
   });
 
+  // ⚠️ Ajuste principal: se approved=true, chama a rota que ATIVA o plano.
   const makeDecision = useMutation({
-    mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
-      apiRequest("PATCH", `/api/admin/renewal-requests/${id}/decision`, { approved, note }),
+    mutationFn: async ({ id, approved, note }: { id: string; approved: boolean; note?: string }) => {
+      if (approved) {
+        // Usa a rota que realmente ativa o plano do personal
+        return apiRequest("PUT", `/api/admin/renewal-requests/${id}/approve`, {
+          motivo: note && note.trim() ? note.trim() : undefined,
+          // customDuration: opcional no futuro
+        });
+      }
+      // Rejeição continua na rota de decisão
+      return apiRequest("PATCH", `/api/admin/renewal-requests/${id}/decision`, { approved: false, note });
+    },
     onSuccess: () => {
       toast({ title: "Decisão processada", description: "Decisão registrada com sucesso." });
       queryClient.invalidateQueries({ queryKey: ["adminRenewalRequests"] });
@@ -135,16 +142,21 @@ export default function AdminRenewalRequests() {
               <p>Personal: <strong>{req.personalTrainerId?.nome}</strong> ({req.personalTrainerId?.email})</p>
               <p>Plano solicitado: {req.planIdRequested?.nome || "Manter categoria"}</p>
               <p>Status: {statusLabel(req.status)}</p>
-              
+
               {req.paymentLink && (
                 <p>
                   Link enviado:{" "}
-                  <a href={req.paymentLink} className="text-primary underline break-all" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={req.paymentLink}
+                    className="text-primary underline break-all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     {req.paymentLink}
                   </a>
                 </p>
               )}
-              
+
               {req.proof && (
                 <div>
                   <p className="text-sm font-medium">Comprovante enviado:</p>
