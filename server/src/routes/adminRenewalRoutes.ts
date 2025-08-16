@@ -314,13 +314,28 @@ router.patch('/:id/decision', async (req, res) => {
     request.processedAt = new Date();
     request.adminId = (req as any).user.id;
 
-    // Se aprovado, ativar plano (ponto de injeção)
+    // Se aprovado, ativar plano
     if (approved) {
       try {
-        // Conectar com lógica de ativação existente
-        console.log(`[ATIVAÇÃO] Plano aprovado para personal ${request.personalTrainerId}`);
+        // Verifica se o plano desejado existe
+        const planId = request.planIdRequested?.toString();
+        if (!planId) {
+          throw new Error('Plano solicitado não informado.');
+        }
+
+        // Ativa o plano para o personal
+        await PlanoService.assignPlanToPersonal(
+          request.personalTrainerId.toString(),
+          planId,
+          (req as any).user.id,
+          undefined, // usar duração padrão do plano
+          'Renovação aprovada pelo admin'
+        );
+        
+        console.log(`[ATIVAÇÃO] Plano ${planId} ativado para personal ${request.personalTrainerId}`);
       } catch (activationError) {
         console.error('Erro na ativação do plano:', activationError);
+        // Não falha a requisição, apenas loga o erro
       }
     }
 

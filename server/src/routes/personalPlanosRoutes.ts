@@ -20,7 +20,16 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    console.log(`📋 Consultando plano para personal ${personalTrainerId}`);
+    
     const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+    
+    console.log(`📊 Status do plano: ${JSON.stringify({
+      planoNome: status.plano?.nome,
+      limiteAtual: status.limiteAtual,
+      alunosAtivos: status.alunosAtivos,
+      isExpired: status.isExpired
+    })}`);
 
     res.json({
       plano: status.plano,
@@ -126,30 +135,37 @@ router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunc
     const session = await mongoose.startSession();
     
     try {
+        // Extract variables outside transaction scope
+        const personalTrainerId = req.user?.id;
+        const { alunosSelecionados } = req.body;
+        
+        if (!personalTrainerId) {
+            throw new Error('Usuário não autenticado.');
+        }
+        if (!Array.isArray(alunosSelecionados)) {
+            throw new Error('A lista de alunos selecionados é inválida.');
+        }
+
+        // Variables to be populated during transaction
+        let plano: any = null;
+        let limiteTotal = 0;
+
         await session.withTransaction(async () => {
-            const personalTrainerId = req.user?.id;
-            const { alunosSelecionados } = req.body;
-
-            if (!personalTrainerId) {
-                throw new Error('Usuário não autenticado.');
-            }
-            if (!Array.isArray(alunosSelecionados)) {
-                throw new Error('A lista de alunos selecionados é inválida.');
-            }
-
             // 1. Encontra o plano ATUAL e ATIVO do personal (que foi recém atribuído pelo admin).
             const planStatus = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
             
             if (!planStatus || !planStatus.personalPlano || planStatus.isExpired) {
                 throw new Error('Nenhum plano ativo foi encontrado. A renovação pode não ter sido concluída pelo administrador.');
             }
-            const { personalPlano, plano, tokensAvulsos } = planStatus;
+            const { personalPlano, plano: currentPlano, tokensAvulsos } = planStatus;
 
-            if (!plano) {
+            if (!currentPlano) {
                throw new Error('Detalhes do plano ativo não foram encontrados.');
             }
 
-            const limiteTotal = (plano.limiteAlunos || 0) + (tokensAvulsos || 0);
+            // Assign to outer scope variables
+            plano = currentPlano;
+            limiteTotal = (currentPlano.limiteAlunos || 0) + (tokensAvulsos || 0);
 
             // 2. Valida o limite de alunos.
             if (alunosSelecionados.length > limiteTotal) {
@@ -188,10 +204,15 @@ router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunc
             }
         });
 
+        const finalPlanName = plano?.nome || 'Desconhecido';
+        console.log(`✅ Renovação finalizada para personal ${personalTrainerId}: ${alunosSelecionados.length} alunos ativados no plano ${finalPlanName}`);
+
         res.json({
             mensagem: 'Ciclo de renovação finalizado e alunos atualizados com sucesso!',
             dados: {
-                alunosMantidos: req.body.alunosSelecionados.length
+                alunosMantidos: req.body.alunosSelecionados.length,
+                planoNome: finalPlanName,
+                limiteTotal: limiteTotal
             }
         });
 
