@@ -17,6 +17,8 @@ import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
 import { useToast } from '@/hooks/use-toast';
+// ⬇️ Usado na checagem assíncrona do restaurador de rota
+import { fetchWithAuth } from "@/lib/apiClient";
 
 // Unified PWA updates manager
 import { AppUpdatesManager } from '@/components/AppUpdatesManager';
@@ -52,7 +54,6 @@ const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage')
 const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
 const DemoDashboard = lazy(() => import("@/pages/demo-dashboard"));
 
-
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
 
 const ProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...rest }) => {
@@ -71,10 +72,10 @@ const AdminProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component,
 };
 
 const AlunoProtectedRoute: React.FC<CustomRouteProps> = ({ component: Component, ...rest }) => {
-    const { aluno, isLoadingAluno } = useAluno();
-    if (isLoadingAluno) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> Carregando...</div>;
-    if (!aluno) return <Redirect to="/login/aluno" />;
-    return <Route {...rest} component={Component} />;
+  const { aluno, isLoadingAluno } = useAluno();
+  if (isLoadingAluno) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> Carregando...</div>;
+  if (!aluno) return <Redirect to="/login/aluno" />;
+  return <Route {...rest} component={Component} />;
 };
 
 interface AuthFailedEventDetail {
@@ -107,7 +108,17 @@ function AppContent() {
   }, [user, aluno, location]);
 
   useEffect(() => {
-    const restabelecerRota = () => {
+    // ⬇️ Checa se deve restaurar /renovar-plano – só se houver approved pendente
+    const hasApprovedPending = async (): Promise<boolean> => {
+      try {
+        const list = await fetchWithAuth<any[]>("/api/personal/renewal-requests?status=approved,APPROVED");
+        return Array.isArray(list) && list.length > 0;
+      } catch {
+        return false;
+      }
+    };
+
+    const restabelecerRota = async () => {
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
@@ -120,32 +131,42 @@ function AppContent() {
         console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
         
         let rotaValida = false;
-        
-        if (temTokenPersonal && !rotaSalva.startsWith("/aluno/")) {
+        if (temTokenPersonal && !rotaSalva!.startsWith("/aluno/")) {
           rotaValida = true;
-        } else if (temTokenAluno && rotaSalva.startsWith("/aluno/")) {
+        } else if (temTokenAluno && rotaSalva!.startsWith("/aluno/")) {
           rotaValida = true;
         }
         
-        if (rotaValida) {
-          console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
-          localStorage.setItem("restaurandoRota", "true");
-          navigate(rotaSalva, { replace: true });
-          
-          setTimeout(() => {
-            localStorage.removeItem("restaurandoRota");
-          }, 200);
-          return true;
-        } else {
+        if (!rotaValida) {
           console.log("[Route Restoration] Rota inválida para tipo de usuário atual:", rotaSalva);
+          return false;
         }
+
+        // ✅ Regra específica: /renovar-plano só pode ser restaurada se houver approved
+        if (rotaSalva!.startsWith("/renovar-plano")) {
+          const ok = await hasApprovedPending();
+          if (!ok) {
+            console.log("[Route Restoration] Bloqueando restauração de /renovar-plano (sem approved). Redirecionando para /solicitar-renovacao.");
+            localStorage.setItem("rotaAtual", "/solicitar-renovacao");
+            localStorage.setItem("restaurandoRota", "true");
+            navigate("/solicitar-renovacao", { replace: true });
+            setTimeout(() => localStorage.removeItem("restaurandoRota"), 200);
+            return true;
+          }
+        }
+
+        console.log("[Route Restoration] Restaurando rota válida:", rotaSalva);
+        localStorage.setItem("restaurandoRota", "true");
+        navigate(rotaSalva!, { replace: true });
+        setTimeout(() => localStorage.removeItem("restaurandoRota"), 200);
+        return true;
       }
       return false;
     };
 
     const handleAppFocus = () => {
       console.log("[Route Restoration] App focado/visível, executando restauração imediata");
-      restabelecerRota();
+      void restabelecerRota();
     };
 
     const handleVisibilityChange = () => {
@@ -157,7 +178,7 @@ function AppContent() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleAppFocus);
 
-    restabelecerRota();
+    void restabelecerRota();
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -218,9 +239,9 @@ function AppContent() {
           console.log("[Global Auth Handler] Erro de credenciais inválidas, tratado no componente de login.");
           return;
         case 'ACCOUNT_INACTIVE':
-            message = 'Sua conta está inativa. Fale com seu personal trainer.';
-            redirectPath = forAluno ? '/login/aluno' : '/login';
-            break;
+          message = 'Sua conta está inativa. Fale com seu personal trainer.';
+          redirectPath = forAluno ? '/login/aluno' : '/login';
+          break;
         default:
           if (status === 401 || status === 403) {
             message = 'Ocorreu um problema de autenticação. Por favor, faça login novamente.';
@@ -251,7 +272,6 @@ function AppContent() {
     };
   }, [location, navigate, toast, user, aluno]);
 
-
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
@@ -264,12 +284,12 @@ function AppContent() {
   
   if (user) {
     if (location.startsWith("/login")) {
-        const rotaSalva = localStorage.getItem("rotaAtual");
-        if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
-          return <Redirect to={rotaSalva} />;
-        }
-        const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
-        return <Redirect to={redirectTo} />;
+      const rotaSalva = localStorage.getItem("rotaAtual");
+      if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
+        return <Redirect to={rotaSalva} />;
+      }
+      const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
+      return <Redirect to={redirectTo} />;
     }
     
     if (user.role.toLowerCase() === 'admin') return <AdminApp />;
