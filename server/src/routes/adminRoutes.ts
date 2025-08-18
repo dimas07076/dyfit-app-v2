@@ -6,6 +6,9 @@ import PersonalTrainer from '../../models/PersonalTrainer.js';
 import ConvitePersonal from '../../models/ConvitePersonal.js';
 import Exercicio from '../../models/Exercicio.js';
 import dbConnect from '../../lib/dbConnect.js';
+// <<< INÍCIO DA ALTERAÇÃO: Importar o modelo Aluno >>>
+import Aluno from '../../models/Aluno.js';
+// <<< FIM DA ALTERAÇÃO >>>
 
 const router = express.Router();
 
@@ -33,8 +36,6 @@ router.post('/personal-trainers', async (req: Request, res: Response, next: Next
     next(error);
   }
 });
-
-// Note: /personal-trainers route moved to adminPlanosRoutes.ts for enhanced plan status calculation
 
 // GET /api/admin/dashboard/stats
 router.get('/dashboard/stats', async (req: Request, res: Response, next: NextFunction) => {
@@ -68,6 +69,7 @@ router.get('/dashboard/stats', async (req: Request, res: Response, next: NextFun
 });
 
 
+// <<< INÍCIO DA ALTERAÇÃO: Rota agora busca e retorna a lista de alunos do personal >>>
 // GET /api/admin/personal-trainers/:id
 router.get('/personal-trainers/:id', async (req: Request, res: Response, next: NextFunction) => {
   await dbConnect();
@@ -76,59 +78,34 @@ router.get('/personal-trainers/:id', async (req: Request, res: Response, next: N
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ mensagem: "ID do personal inválido." });
     }
-    const personal = await PersonalTrainer.findById(id).select('-passwordHash');
+    
+    // Busca o personal e seus alunos em paralelo para melhor performance
+    const [personal, alunosDoPersonal] = await Promise.all([
+      PersonalTrainer.findById(id).select('-passwordHash').lean(),
+      Aluno.find({ trainerId: id })
+           .select('nome email status slotType slotId slotStartDate slotEndDate')
+           .sort({ nome: 1 })
+           .lean()
+    ]);
+    
     if (!personal) {
       return res.status(404).json({ mensagem: "Personal trainer não encontrado." });
     }
     
-    // Import PlanoService to get updated plan status
-    const PlanoService = (await import('../../services/PlanoService.js')).default;
-    
-    // Get current plan status to ensure data is synchronized
-    let planoData = null;
-    try {
-      const planStatus = await PlanoService.getPersonalCurrentPlan(id);
-      
-      // Update the personal data with current plan information if available
-      if (planStatus.plano && planStatus.personalPlano) {
-        personal.planoId = planStatus.plano._id?.toString() || personal.planoId;
-        personal.statusAssinatura = 'ativa';
-        personal.limiteAlunos = planStatus.plano.limiteAlunos;
-        personal.dataFimAssinatura = planStatus.personalPlano.dataVencimento;
-        personal.dataInicioAssinatura = planStatus.personalPlano.dataInicio;
-        
-        // Store plan data for response
-        planoData = {
-          _id: planStatus.plano._id,
-          nome: planStatus.plano.nome,
-          descricao: planStatus.plano.descricao,
-          limiteAlunos: planStatus.plano.limiteAlunos,
-          preco: planStatus.plano.preco,
-          duracao: planStatus.plano.duracao,
-          tipo: planStatus.plano.tipo
-        };
-      } else if (!planStatus.plano) {
-        // No active plan
-        personal.statusAssinatura = 'sem_assinatura';
-        personal.limiteAlunos = 0;
-      }
-    } catch (planError) {
-      console.error('Error getting plan status for personal:', planError);
-      // Continue with original personal data if plan status fetch fails
-    }
-    
-    // Prepare response with plan data included
-    const response = {
-      ...personal.toObject(),
-      plano: planoData
+    // Combina os dados em uma única resposta
+    const responsePayload = {
+      ...personal,
+      alunos: alunosDoPersonal // Adiciona a lista de alunos à resposta
     };
     
-    res.status(200).json(response);
+    res.status(200).json(responsePayload);
+
   } catch (error) {
     console.error(`[ADMIN ROUTES] Erro em GET /personal-trainers/${req.params.id}:`, error);
     next(error);
   }
 });
+// <<< FIM DA ALTERAÇÃO >>>
 
 // PUT /api/admin/personal-trainers/:id
 router.put('/personal-trainers/:id', async (req: Request, res: Response, next: NextFunction) => {
