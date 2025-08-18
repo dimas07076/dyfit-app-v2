@@ -3,7 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 
 import dbConnect from '../../lib/dbConnect.js';
-import RenewalRequest from '../../models/RenewalRequest.js';
+import RenewalRequest, { RStatus } from '../../models/RenewalRequest.js';
 import PlanoService from '../../services/PlanoService.js';
 import Plano from '../../models/Plano.js';
 import { authenticateAdmin } from '../../middlewares/authenticateAdmin.js';
@@ -11,212 +11,211 @@ import { getPaymentProofBucket } from '../../utils/gridfs.js';
 
 const router = express.Router();
 
-// Todas as rotas abaixo exigem admin autenticado
+// Todas as rotas abaixo exigem que o usuário seja um administrador autenticado.
 router.use(authenticateAdmin);
 
 /**
  * GET /api/admin/renewal-requests
- * Lista solicitações em estados operacionais para o admin atuar.
- * Popula o personal e o plano para exibir nome corretamente.
+ * Lista solicitações que requerem ação do administrador.
+ * Popula os dados do personal e do plano para exibição na interface.
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   await dbConnect();
   try {
     const { status, limit } = req.query as { status?: string; limit?: string };
-    const lim = Math.max(1, Math.min(parseInt((limit as string) || '50', 10) || 50, 200));
+    const lim = Math.max(1, Math.min(parseInt(limit || '50', 10) || 50, 200));
 
-    const baseStatuses = ['pending', 'payment_link_sent', 'payment_proof_uploaded'];
-    const listStatuses = status ? (status as string).split(',').map(s => s.trim()) : baseStatuses;
+    // Por padrão, busca solicitações que precisam de alguma ação do admin.
+    const defaultStatuses = [
+      RStatus.REQUESTED, 
+      RStatus.PROOF_SUBMITTED,
+      // Status legados para garantir compatibilidade
+      'pending', 
+      'payment_proof_uploaded'
+    ];
+    
+    const listStatuses = status ? status.split(',').map(s => s.trim()) : defaultStatuses;
 
     const requests = await RenewalRequest.find({ status: { $in: listStatuses } })
       .populate('personalTrainerId', 'nome email')
       .populate('planIdRequested', 'nome limiteAlunos tipo duracao')
       .sort({ createdAt: -1 })
-      .limit(lim);
+      .limit(lim)
+      .lean();
 
     res.json(requests);
   } catch (error) {
     console.error('[AdminRenewal] Erro ao listar solicitações:', error);
-    res.status(500).json({ mensagem: 'Erro ao buscar solicitações' });
+    next(error);
   }
 });
 
 /**
  * GET /api/admin/renewal-requests/:id/proof/download
- * Baixa um comprovante (quando arquivado).
+ * Permite que o administrador baixe um comprovante que foi enviado como arquivo.
  */
-router.get('/:id/proof/download', async (req, res) => {
+router.get('/:id/proof/download', async (req, res, next) => {
   await dbConnect();
   try {
     const request = await RenewalRequest.findById(req.params.id);
-    if (!request) return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
+    }
 
     if (!request.proof || request.proof.kind !== 'file' || !request.proof.fileId) {
-      return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link.' });
+      return res.status(404).json({ mensagem: 'Comprovante não encontrado ou é um link externo.' });
     }
 
     const bucket = await getPaymentProofBucket();
-    const downloadStream = bucket.openDownloadStream(request.proof.fileId as mongoose.Types.ObjectId);
+    const downloadStream = bucket.openDownloadStream(request.proof.fileId);
 
     res.set({
       'Content-Type': request.proof.contentType || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${request.proof.filename || 'comprovante.pdf'}"`,
+      'Content-Disposition': `attachment; filename="${request.proof.filename || 'comprovante'}"`,
     });
 
     downloadStream.pipe(res);
     downloadStream.on('error', (err) => {
       console.error('Erro no download do comprovante:', err);
-      if (!res.headersSent) res.status(404).json({ mensagem: 'Arquivo não encontrado.' });
+      if (!res.headersSent) {
+        res.status(404).json({ mensagem: 'Arquivo de comprovante não encontrado no armazenamento.' });
+      }
     });
   } catch (error) {
     console.error('Erro ao baixar comprovante:', error);
-    res.status(500).json({ mensagem: 'Erro ao baixar comprovante' });
+    next(error);
   }
 });
 
 /**
  * PUT /api/admin/renewal-requests/:id/payment-link
- * Envia (ou atualiza) link de pagamento para a solicitação.
+ * Admin envia o link de pagamento para o personal.
  * Body: { paymentLink: string }
  */
-router.put('/:id/payment-link', async (req, res) => {
+router.put('/:id/payment-link', async (req, res, next) => {
   await dbConnect();
   const { paymentLink } = req.body as { paymentLink?: string };
   try {
     if (!paymentLink || typeof paymentLink !== 'string') {
-      return res.status(400).json({ mensagem: 'Link de pagamento é obrigatório e deve ser uma string.', code: 'INVALID_PAYMENT_LINK' });
+      return res.status(400).json({ mensagem: 'Link de pagamento é obrigatório.', code: 'INVALID_PAYMENT_LINK' });
     }
 
     const request = await RenewalRequest.findById(req.params.id);
-    if (!request) return res.status(404).json({ mensagem: 'Solicitação não encontrada.', code: 'REQUEST_NOT_FOUND' });
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.', code: 'REQUEST_NOT_FOUND' });
+    }
 
-    if (request.status !== 'pending' && request.status !== 'requested' && request.status !== 'link_sent') {
-      // Permitimos também atualizar para quem veio do fluxo antigo "requested/link_sent"
-      // e o novo "pending".
-      return res.status(400).json({ mensagem: `Solicitação em estado inválido: ${request.status}.`, code: 'INVALID_STATUS' });
+    if (request.status !== RStatus.REQUESTED) {
+      return res.status(400).json({ mensagem: `A solicitação não está mais aguardando um link (status atual: ${request.status}).`, code: 'INVALID_STATUS' });
     }
 
     request.paymentLink = paymentLink;
-    request.status = 'payment_link_sent' as any;
-    (request as any).linkSentAt = new Date();
-    (request as any).adminId = (req as any).user.id;
+    request.status = RStatus.LINK_SENT;
+    request.linkSentAt = new Date();
+    request.adminId = new mongoose.Types.ObjectId((req as any).user.id);
     await request.save();
 
     res.json({
       _id: request._id,
       status: request.status,
       paymentLink: request.paymentLink,
-      linkSentAt: (request as any).linkSentAt,
+      linkSentAt: request.linkSentAt,
     });
   } catch (error) {
-    console.error('[AdminRenewal] Erro ao salvar link de pagamento:', error);
-    res.status(500).json({ mensagem: 'Erro interno ao enviar link de pagamento.', code: 'INTERNAL_SERVER_ERROR' });
+    next(error);
   }
 });
 
 /**
  * PUT /api/admin/renewal-requests/:id/approve
- * Aprova uma solicitação com comprovante e ativa/renova o plano do personal.
- * Body opcional: { customDuration?: number, motivo?: string }
+ * Aprova uma solicitação e ATIVA o novo plano do personal.
+ * O personal então precisará finalizar o ciclo de alunos.
+ * Body (opcional): { customDuration?: number, motivo?: string }
  */
-router.put('/:id/approve', async (req, res) => {
+router.put('/:id/approve', async (req, res, next) => {
   await dbConnect();
   const requestId = req.params.id;
   const { customDuration, motivo } = req.body as { customDuration?: number; motivo?: string };
 
   try {
     const request = await RenewalRequest.findById(requestId);
-    if (!request) return res.status(404).json({ mensagem: 'Solicitação não encontrada.', code: 'REQUEST_NOT_FOUND' });
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.', code: 'REQUEST_NOT_FOUND' });
+    }
 
-    if (request.status !== 'payment_proof_uploaded' && request.status !== 'proof_submitted') {
+    if (request.status !== RStatus.PROOF_SUBMITTED) {
       return res.status(400).json({
-        mensagem: `Solicitação em estado inválido: ${request.status}. Apenas com comprovante enviado pode ser aprovada.`,
+        mensagem: `Apenas solicitações com comprovante enviado podem ser aprovadas (status atual: ${request.status}).`,
         code: 'INVALID_STATUS',
       });
     }
 
     const planId = request.planIdRequested?.toString();
     if (!planId) {
-      return res.status(400).json({ mensagem: 'Plano solicitado não informado.', code: 'MISSING_PLAN_ID' });
+      return res.status(400).json({ mensagem: 'Plano solicitado não foi encontrado na solicitação.', code: 'MISSING_PLAN_ID' });
     }
 
-    // Garante que o plano exista (evita “Manter categoria” sem nome)
     const plano = await Plano.findById(planId);
-    if (!plano) return res.status(400).json({ mensagem: 'Plano inexistente.', code: 'PLAN_NOT_FOUND' });
+    if (!plano) {
+      return res.status(400).json({ mensagem: 'O plano solicitado não existe mais no sistema.', code: 'PLAN_NOT_FOUND' });
+    }
 
-    // Cria/renova a vigência para o personal (o personal definirá o ciclo em seguida)
+    // Atribui o novo plano (isso desativa o antigo)
     const newPersonalPlano = await PlanoService.assignPlanToPersonal(
       request.personalTrainerId.toString(),
       planId,
       (req as any).user.id,
       customDuration,
-      motivo || 'Renovação aprovada'
+      motivo || 'Renovação de plano aprovada'
     );
 
-    request.status = 'approved' as any;
-    (request as any).processedAt = new Date();
-    (request as any).adminId = (req as any).user.id;
+    // Atualiza o status da solicitação para indicar que foi aprovada
+    request.status = RStatus.APPROVED;
+    request.paymentDecisionAt = new Date();
+    request.adminId = new mongoose.Types.ObjectId((req as any).user.id);
     await request.save();
 
     res.json({
-      request: {
-        _id: request._id,
-        status: request.status,
-        processedAt: (request as any).processedAt,
-        adminId: (request as any).adminId,
-        planIdRequested: request.planIdRequested,
-        personalTrainerId: request.personalTrainerId,
-      },
+      message: "Plano renovado e ativado com sucesso. Aguardando o personal definir o ciclo de alunos.",
+      request,
       newPersonalPlano,
     });
   } catch (error) {
-    console.error('[AdminRenewal] Erro ao aprovar solicitação:', error);
-    res.status(500).json({ mensagem: 'Erro interno ao aprovar solicitação.', code: 'INTERNAL_SERVER_ERROR' });
+    next(error);
   }
 });
 
 /**
  * PATCH /api/admin/renewal-requests/:id/decision
- * Alternativa genérica: { approved: boolean, note?: string }
+ * Rota para REJEITAR uma solicitação.
+ * Body: { approved: false, note?: string }
  */
-router.patch('/:id/decision', async (req, res) => {
+router.patch('/:id/decision', async (req, res, next) => {
   await dbConnect();
   const { approved, note } = req.body as { approved?: boolean; note?: string };
   try {
-    if (typeof approved !== 'boolean') {
-      return res.status(400).json({ mensagem: 'Campo "approved" deve ser true ou false.' });
+    if (approved === true) {
+      return res.status(400).json({ mensagem: 'Para aprovar, use a rota PUT /:id/approve.' });
     }
+
     const request = await RenewalRequest.findById(req.params.id);
-    if (!request) return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
-
-    if (request.status !== 'payment_proof_uploaded' && request.status !== 'proof_submitted') {
-      return res.status(400).json({ mensagem: `Estado inválido: ${request.status}.`, code: 'INVALID_STATUS' });
+    if (!request) {
+      return res.status(404).json({ mensagem: 'Solicitação não encontrada.' });
     }
 
-    (request as any).paymentDecisionAt = new Date();
-    if (note) (request as any).paymentDecisionNote = note;
-
-    if (approved) {
-      request.status = 'approved' as any;
-      (request as any).processedAt = new Date();
-      (request as any).adminId = (req as any).user.id;
-    } else {
-      request.status = 'rejected' as any;
-      (request as any).processedAt = new Date();
-      (request as any).adminId = (req as any).user.id;
+    if (request.status !== RStatus.PROOF_SUBMITTED) {
+      return res.status(400).json({ mensagem: `Não é possível rejeitar uma solicitação com status "${request.status}".`, code: 'INVALID_STATUS' });
     }
+
+    request.status = RStatus.REJECTED;
+    request.paymentDecisionAt = new Date();
+    request.paymentDecisionNote = note;
+    request.adminId = new mongoose.Types.ObjectId((req as any).user.id);
 
     await request.save();
-    res.json({
-      _id: request._id,
-      status: request.status,
-      paymentDecisionAt: (request as any).paymentDecisionAt,
-      paymentDecisionNote: (request as any).paymentDecisionNote,
-      processedAt: (request as any).processedAt,
-    });
+    res.json(request);
   } catch (error) {
-    console.error('[AdminRenewal] Erro ao decidir solicitação:', error);
-    res.status(500).json({ mensagem: 'Erro interno ao decidir solicitação.', code: 'INTERNAL_SERVER_ERROR' });
+    next(error);
   }
 });
 
