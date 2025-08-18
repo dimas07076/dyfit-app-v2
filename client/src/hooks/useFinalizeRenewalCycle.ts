@@ -1,39 +1,21 @@
+// client/src/hooks/useFinalizeRenewalCycle.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 
-type FinalizePayload =
-  | { alunosSelecionados: string[] } // Fluxo legado: POST /api/personal/renovar-plano
-  | {
-      renewalId?: string; // Novo fluxo: POST /api/personal/renewal-requests/:id/finalize-cycle
-      keepStudentIds: string[];
-      removeStudentIds: string[];
-      note?: string;
-    };
+// O único tipo de payload que a página 'renovar-plano' envia
+type FinalizePayload = {
+  keepStudentIds: string[];
+  removeStudentIds: string[];
+  note?: string;
+  // O ID da solicitação é opcional, pois a rota do backend pode resolvê-lo automaticamente
+  renewalId?: string; 
+};
 
-// Chaves usadas na página "Solicitar Renovação"
+// Chaves de query que serão invalidadas após o sucesso, para sincronizar o estado da UI
 export const QK_RENEWALS_APPROVED = ["personal-renewals", "approved"];
 export const QK_RENEWALS_LIST = ["personal-renewals", "list"];
-
-// Helper: resolve o ID da solicitação aprovada/pendente de ciclo
-async function resolveApprovedRenewalId(): Promise<string | undefined> {
-  const qs =
-    "?status=" +
-    encodeURIComponent("approved,APPROVED,cycle_assignment_pending") +
-    "&limit=1";
-  const r = await fetchWithAuth(
-    `/api/personal/renewal-requests${qs}`,
-    {},
-    "personalAdmin"
-  );
-  if (!r.ok) return undefined;
-  const data = await r.json();
-  if (Array.isArray(data) && data.length > 0 && data[0]?._id) {
-    return String(data[0]._id);
-  }
-  return undefined;
-}
 
 export function useFinalizeRenewalCycle() {
   const queryClient = useQueryClient();
@@ -42,83 +24,48 @@ export function useFinalizeRenewalCycle() {
 
   const mutation = useMutation({
     mutationFn: async (payload: FinalizePayload) => {
-      // Fluxo legado: fecha quaisquer approved/cycle pendentes com a lista enviada
-      if ("alunosSelecionados" in payload) {
-        return fetchWithAuth(
-          "/api/personal/renovar-plano",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-          "personalAdmin"
-        );
-      }
+      // A rota do backend é inteligente o suficiente para encontrar a solicitação
+      // "approved" ou "cycle_assignment_pending" se o ID não for fornecido.
+      const endpoint = payload.renewalId
+        ? `/api/personal/renewal-requests/${payload.renewalId}/finalize-cycle`
+        : `/api/personal/renewal-requests/finalize-cycle`;
 
-      // Novo fluxo: precisa de um renewalId válido
-      let { renewalId, ...rest } = payload || ({} as any);
-
-      if (!renewalId) {
-        // Auto-resolve o ID atual (approved / cycle_assignment_pending)
-        const resolvedId = await resolveApprovedRenewalId();
-        if (!resolvedId) {
-          const err = new Error(
-            "Nenhuma solicitação aprovada encontrada para finalizar o ciclo. Solicite um plano e aguarde aprovação."
-          );
-          (err as any).mensagem = (err as any).message;
-          throw err;
-        }
-        renewalId = resolvedId; // agora é string
-      }
-
+      // Esta rota foi corrigida no passo anterior para ser um POST
       return fetchWithAuth(
-        `/api/personal/renewal-requests/${renewalId}/finalize-cycle`,
+        endpoint,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rest),
+          body: JSON.stringify(payload),
         },
         "personalAdmin"
       );
     },
     onSuccess: async () => {
-      // Invalida exatamente as queries usadas na tela
+      // Invalida as queries de solicitações para limpar os banners e listas na página anterior
       await queryClient.invalidateQueries({ queryKey: QK_RENEWALS_APPROVED });
       await queryClient.invalidateQueries({ queryKey: QK_RENEWALS_LIST });
-
+      
       toast({
-        title: "Ciclo confirmado",
-        description: "Plano atualizado e solicitação encerrada.",
+        title: "Ciclo de Renovação Finalizado!",
+        description: "Seu plano foi atualizado e as vagas dos alunos foram redefinidas com sucesso.",
       });
 
-      // Volta ao início da jornada de renovação
-      navigate("/solicitar-renovacao", { replace: true });
+      // Redireciona de volta para a página de solicitação, que agora estará "limpa"
+      navigate("/solitar-renovacao", { replace: true });
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        title: "Erro ao confirmar ciclo",
+        title: "Erro ao Finalizar Ciclo",
         description:
-          error?.mensagem ||
-          error?.message ||
-          "Não foi possível concluir a operação.",
+          error?.message || "Não foi possível concluir a operação. Tente novamente.",
       });
     },
   });
 
-  // Aliases compatíveis com seu renovar-plano.tsx (aceita até 3 args; 3º é ignorado)
-  const finalizarCiclo: any = (
-    variables: FinalizePayload,
-    options?: any,
-    _ignoredThirdArg?: any
-  ) => {
-    return mutation.mutate(variables, options);
-  };
-  const isFinalizando = mutation.isPending;
-
   return {
-    ...mutation,
-    finalizarCiclo,
-    isFinalizando,
+    finalizarCiclo: mutation.mutate,
+    isFinalizando: mutation.isPending,
   };
 }

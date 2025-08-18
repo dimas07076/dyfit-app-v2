@@ -1,9 +1,9 @@
 // server/services/PlanoService.ts
+import mongoose from 'mongoose';
 import Plano, { IPlano } from '../models/Plano.js';
 import PersonalPlano, { IPersonalPlano } from '../models/PersonalPlano.js';
 import TokenAvulso, { ITokenAvulso } from '../models/TokenAvulso.js';
 import Aluno from '../models/Aluno.js';
-import mongoose from 'mongoose';
 
 // Configuração de planos iniciais
 const INITIAL_PLANS = [
@@ -80,8 +80,7 @@ export class PlanoService {
     }
 
     /**
-     * Buscar o plano atual do personal trainer
-     * <<< ALTERAÇÃO: Agora soma os tokens avulsos ao limite total >>>
+     * Busca o plano atual do personal trainer
      */
     async getPersonalCurrentPlan(personalTrainerId: string): Promise<{
         plano: IPlano | null;
@@ -96,7 +95,6 @@ export class PlanoService {
         };
     }> {
         try {
-            // Validação de entrada
             if (!personalTrainerId) {
                 throw new Error('Personal trainer ID é obrigatório');
             }
@@ -123,15 +121,13 @@ export class PlanoService {
 
             const currentPersonalPlano = personalPlanoAtivo || personalPlanoExpirado;
             
-            // <<< INÍCIO DA CORREÇÃO: Verificação de tipo segura para o plano populado >>>
             const plano: IPlano | null =
                 currentPersonalPlano &&
                 currentPersonalPlano.planoId &&
                 typeof currentPersonalPlano.planoId === 'object' &&
-                'nome' in (currentPersonalPlano.planoId as any) // Garante que é um objeto populado
+                'nome' in (currentPersonalPlano.planoId as any)
                     ? (currentPersonalPlano.planoId as unknown as IPlano)
                     : null;
-            // <<< FIM DA CORREÇÃO >>>
 
             const isExpired = !personalPlanoAtivo && !!personalPlanoExpirado;
 
@@ -174,44 +170,6 @@ export class PlanoService {
             availableSlots
         };
     }
-
-    /**
-     * Verifica se o slot de um aluno específico ainda é válido, 
-     * considerando um período de carência (grace period).
-     */
-    async isAlunoEmDiaById(alunoId: string): Promise<{
-        ok: boolean;
-        reason: 'OK' | 'INACTIVE' | 'SLOT_EXPIRED' | 'NOT_FOUND';
-        slotEndDate?: Date | null;
-        graceUntil?: Date | null;
-    }> {
-        const aluno = await Aluno.findById(alunoId).select('status slotEndDate').lean();
-
-        if (!aluno) {
-            return { ok: false, reason: 'NOT_FOUND' };
-        }
-        if (aluno.status !== 'active') {
-            return { ok: false, reason: 'INACTIVE' };
-        }
-
-        const hoje = new Date();
-        const slotEndDate = aluno.slotEndDate;
-
-        if (!slotEndDate) {
-            return { ok: true, reason: 'OK' };
-        }
-
-        const gracePeriodDays = 3;
-        const graceUntil = new Date(slotEndDate.getTime());
-        graceUntil.setDate(graceUntil.getDate() + gracePeriodDays);
-        
-        if (hoje <= graceUntil) {
-            return { ok: true, reason: 'OK', slotEndDate, graceUntil };
-        }
-        
-        return { ok: false, reason: 'SLOT_EXPIRED', slotEndDate, graceUntil };
-    }
-
 
     /**
      * Atribui um plano ao personal trainer
@@ -293,16 +251,12 @@ export class PlanoService {
     async ensureInitialPlansExist(): Promise<boolean> {
         try {
             const existingPlansCount = await Plano.countDocuments({ ativo: true });
-            if (existingPlansCount > 0) {
+            if (existingPlansCount > 0 && existingPlansCount === INITIAL_PLANS.length) {
                 return true;
             }
 
             for (const planData of INITIAL_PLANS) {
-                const existingPlan = await Plano.findOne({ nome: planData.nome });
-                if (!existingPlan) {
-                    const newPlan = new Plano(planData);
-                    await newPlan.save();
-                }
+                await Plano.findOneAndUpdate({ nome: planData.nome }, planData, { upsert: true, new: true });
             }
             return true;
         } catch (error) {
@@ -424,11 +378,11 @@ export class PlanoService {
         const [plansResult, tokensResult] = await Promise.all([
             PersonalPlano.updateMany(
                 { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { $set: { ativo: false } }
             ),
             TokenAvulso.updateMany(
                 { dataVencimento: { $lt: now }, ativo: true },
-                { ativo: false }
+                { $set: { ativo: false } }
             )
         ]);
 

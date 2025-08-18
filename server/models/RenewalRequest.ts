@@ -1,11 +1,27 @@
+// server/models/RenewalRequest.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type RenewalStatus = 'pending' | 'payment_link_sent' | 'payment_proof_uploaded' | 'approved' | 'rejected' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'FULFILLED' | 'requested' | 'link_sent' | 'proof_submitted';
+// Objeto de status para evitar strings mágicas e garantir consistência
+export const RStatus = {
+  REQUESTED: 'requested',
+  LINK_SENT: 'link_sent',
+  PROOF_SUBMITTED: 'proof_submitted',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  FULFILLED: 'fulfilled',
+  CYCLE_ASSIGNMENT_PENDING: 'cycle_assignment_pending',
+  // Status legados para compatibilidade, se necessário
+  PENDING: 'pending',
+  PAYMENT_LINK_SENT: 'payment_link_sent',
+  PAYMENT_PROOF_UPLOADED: 'payment_proof_uploaded',
+} as const;
+
+export type RenewalStatus = typeof RStatus[keyof typeof RStatus];
 
 export interface IRenewalProof {
   kind: 'link' | 'file';
-  url?: string;                  // quando kind = link
-  fileId?: Types.ObjectId;       // quando kind = file (GridFS _id)
+  url?: string;
+  fileId?: Types.ObjectId;
   filename?: string;
   contentType?: string;
   size?: number;
@@ -13,29 +29,28 @@ export interface IRenewalProof {
 }
 
 export interface IRenewalRequest extends Document {
-  personalId?: Types.ObjectId;
-  planId?: Types.ObjectId;
-  studentId?: Types.ObjectId;    // se você vincular a aluno específico
+  personalTrainerId: Types.ObjectId;
+  planIdRequested?: Types.ObjectId;
   status: RenewalStatus;
   notes?: string;
   proof?: IRenewalProof;
+  
+  // Timestamps do fluxo
+  requestedAt: Date;
+  linkSentAt?: Date;
+  proofUploadedAt?: Date;
+  paymentDecisionAt?: Date;
+  cycleFinalizedAt?: Date;
+  
+  // Campos de controle do Admin e legados
+  paymentLink?: string;
+  paymentProofUrl?: string; // Mantido para compatibilidade com a rota existente
+  paymentDecisionNote?: string;
+  adminId?: Types.ObjectId;
+  
+  // Timestamps automáticos do Mongoose
   createdAt: Date;
   updatedAt: Date;
-  
-  // Campos legados para compatibilidade
-  personalTrainerId: mongoose.Types.ObjectId;
-  planIdRequested?: mongoose.Types.ObjectId;
-  paymentLink?: string;
-  paymentProofUrl?: string;
-  requestedAt: Date;
-  processedAt?: Date;
-  adminId?: mongoose.Types.ObjectId;
-  
-  // Novos campos para timestamping do fluxo
-  linkSentAt?: Date;             // quando o link foi enviado pelo admin
-  proofUploadedAt?: Date;        // quando o personal enviou o comprovante
-  paymentDecisionAt?: Date;      // quando admin aprovou/rejeitou
-  paymentDecisionNote?: string;  // observação opcional do admin
 }
 
 const ProofSchema = new Schema<IRenewalProof>({
@@ -49,32 +64,28 @@ const ProofSchema = new Schema<IRenewalProof>({
 }, { _id: false });
 
 const RenewalRequestSchema = new Schema<IRenewalRequest>({
-  // Campos novos
-  personalId: { type: Schema.Types.ObjectId, ref: 'PersonalTrainer' },
-  planId: { type: Schema.Types.ObjectId, ref: 'Plano' },
-  studentId: { type: Schema.Types.ObjectId, ref: 'Aluno' },
+  personalTrainerId: { type: Schema.Types.ObjectId, ref: 'PersonalTrainer', required: true, index: true },
+  planIdRequested: { type: Schema.Types.ObjectId, ref: 'Plano' },
   status: { 
     type: String, 
-    enum: ['pending', 'payment_link_sent', 'payment_proof_uploaded', 'approved', 'rejected', 'PENDING', 'APPROVED', 'REJECTED', 'FULFILLED', 'requested', 'link_sent', 'proof_submitted'], 
-    default: 'pending' 
+    enum: Object.values(RStatus), 
+    default: RStatus.REQUESTED 
   },
-  notes: { type: String },
+  notes: { type: String, trim: true },
   proof: { type: ProofSchema },
   
-  // Campos legados para compatibilidade
-  personalTrainerId: { type: Schema.Types.ObjectId, ref: 'PersonalTrainer', required: true },
-  planIdRequested: { type: Schema.Types.ObjectId, ref: 'Plano' },
-  paymentLink: { type: String },
-  paymentProofUrl: { type: String },
+  // Timestamps
   requestedAt: { type: Date, default: Date.now },
-  processedAt: { type: Date },
-  adminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
-  
-  // Novos campos para timestamping do fluxo
   linkSentAt: { type: Date },
   proofUploadedAt: { type: Date },
   paymentDecisionAt: { type: Date },
-  paymentDecisionNote: { type: String },
-}, { timestamps: true });
+  cycleFinalizedAt: { type: Date },
+  
+  // Campos do admin e legados
+  paymentLink: { type: String, trim: true },
+  paymentProofUrl: { type: String, trim: true },
+  paymentDecisionNote: { type: String, trim: true },
+  adminId: { type: Schema.Types.ObjectId, ref: 'PersonalTrainer' },
+}, { timestamps: true }); // Habilita createdAt e updatedAt
 
 export default mongoose.model<IRenewalRequest>('RenewalRequest', RenewalRequestSchema);
