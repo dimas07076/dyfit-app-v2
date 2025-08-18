@@ -56,8 +56,32 @@ const INITIAL_PLANS = [
 
 export class PlanoService {
     /**
+     * Retorna a quantidade de tokens avulsos ativos
+     */
+    async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
+        try {
+            if (!personalTrainerId) {
+                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
+                return 0;
+            }
+
+            const tokens = await TokenAvulso.find({
+                personalTrainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            });
+
+            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            return total;
+        } catch (error) {
+            console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
+            return 0;
+        }
+    }
+
+    /**
      * Buscar o plano atual do personal trainer
-     * Modificação: alunos ativos contam vagas por slotEndDate > now
+     * <<< ALTERAÇÃO: Agora soma os tokens avulsos ao limite total >>>
      */
     async getPersonalCurrentPlan(personalTrainerId: string): Promise<{
         plano: IPlano | null;
@@ -76,93 +100,53 @@ export class PlanoService {
             if (!personalTrainerId) {
                 throw new Error('Personal trainer ID é obrigatório');
             }
+            
+            const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
 
-            // Buscar plano ativo
-            const personalPlanoAtivo = await PersonalPlano.findOne({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
-            }).populate({
-                path: 'planoId',
-                model: 'Plano'
-            }).sort({ dataInicio: -1 });
-
-            // Buscar plano expirado se não houver ativo
+            const [personalPlanoAtivo, alunosAtivos, tokensAtivos] = await Promise.all([
+                PersonalPlano.findOne({
+                    personalTrainerId: trainerObjectId,
+                    ativo: true,
+                    dataVencimento: { $gt: new Date() }
+                }).populate('planoId').sort({ dataInicio: -1 }).lean(),
+                Aluno.countDocuments({ trainerId: trainerObjectId, status: 'active' }),
+                this.getTokensAvulsosAtivos(personalTrainerId)
+            ]);
+            
             let personalPlanoExpirado = null;
             if (!personalPlanoAtivo) {
                 personalPlanoExpirado = await PersonalPlano.findOne({
-                    personalTrainerId,
+                    personalTrainerId: trainerObjectId,
                     ativo: true,
-                    dataVencimento: { $lte: new Date() }
-                }).populate({
-                    path: 'planoId',
-                    model: 'Plano'
-                }).sort({ dataVencimento: -1 });
+                }).populate('planoId').sort({ dataVencimento: -1 }).lean();
             }
 
-            // Calcular alunos que ainda ocupam vaga (slotEndDate futuro ou indefinido)
-            const now = new Date();
-            const alunosAtivos = await Aluno.countDocuments({
-                trainerId: personalTrainerId,
-                $or: [
-                    { slotEndDate: { $gt: now } },
-                    { slotEndDate: { $exists: false } } // Para registros antigos sem slotEndDate
-                ]
-            });
-
-            // Calcular tokens ativos
-            const tokensAtivos = await this.getTokensAvulsosAtivos(personalTrainerId);
-
-            let limiteAtual = 0;
-            let plano: IPlano | null = null;
-            let personalPlano: IPersonalPlano | null = null;
-            let isExpired = false;
-
-            // Determinar qual plano usar
             const currentPersonalPlano = personalPlanoAtivo || personalPlanoExpirado;
-            if (currentPersonalPlano && currentPersonalPlano.planoId && typeof currentPersonalPlano.planoId === 'object' && 'nome' in currentPersonalPlano.planoId) {
-                plano = currentPersonalPlano.planoId as unknown as IPlano;
-                personalPlano = currentPersonalPlano;
+            
+            // <<< INÍCIO DA CORREÇÃO: Verificação de tipo segura para o plano populado >>>
+            const plano: IPlano | null =
+                currentPersonalPlano &&
+                currentPersonalPlano.planoId &&
+                typeof currentPersonalPlano.planoId === 'object' &&
+                'nome' in (currentPersonalPlano.planoId as any) // Garante que é um objeto populado
+                    ? (currentPersonalPlano.planoId as unknown as IPlano)
+                    : null;
+            // <<< FIM DA CORREÇÃO >>>
 
-                if (personalPlanoAtivo) {
-                    limiteAtual = plano.limiteAlunos || 0;
-                } else {
-                    limiteAtual = 0;
-                    isExpired = true;
-                }
-            } else {
-                console.log(`❌ Nenhum plano (ativo ou expirado) encontrado para personal ${personalTrainerId}`);
-            }
+            const isExpired = !personalPlanoAtivo && !!personalPlanoExpirado;
 
-            // Sempre acrescenta tokens ao limite, mesmo se plano expirado
-            limiteAtual += tokensAtivos;
+            const limiteBaseDoPlano = !isExpired && plano ? plano.limiteAlunos : 0;
+            const limiteAtual = limiteBaseDoPlano + tokensAtivos;
 
-            const result: {
-                plano: IPlano | null;
-                personalPlano: IPersonalPlano | null;
-                limiteAtual: number;
-                alunosAtivos: number;
-                tokensAvulsos: number;
-                isExpired: boolean;
-                expiredPlan?: {
-                    plano: IPlano | null;
-                    personalPlano: IPersonalPlano | null;
-                };
-            } = {
-                plano,
-                personalPlano,
+            const result = {
+                plano: plano,
+                personalPlano: currentPersonalPlano,
                 limiteAtual,
                 alunosAtivos,
                 tokensAvulsos: tokensAtivos,
-                isExpired
+                isExpired,
+                ...(isExpired && { expiredPlan: { plano, personalPlano: personalPlanoExpirado } })
             };
-
-            if (personalPlanoExpirado && !personalPlanoAtivo) {
-                result.expiredPlan = {
-                    plano: plano,
-                    personalPlano: personalPlanoExpirado
-                };
-            }
 
             return result;
         } catch (error) {
@@ -192,28 +176,42 @@ export class PlanoService {
     }
 
     /**
-     * Retorna a quantidade de tokens avulsos ativos
+     * Verifica se o slot de um aluno específico ainda é válido, 
+     * considerando um período de carência (grace period).
      */
-    async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
-        try {
-            if (!personalTrainerId) {
-                console.warn('⚠️  Personal trainer ID não fornecido para busca de tokens');
-                return 0;
-            }
+    async isAlunoEmDiaById(alunoId: string): Promise<{
+        ok: boolean;
+        reason: 'OK' | 'INACTIVE' | 'SLOT_EXPIRED' | 'NOT_FOUND';
+        slotEndDate?: Date | null;
+        graceUntil?: Date | null;
+    }> {
+        const aluno = await Aluno.findById(alunoId).select('status slotEndDate').lean();
 
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
-            });
-
-            const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
-            return total;
-        } catch (error) {
-            console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
-            return 0;
+        if (!aluno) {
+            return { ok: false, reason: 'NOT_FOUND' };
         }
+        if (aluno.status !== 'active') {
+            return { ok: false, reason: 'INACTIVE' };
+        }
+
+        const hoje = new Date();
+        const slotEndDate = aluno.slotEndDate;
+
+        if (!slotEndDate) {
+            return { ok: true, reason: 'OK' };
+        }
+
+        const gracePeriodDays = 3;
+        const graceUntil = new Date(slotEndDate.getTime());
+        graceUntil.setDate(graceUntil.getDate() + gracePeriodDays);
+        
+        if (hoje <= graceUntil) {
+            return { ok: true, reason: 'OK', slotEndDate, graceUntil };
+        }
+        
+        return { ok: false, reason: 'SLOT_EXPIRED', slotEndDate, graceUntil };
     }
+
 
     /**
      * Atribui um plano ao personal trainer

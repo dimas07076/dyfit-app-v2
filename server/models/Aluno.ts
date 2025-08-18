@@ -73,10 +73,10 @@ const alunoSchema = new Schema<IAluno>(
       required: [true, 'O ID do treinador é obrigatório']
     },
     // Novos campos para armazenar a vaga (slot) do aluno
-    slotType: { type: String, enum: ['plan', 'token'] },
-    slotId: { type: Schema.Types.ObjectId },
-    slotStartDate: { type: Date },
-    slotEndDate: { type: Date },
+    slotType: { type: String, enum: ['plan', 'token'], required: false },
+    slotId: { type: Schema.Types.ObjectId, required: false },
+    slotStartDate: { type: Date, required: false },
+    slotEndDate: { type: Date, required: false },
   },
   {
     timestamps: true

@@ -1,5 +1,5 @@
 // client/src/components/dialogs/admin/VisualizarPersonalModal.tsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,37 +10,20 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCircle, Mail, ShieldCheck, CalendarDays, Link2, Users, BarChartHorizontalBig, Info } from 'lucide-react';
-// Importação de @shared pode dar problema se os paths não estiverem 100% corretos,
-// então vamos definir o tipo aqui para garantir que não haja erros de compilação.
-export interface PersonalDetalhes {
-    _id: string;
-    nome: string;
-    email: string;
-    role: string;
-    createdAt: string;
-    updatedAt: string;
-    tokenCadastroAluno?: string;
-    statusAssinatura?: string;
-    limiteAlunos?: number;
-    dataFimAssinatura?: string;
-    planoId?: string;
-    plano?: {
-        _id: string;
-        nome: string;
-        descricao?: string;
-        limiteAlunos: number;
-        preco: number;
-        duracao: number;
-        tipo: string;
-    };
-}
+import { Loader2, UserCircle, Mail, ShieldCheck, CalendarDays, Link2, Users, BarChartHorizontalBig, Info, Crown, Zap, Clock, XCircle } from 'lucide-react';
+// <<< INÍCIO DA ALTERAÇÃO: Importa os tipos do local compartilhado >>>
+import { PersonalDetalhes, AlunoParaModal } from '@shared/types/personal';
+// <<< FIM DA ALTERAÇÃO >>>
+
 
 interface VisualizarPersonalModalProps {
   isOpen: boolean;
   onClose: () => void;
   personal: PersonalDetalhes | null;
   isLoading?: boolean;
+  // <<< INÍCIO DA ALTERAÇÃO: A prop agora usa o tipo importado >>>
+  alunosDoPersonal: AlunoParaModal[];
+  // <<< FIM DA ALTERAÇÃO >>>
 }
 
 const formatDate = (dateString?: Date | string): string => {
@@ -48,15 +31,6 @@ const formatDate = (dateString?: Date | string): string => {
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
-        const parts = String(dateString).split('/');
-        if (parts.length === 3) {
-            const parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-            if (!isNaN(parsedDate.getTime())) {
-                return parsedDate.toLocaleDateString('pt-BR', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                });
-            }
-        }
         return 'Data inválida';
     }
     return date.toLocaleDateString('pt-BR', {
@@ -79,25 +53,54 @@ const InfoItem: React.FC<{ label: string; value?: string | number | React.ReactN
   </div>
 );
 
-export default function VisualizarPersonalModal({ isOpen, onClose, personal, isLoading }: VisualizarPersonalModalProps) {
-  // =================== CÓDIGO DE DIAGNÓSTICO ===================
-  useEffect(() => {
-    if (isOpen) {
-        console.log('%c[MODAL COMPONENT] Modal FOI MONTADO/ABERTO.', 'color: green; font-weight: bold;');
-    }
-    // A função de limpeza do useEffect será chamada quando o componente for desmontado
-    // ou antes do próximo efeito ser executado.
-    return () => {
-        if (isOpen) {
-            console.log('%c[MODAL COMPONENT] Limpeza do efeito do modal. Próximo render ou desmontagem.', 'color: yellow;');
-        }
+const AlunoAssociationCard: React.FC<{ aluno: AlunoParaModal }> = ({ aluno }) => {
+    const getSlotIcon = () => {
+        if (aluno.status === 'inactive') return <XCircle className="h-4 w-4 text-gray-500" />;
+        if (aluno.slotType === 'plan') return <Crown className="h-4 w-4 text-purple-500" />;
+        if (aluno.slotType === 'token') return <Zap className="h-4 w-4 text-yellow-500" />;
+        return <Info className="h-4 w-4 text-gray-500" />;
     };
-  }, [isOpen]);
-  // =============================================================
+    const getSlotLabel = () => {
+        if (aluno.status === 'inactive') return 'Inativo';
+        if (aluno.slotType === 'plan') return 'Vaga do Plano';
+        if (aluno.slotType === 'token') return 'Token Avulso';
+        return 'Não associado';
+    };
+    const getSlotColorClass = () => {
+        if (aluno.status === 'inactive') return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600';
+        if (aluno.slotType === 'plan') return 'bg-purple-50 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700';
+        if (aluno.slotType === 'token') return 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700';
+        return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600';
+    };
 
+    return (
+        <div className={`p-3 rounded-lg border ${getSlotColorClass()}`}>
+            <div className="flex justify-between items-start">
+                <div>
+                    <p className="font-semibold text-sm">{aluno.nome}</p>
+                    <p className="text-xs text-muted-foreground">{aluno.email}</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-medium">
+                    {getSlotIcon()}
+                    {getSlotLabel()}
+                </div>
+            </div>
+            {aluno.status === 'active' && aluno.slotEndDate && (
+                 <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-3 w-3" />
+                    <span>Expira em: {formatDate(aluno.slotEndDate)}</span>
+                 </div>
+            )}
+        </div>
+    );
+};
+
+export default function VisualizarPersonalModal({ isOpen, onClose, personal, isLoading, alunosDoPersonal }: VisualizarPersonalModalProps) {
+  if (!isOpen) return null;
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl">
+      <DialogContent className="sm:max-w-lg md:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center text-2xl">
             <UserCircle className="mr-3 h-7 w-7 text-primary" />
@@ -118,12 +121,13 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
         )}
 
         {!isLoading && personal && (
-          <div className="py-4 space-y-1 max-h-[65vh] overflow-y-auto pr-3 -mr-3 custom-scrollbar">
-            <InfoItem label="Nome Completo" value={personal.nome} icon={<UserCircle className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
-            <InfoItem label="Email" value={personal.email} icon={<Mail className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
+          <div className="py-4 space-y-4 max-h-[65vh] overflow-y-auto pr-3 -mr-3 custom-scrollbar">
+            {/* --- SEÇÃO DE DADOS GERAIS --- */}
+            <InfoItem label="Nome Completo" value={personal.nome} icon={<UserCircle className="h-4 w-4 text-gray-500"/>} />
+            <InfoItem label="Email" value={personal.email} icon={<Mail className="h-4 w-4 text-gray-500"/>} />
             <InfoItem 
               label="Função (Role)" 
-              icon={<ShieldCheck className="h-4 w-4 text-gray-500 dark:text-gray-400"/>}
+              icon={<ShieldCheck className="h-4 w-4 text-gray-500"/>}
               value={
                 <Badge variant={personal.role === 'Admin' ? 'destructive' : 'default'}
                        className={`font-medium ${personal.role === 'Admin' ? 
@@ -134,34 +138,32 @@ export default function VisualizarPersonalModal({ isOpen, onClose, personal, isL
                 </Badge>
               }
             />
-            <InfoItem label="Data de Cadastro" value={formatDate(personal.createdAt)} icon={<CalendarDays className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
-            <InfoItem label="Última Atualização" value={formatDate(personal.updatedAt)} icon={<CalendarDays className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
+            <InfoItem label="Data de Cadastro" value={formatDate(personal.createdAt)} icon={<CalendarDays className="h-4 w-4 text-gray-500"/>} />
             
-            <h3 className="text-md font-semibold pt-4 text-gray-700 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 mt-4">Assinatura</h3>
-            <InfoItem 
-              label="Status" 
-              icon={<Info className="h-4 w-4 text-gray-500 dark:text-gray-400"/>}
-              value={
-                 <Badge variant={personal.statusAssinatura === 'ativa' ? 'success' : 'secondary'}
-                        className={personal.statusAssinatura === 'ativa' ? 
-                                   'bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300 border-green-300 dark:border-green-700' :
-                                   'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300 border-gray-300 dark:border-gray-600'}>
-                    {personal.statusAssinatura || 'Não definida'}
-                 </Badge>
-              }
-            />
-            <InfoItem 
-              label="Plano" 
-              value={personal.plano ? `${personal.plano.nome} (ID: ${personal.plano._id})` : personal.planoId || 'Não definido'} 
-              icon={<BarChartHorizontalBig className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} 
-            />
-            <InfoItem label="Limite de Alunos" value={personal.limiteAlunos} icon={<Users className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
-            <InfoItem label="Fim da Assinatura" value={formatDate(personal.dataFimAssinatura)} icon={<CalendarDays className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
+            {/* --- SEÇÃO DE ASSINATURA --- */}
+            <h3 className="text-md font-semibold pt-4 text-gray-700 dark:text-gray-300 border-t mt-4">Assinatura</h3>
+            <InfoItem label="Status" icon={<Info className="h-4 w-4 text-gray-500"/>} value={<Badge variant={personal.statusAssinatura === 'ativa' ? 'success' : 'secondary'}>{personal.statusAssinatura || 'Não definida'}</Badge>} />
+            <InfoItem label="Plano" value={personal.plano?.nome || 'Não definido'} icon={<BarChartHorizontalBig className="h-4 w-4 text-gray-500"/>} />
+            <InfoItem label="Limite de Alunos" value={personal.limiteAlunos} icon={<Users className="h-4 w-4 text-gray-500"/>} />
+            <InfoItem label="Fim da Assinatura" value={formatDate(personal.dataFimAssinatura)} icon={<CalendarDays className="h-4 w-4 text-gray-500"/>} />
             
+            {/* <<< INÍCIO DA ALTERAÇÃO: Nova seção para listar alunos e seus slots >>> */}
+            <h3 className="text-md font-semibold pt-4 text-gray-700 dark:text-gray-300 border-t mt-4">Alunos Associados ({alunosDoPersonal.length})</h3>
+            <div className="space-y-2">
+                {alunosDoPersonal.length > 0 ? (
+                    alunosDoPersonal.map(aluno => (
+                        <AlunoAssociationCard key={aluno._id} aluno={aluno} />
+                    ))
+                ) : (
+                    <p className="text-sm text-center text-muted-foreground py-4">Nenhum aluno associado.</p>
+                )}
+            </div>
+            {/* <<< FIM DA ALTERAÇÃO >>> */}
+
             {personal.tokenCadastroAluno && (
               <>
-                <h3 className="text-md font-semibold pt-4 text-gray-700 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 mt-4">Link de Cadastro de Alunos</h3>
-                <InfoItem label="Token" value={personal.tokenCadastroAluno} isMonospace icon={<Link2 className="h-4 w-4 text-gray-500 dark:text-gray-400"/>} />
+                <h3 className="text-md font-semibold pt-4 text-gray-700 dark:text-gray-300 border-t mt-4">Link de Cadastro</h3>
+                <InfoItem label="Token" value={personal.tokenCadastroAluno} isMonospace icon={<Link2 className="h-4 w-4 text-gray-500"/>} />
               </>
             )}
           </div>
