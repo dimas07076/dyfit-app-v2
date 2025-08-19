@@ -7,7 +7,7 @@ export interface IPersonalPlano extends Document {
     dataInicio: Date;
     dataVencimento: Date;
     ativo: boolean;
-    atribuidoPorAdmin: mongoose.Types.ObjectId; // ID do admin que atribuiu
+    atribuidoPorAdmin?: mongoose.Types.ObjectId; // ID do admin que atribuiu (optional for automatic activations)
     motivoAtribuicao?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -41,7 +41,7 @@ const personalPlanoSchema: Schema<IPersonalPlano> = new Schema(
         atribuidoPorAdmin: {
             type: Schema.Types.ObjectId,
             ref: 'PersonalTrainer', // Assuming admin is also a PersonalTrainer with role 'Admin'
-            required: [true, 'O ID do admin é obrigatório.'],
+            required: false, // Optional to allow automatic activations (like Free plan)
         },
         motivoAtribuicao: {
             type: String,
