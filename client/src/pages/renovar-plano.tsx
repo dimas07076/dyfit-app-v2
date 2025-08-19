@@ -46,6 +46,9 @@ export default function RenovarPlanoPage() {
   const { data: approvedRequests, isLoading: loadingApproved } = useQuery<RenewalRequest[], Error>({
     queryKey: QK_RENEWALS_APPROVED,
     queryFn: () => fetchWithAuth("/api/personal/renewal-requests?status=approved,cycle_assignment_pending", {}, "personalAdmin"),
+    refetchInterval: 2000, // Refetch a cada 2 segundos para detectar mudanças de status
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Sempre considerar os dados como stale para garantir fresh data
   });
 
   // Efeito de guarda: se não houver solicitação aprovada, redireciona
@@ -59,6 +62,16 @@ export default function RenovarPlanoPage() {
       navigate("/solicitar-renovacao", { replace: true });
     }
   }, [approvedRequests, loadingApproved, navigate, toast]);
+
+  // Efeito adicional: se finalização estiver em progresso ou concluída e não há mais requests aprovados, redirecionar
+  useEffect(() => {
+    if (isFinalizando) return; // Se está finalizando, não redirecionar ainda
+    
+    if (!loadingApproved && (!approvedRequests || approvedRequests.length === 0)) {
+      // Se não há mais solicitações aprovadas, significa que a finalização foi bem-sucedida
+      navigate("/solicitar-renovacao", { replace: true });
+    }
+  }, [approvedRequests, loadingApproved, navigate, isFinalizando]);
 
   // Efeito para pré-selecionar os alunos que já estão ativos
   useEffect(() => {

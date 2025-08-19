@@ -3,21 +3,20 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Treino from '../../models/Treino.js';
 import Sessao, { OPCOES_PSE } from '../../models/Sessao.js';
+import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import Aluno from '../../models/Aluno.js';
 import ConviteAluno from '../../models/ConviteAluno.js';
-import { startOfWeek, endOfWeek, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
+import TokenAvulso from '../../models/TokenAvulso.js';
 import dbConnect from '../../lib/dbConnect.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authenticateAlunoToken } from '../../middlewares/authenticateAlunoToken.js';
 import { checkLimiteAlunos } from '../../middlewares/checkLimiteAlunos.js';
 import PlanoService from '../../services/PlanoService.js';
-import TokenAvulso from '../../models/TokenAvulso.js';
 const router = express.Router();
 // =======================================================
 // ROTAS DO PERSONAL (PARA GERENCIAR ALUNOS)
 // =======================================================
-// POST /api/aluno/convite - Gera um link de convite para aluno
-router.post("/convite", authenticateToken, async (req, res, next) => {
+router.post("/convite", authenticateToken, checkLimiteAlunos, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
     if (!trainerId) {
@@ -26,9 +25,12 @@ router.post("/convite", authenticateToken, async (req, res, next) => {
     try {
         const { emailConvidado } = req.body;
         if (emailConvidado) {
-            const alunoExistente = await Aluno.findOne({ email: emailConvidado, trainerId });
+            const alunoExistente = await Aluno.findOne({
+                email: emailConvidado,
+                trainerId: new mongoose.Types.ObjectId(trainerId)
+            });
             if (alunoExistente) {
-                return res.status(409).json({ erro: "Este aluno já está cadastrado com você." });
+                return res.status(409).json({ message: "Este aluno já está cadastrado com você." });
             }
             const convitePendente = await ConviteAluno.findOne({
                 emailConvidado,
@@ -52,7 +54,6 @@ router.post("/convite", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// GET /api/aluno/gerenciar - Lista alunos do personal com filtro de status
 router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -62,16 +63,9 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
     try {
         const { status } = req.query;
         const query = { trainerId };
-        // Se o status for fornecido e não for 'all', filtra por ele.
-        // Caso contrário (status='all' ou não fornecido), retorna todos.
         if (status && typeof status === 'string' && status.toLowerCase() !== 'all') {
             query.status = status;
         }
-        else if (!status) {
-            // Comportamento padrão: retornar apenas ativos se nenhum status for especificado.
-            query.status = 'active';
-        }
-        // Se status === 'all', o filtro de status não é adicionado, retornando todos.
         const alunos = await Aluno.find(query).sort({ nome: 1 }).select('-passwordHash');
         res.status(200).json(alunos);
     }
@@ -79,97 +73,89 @@ router.get("/gerenciar", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// POST /api/aluno/gerenciar - Criar um novo aluno
 router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
-    if (!trainerId) {
-        return res.status(401).json({ erro: "Usuário não autenticado." });
-    }
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        const { nome, email, password, phone, birthDate, goal, weight, height, startDate } = req.body;
+        const { nome, email, password, ...outrosDados } = req.body;
         if (!nome || !email || !password) {
-            return res.status(400).json({ erro: "Nome, email e senha são obrigatórios." });
+            await session.abortTransaction();
+            return res.status(400).json({ message: "Nome, email e senha são obrigatórios." });
         }
-        const alunoExistente = await Aluno.findOne({ email: email.toLowerCase() });
+        const alunoExistente = await Aluno.findOne({ email: email.toLowerCase() }).session(session);
         if (alunoExistente) {
-            return res.status(409).json({ erro: "Já existe um aluno com este email." });
+            await session.abortTransaction();
+            return res.status(409).json({ message: "Já existe um aluno com este email." });
         }
-        // ======================================================================
-        // LÓGICA DE SLOT: Determinar o slot do aluno (plano ou token)
-        // ======================================================================
-        let slotType = 'plan';
+        const planStatus = await PlanoService.getPersonalCurrentPlan(trainerId);
+        const limiteBasePlano = planStatus.isExpired ? 0 : (planStatus.plano?.limiteAlunos || 0);
+        const alunosAtivosNoPlano = await Aluno.countDocuments({
+            trainerId, status: 'active', slotType: 'plan'
+        }).session(session);
+        let slotType;
         let slotId;
         let slotStartDate;
         let slotEndDate;
-        try {
-            const status = await PlanoService.getPersonalCurrentPlan(trainerId);
-            const planLimit = status.isExpired || !status.plano ? 0 : status.plano.limiteAlunos;
-            const alunosAtivosNoPlano = await Aluno.countDocuments({
-                trainerId: trainerId,
-                status: 'active',
-                slotType: 'plan'
-            });
-            if (alunosAtivosNoPlano < planLimit) {
-                slotType = 'plan';
-                if (status.personalPlano) {
-                    slotId = new mongoose.Types.ObjectId(status.personalPlano._id);
-                    slotStartDate = status.personalPlano.dataInicio;
-                    slotEndDate = status.personalPlano.dataVencimento;
-                }
+        if (alunosAtivosNoPlano < limiteBasePlano) {
+            slotType = 'plan';
+            slotId = new mongoose.Types.ObjectId(planStatus.personalPlano._id);
+            slotStartDate = planStatus.personalPlano.dataInicio;
+            slotEndDate = planStatus.personalPlano.dataVencimento;
+        }
+        else {
+            slotType = 'token';
+            const token = await TokenAvulso.findOne({
+                personalTrainerId: trainerId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            }).sort({ dataVencimento: 1 }).session(session);
+            if (!token) {
+                await session.abortTransaction();
+                return res.status(403).json({ message: "Não há vagas de plano ou tokens avulsos disponíveis." });
+            }
+            slotId = new mongoose.Types.ObjectId(token._id);
+            slotStartDate = new Date();
+            slotEndDate = token.dataVencimento;
+            if (token.quantidade > 1) {
+                token.quantidade -= 1;
+                await token.save({ session });
             }
             else {
-                slotType = 'token';
-                const token = await TokenAvulso.findOne({
-                    personalTrainerId: trainerId,
-                    ativo: true,
-                    dataVencimento: { $gt: new Date() }
-                }).sort({ dataVencimento: 1 });
-                if (token) {
-                    slotId = new mongoose.Types.ObjectId(token._id);
-                    slotStartDate = token.createdAt;
-                    slotEndDate = token.dataVencimento;
-                }
-                else {
-                    slotId = undefined;
-                    slotStartDate = undefined;
-                    slotEndDate = undefined;
-                }
+                await TokenAvulso.deleteOne({ _id: token._id }).session(session);
             }
-        }
-        catch (e) {
-            console.error('Erro ao determinar slot do aluno:', e);
         }
         const novoAluno = new Aluno({
             nome,
             email: email.toLowerCase(),
             passwordHash: password,
             trainerId: new mongoose.Types.ObjectId(trainerId),
-            phone,
-            birthDate: birthDate ? new Date(birthDate) : undefined,
-            goal,
-            weight: weight ? parseFloat(weight) : undefined,
-            height: height ? parseInt(height) : undefined,
-            startDate: startDate ? new Date(startDate) : new Date(),
+            ...outrosDados,
             status: 'active',
             slotType,
             slotId,
             slotStartDate,
-            slotEndDate
+            slotEndDate,
         });
-        await novoAluno.save();
+        await novoAluno.save({ session });
+        await session.commitTransaction();
         const alunoResponse = novoAluno.toObject();
         delete alunoResponse.passwordHash;
         res.status(201).json({
-            mensagem: "Aluno criado com sucesso!",
+            message: "Aluno criado e vaga associada com sucesso!",
             aluno: alunoResponse
         });
     }
     catch (error) {
+        if (session.inTransaction())
+            await session.abortTransaction();
         next(error);
     }
+    finally {
+        session.endSession();
+    }
 });
-// GET /api/aluno/gerenciar/:id - Buscar um aluno específico
 router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -194,7 +180,6 @@ router.get("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// PUT /api/aluno/gerenciar/:id - Atualizar um aluno existente
 router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -206,44 +191,14 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ erro: "ID do aluno inválido." });
     }
     try {
-        const { nome, email, phone, birthDate, gender, goal, weight, height, startDate, status, notes } = req.body;
-        if (!nome || !email || !birthDate || !gender || !goal || !startDate || !status) {
-            return res.status(400).json({ erro: "Nome, email, data de nascimento, gênero, objetivo, data de início e status são obrigatórios." });
+        const { slotType, slotId, slotStartDate, slotEndDate, ...updateData } = req.body;
+        if (!updateData.nome || !updateData.email) {
+            return res.status(400).json({ erro: "Nome e email são obrigatórios." });
         }
-        const alunoExistente = await Aluno.findOne({
-            _id: new mongoose.Types.ObjectId(alunoId),
-            trainerId: new mongoose.Types.ObjectId(trainerId)
-        });
-        if (!alunoExistente) {
+        const alunoAtualizado = await Aluno.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) }, { $set: updateData }, { new: true, runValidators: true }).select('-passwordHash');
+        if (!alunoAtualizado) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
-        if (email.toLowerCase() !== alunoExistente.email) {
-            const emailExistente = await Aluno.findOne({
-                email: email.toLowerCase(),
-                _id: { $ne: new mongoose.Types.ObjectId(alunoId) }
-            });
-            if (emailExistente) {
-                return res.status(409).json({ erro: "Já existe outro aluno com este email." });
-            }
-        }
-        const updateData = {
-            nome,
-            email: email.toLowerCase(),
-            phone,
-            birthDate: new Date(birthDate),
-            gender,
-            goal,
-            startDate: new Date(startDate),
-            status,
-            notes
-        };
-        if (weight !== null && weight !== undefined && weight !== '') {
-            updateData.weight = parseFloat(weight);
-        }
-        if (height !== null && height !== undefined && height !== '') {
-            updateData.height = parseInt(height);
-        }
-        const alunoAtualizado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), updateData, { new: true, runValidators: true }).select('-passwordHash');
         res.status(200).json({
             mensagem: "Aluno atualizado com sucesso!",
             aluno: alunoAtualizado
@@ -253,7 +208,6 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         next(error);
     }
 });
-// DELETE /api/aluno/gerenciar/:id - Marcar um aluno como inativo
 router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
     await dbConnect();
     const trainerId = req.user?.id;
@@ -265,19 +219,15 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ erro: "ID do aluno inválido." });
     }
     try {
-        const alunoExistente = await Aluno.findOne({
-            _id: new mongoose.Types.ObjectId(alunoId),
-            trainerId: new mongoose.Types.ObjectId(trainerId)
-        });
-        if (!alunoExistente) {
-            return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
-        }
-        const alunoInativado = await Aluno.findByIdAndUpdate(new mongoose.Types.ObjectId(alunoId), {
-            status: 'inactive',
+        const alunoInativado = await Aluno.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) }, {
+            $set: { status: 'inactive' },
             $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
-        }, { new: true });
+        }, { new: true }).select('-passwordHash');
+        if (!alunoInativado) {
+            return res.status(404).json({ message: "Aluno não encontrado ou não pertence a você." });
+        }
         res.status(200).json({
-            mensagem: "Aluno marcado como inativo e vaga liberada com sucesso!",
+            message: "Aluno marcado como inativo e vaga liberada com sucesso!",
             aluno: alunoInativado
         });
     }
@@ -288,7 +238,6 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
 // =======================================================
 // ROTAS DO ALUNO (DASHBOARD, FICHAS, HISTÓRICO)
 // =======================================================
-// (O restante do arquivo permanece inalterado)
 router.get('/meus-treinos', authenticateAlunoToken, async (req, res, next) => {
     await dbConnect();
     const alunoId = req.aluno?.id;
