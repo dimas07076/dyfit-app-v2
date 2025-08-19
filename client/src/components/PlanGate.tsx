@@ -34,8 +34,8 @@ export function PlanGate({
     enabled: !!trainerId && requireActivePlan,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: (failureCount, error: any) => {
-      // If 404 (plan not found), don't retry
-      if (error.message.includes("404")) return false;
+      // Se o erro for 404 (plano não encontrado), não tenta novamente.
+      if (error.message.includes("404") || error.message.includes("Nenhum plano ativo ou expirado encontrado")) return false;
       return failureCount < 3;
     },
   });
