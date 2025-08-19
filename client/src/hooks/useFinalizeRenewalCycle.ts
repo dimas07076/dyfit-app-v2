@@ -16,6 +16,7 @@ type FinalizePayload = {
 // Chaves de query que serão invalidadas após o sucesso, para sincronizar o estado da UI
 export const QK_RENEWALS_APPROVED = ["personal-renewals", "approved"];
 export const QK_RENEWALS_LIST = ["personal-renewals", "list"];
+export const QK_RENEWALS_STATUS = ["personal-renewals", "status"];
 
 export function useFinalizeRenewalCycle() {
   const queryClient = useQueryClient();
@@ -45,6 +46,7 @@ export function useFinalizeRenewalCycle() {
       // Invalida as queries de solicitações para limpar os banners e listas na página anterior
       await queryClient.invalidateQueries({ queryKey: QK_RENEWALS_APPROVED });
       await queryClient.invalidateQueries({ queryKey: QK_RENEWALS_LIST });
+      await queryClient.invalidateQueries({ queryKey: QK_RENEWALS_STATUS });
       
       toast({
         title: "Ciclo de Renovação Finalizado!",
@@ -52,7 +54,7 @@ export function useFinalizeRenewalCycle() {
       });
 
       // Redireciona de volta para a página de solicitação, que agora estará "limpa"
-      navigate("/solitar-renovacao", { replace: true });
+      navigate("/solicitar-renovacao", { replace: true });
     },
     onError: (error: any) => {
       toast({
