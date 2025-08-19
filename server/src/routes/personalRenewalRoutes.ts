@@ -196,36 +196,33 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res, next) 
 });
 
 /**
- * Rota para o personal finalizar o ciclo de renovação, ativando os alunos selecionados.
+ * Rota para finalizar o ciclo de renovação sem ID específico.
+ * Encontra automaticamente a solicitação aprovada do personal e a finaliza.
+ * IMPORTANTE: Esta rota deve vir ANTES da rota com parâmetro :id para evitar conflitos
  */
-router.post('/renewal-requests/:id/finalize-cycle', async (req, res, next) => {
+router.post('/finalize-cycle', async (req, res, next) => {
     await dbConnect();
-    const renewalId = req.params.id;
     const userId = (req as any).user.id;
     const { keepStudentIds = [], removeStudentIds = [], note } = req.body || {};
     const session = await mongoose.startSession();
   
     try {
       await session.withTransaction(async () => {
-        if (!mongoose.isValidObjectId(renewalId)) {
-          throw { status: 400, message: 'ID da solicitação inválido.' };
-        }
-  
-        const request = await RenewalRequest.findById(renewalId).session(session);
-        if (!request) throw { status: 404, message: 'Solicitação não encontrada.' };
-        if (request.personalTrainerId.toString() !== userId) {
-          throw { status: 403, message: 'Sem permissão para finalizar esta solicitação.' };
+        // Encontra a solicitação aprovada ou pendente de atribuição de ciclo
+        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
+        const request = await RenewalRequest.findOne({ 
+          personalTrainerId: userId, 
+          status: { $in: validStatuses }
+        }).session(session);
+        
+        if (!request) {
+          throw { status: 404, message: 'Nenhuma solicitação aprovada encontrada para finalizar.' };
         }
         
         const finalizedStatuses: RenewalStatus[] = [RStatus.FULFILLED, RStatus.REJECTED];
         if (finalizedStatuses.includes(request.status)) {
           res.status(200).json({ renewalId: request._id, status: request.status, message: 'Pedido já encerrado.' });
           return;
-        }
-        
-        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
-        if (!validStatuses.includes(request.status)) {
-          throw { status: 409, message: `Estado inválido: ${request.status}. A solicitação precisa estar aprovada.` };
         }
   
         const activePlan = await PersonalPlano.findOne({ personalTrainerId: userId, ativo: true }).populate('planoId').session(session);
@@ -283,32 +280,37 @@ router.post('/renewal-requests/:id/finalize-cycle', async (req, res, next) => {
 });
 
 /**
- * Rota para finalizar o ciclo de renovação sem ID específico.
- * Encontra automaticamente a solicitação aprovada do personal e a finaliza.
+ * Rota para o personal finalizar o ciclo de renovação, ativando os alunos selecionados.
+ * Esta rota aceita um ID específico da solicitação.
  */
-router.post('/renewal-requests/finalize-cycle', async (req, res, next) => {
+router.post('/:id/finalize-cycle', async (req, res, next) => {
     await dbConnect();
+    const renewalId = req.params.id;
     const userId = (req as any).user.id;
     const { keepStudentIds = [], removeStudentIds = [], note } = req.body || {};
     const session = await mongoose.startSession();
   
     try {
       await session.withTransaction(async () => {
-        // Encontra a solicitação aprovada ou pendente de atribuição de ciclo
-        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
-        const request = await RenewalRequest.findOne({ 
-          personalTrainerId: userId, 
-          status: { $in: validStatuses }
-        }).session(session);
-        
-        if (!request) {
-          throw { status: 404, message: 'Nenhuma solicitação aprovada encontrada para finalizar.' };
+        if (!mongoose.isValidObjectId(renewalId)) {
+          throw { status: 400, message: 'ID da solicitação inválido.' };
+        }
+  
+        const request = await RenewalRequest.findById(renewalId).session(session);
+        if (!request) throw { status: 404, message: 'Solicitação não encontrada.' };
+        if (request.personalTrainerId.toString() !== userId) {
+          throw { status: 403, message: 'Sem permissão para finalizar esta solicitação.' };
         }
         
         const finalizedStatuses: RenewalStatus[] = [RStatus.FULFILLED, RStatus.REJECTED];
         if (finalizedStatuses.includes(request.status)) {
           res.status(200).json({ renewalId: request._id, status: request.status, message: 'Pedido já encerrado.' });
           return;
+        }
+        
+        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
+        if (!validStatuses.includes(request.status)) {
+          throw { status: 409, message: `Estado inválido: ${request.status}. A solicitação precisa estar aprovada.` };
         }
   
         const activePlan = await PersonalPlano.findOne({ personalTrainerId: userId, ativo: true }).populate('planoId').session(session);
