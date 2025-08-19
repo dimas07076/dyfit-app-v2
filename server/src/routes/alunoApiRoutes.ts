@@ -234,9 +234,25 @@ router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
             return res.status(400).json({ erro: "Nome e email são obrigatórios." });
         }
 
+        // Verificar se está mudando o status para inactive
+        const statusMudandoParaInativo = updateData.status === 'inactive';
+        
+        let updateOperation: any = { $set: updateData };
+        let responseMessage = "Aluno atualizado com sucesso!";
+        
+        if (statusMudandoParaInativo) {
+            // Aplicar política anti-abuso: preservar reserva de token durante o ciclo
+            updateOperation = {
+                $set: updateData,
+                // Remove apenas dados desnecessários, mantém cycleId e tokenReservedForCycle
+                $unset: { slotStartDate: "", slotEndDate: "" }
+            };
+            responseMessage = "Aluno desativado. Esta ação não libera o token neste ciclo. O token permanece vinculado a este aluno até o fim do ciclo.";
+        }
+
         const alunoAtualizado = await Aluno.findOneAndUpdate(
             { _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) },
-            { $set: updateData },
+            updateOperation,
             { new: true, runValidators: true }
         ).select('-passwordHash');
         
@@ -245,7 +261,7 @@ router.put("/gerenciar/:id", authenticateToken, async (req: Request, res: Respon
         }
 
         res.status(200).json({
-            mensagem: "Aluno atualizado com sucesso!",
+            mensagem: responseMessage,
             aluno: alunoAtualizado
         });
 

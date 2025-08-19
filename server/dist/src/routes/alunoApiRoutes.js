@@ -199,12 +199,25 @@ router.put("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         if (!updateData.nome || !updateData.email) {
             return res.status(400).json({ erro: "Nome e email são obrigatórios." });
         }
-        const alunoAtualizado = await Aluno.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) }, { $set: updateData }, { new: true, runValidators: true }).select('-passwordHash');
+        // Verificar se está mudando o status para inactive
+        const statusMudandoParaInativo = updateData.status === 'inactive';
+        let updateOperation = { $set: updateData };
+        let responseMessage = "Aluno atualizado com sucesso!";
+        if (statusMudandoParaInativo) {
+            // Aplicar política anti-abuso: preservar reserva de token durante o ciclo
+            updateOperation = {
+                $set: updateData,
+                // Remove apenas dados desnecessários, mantém cycleId e tokenReservedForCycle
+                $unset: { slotStartDate: "", slotEndDate: "" }
+            };
+            responseMessage = "Aluno desativado. Esta ação não libera o token neste ciclo. O token permanece vinculado a este aluno até o fim do ciclo.";
+        }
+        const alunoAtualizado = await Aluno.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) }, updateOperation, { new: true, runValidators: true }).select('-passwordHash');
         if (!alunoAtualizado) {
             return res.status(404).json({ erro: "Aluno não encontrado ou não pertence a você." });
         }
         res.status(200).json({
-            mensagem: "Aluno atualizado com sucesso!",
+            mensagem: responseMessage,
             aluno: alunoAtualizado
         });
     }
