@@ -11,6 +11,56 @@ import PlanoService from '../../services/PlanoService.js';
 import Aluno from '../../models/Aluno.js';
 import PersonalPlano from '../../models/PersonalPlano.js';
 
+/**
+ * Função auxiliar para finalizar ciclo com anti-abuso de tokens
+ */
+async function finalizeCycleWithAntiAbuse(
+  userId: string, 
+  keepStudentIds: string[], 
+  activePlan: any, 
+  session: any
+) {
+  const personalObjectId = new mongoose.Types.ObjectId(userId);
+
+  // ANTI-ABUSO: Limpar reservas de tokens do ciclo anterior
+  await PlanoService.clearPreviousCycleTokenReservations(userId);
+
+  // Inativa todos os alunos ativos do personal
+  await Aluno.updateMany(
+    { trainerId: personalObjectId, status: 'active' },
+    { 
+      $set: { status: 'inactive' }, 
+      $unset: { 
+        slotType: "", 
+        slotId: "", 
+        slotStartDate: "", 
+        slotEndDate: "",
+        cycleId: "",
+        tokenReservedForCycle: ""
+      } 
+    },
+    { session }
+  );
+  
+  // Reativa apenas os alunos selecionados
+  if (keepStudentIds.length > 0) {
+    await Aluno.updateMany(
+      { _id: { $in: keepStudentIds.map((id: string) => new mongoose.Types.ObjectId(id)) }, trainerId: personalObjectId },
+      { $set: { 
+          status: 'active', 
+          slotType: 'plan', 
+          slotId: activePlan._id, 
+          slotStartDate: activePlan.dataInicio, 
+          slotEndDate: activePlan.dataVencimento,
+          cycleId: activePlan._id,
+          tokenReservedForCycle: false // Alunos do plano não precisam de reserva de token
+        } 
+      },
+      { session }
+    );
+  }
+}
+
 const router = express.Router();
 router.use(authenticateToken);
 

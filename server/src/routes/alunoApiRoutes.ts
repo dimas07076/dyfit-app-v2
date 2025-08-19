@@ -147,6 +147,9 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
             }
         }
         
+        // Obter o ciclo atual para controle anti-abuso
+        const currentCycleId = await PlanoService.getCurrentCycleId(trainerId);
+        
         const novoAluno = new Aluno({
             nome,
             email: email.toLowerCase(),
@@ -158,6 +161,8 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
             slotId,
             slotStartDate,
             slotEndDate,
+            cycleId: currentCycleId,
+            tokenReservedForCycle: slotType === 'token' // Reserve token apenas se for token avulso
         });
 
         await novoAluno.save({ session });
@@ -266,8 +271,9 @@ router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Res
         const alunoInativado = await Aluno.findOneAndUpdate(
             { _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) },
             { 
-              $set: { status: 'inactive' }, 
-              $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+              $set: { status: 'inactive' },
+              // ANTI-ABUSO: Mantém slot e reserva de token durante o ciclo, apenas remove dados desnecessários
+              $unset: { slotStartDate: "", slotEndDate: "" }
             },
             { new: true }
         ).select('-passwordHash');
@@ -277,11 +283,117 @@ router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Res
         }
         
         res.status(200).json({
-            message: "Aluno marcado como inativo e vaga liberada com sucesso!",
+            message: "Aluno desativado. Esta ação não libera o token neste ciclo. O token permanece vinculado a este aluno até o fim do ciclo.",
             aluno: alunoInativado
         });
     } catch (error) {
         next(error);
+    }
+});
+
+// Rota para reativar aluno
+router.patch("/gerenciar/:id/activate", authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+    await dbConnect();
+    const trainerId = req.user?.id;
+    const alunoId = req.params.id;
+
+    if (!trainerId) {
+        return res.status(401).json({ erro: "Usuário não autenticado." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(alunoId)) {
+        return res.status(400).json({ erro: "ID do aluno inválido." });
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Verificar se o aluno pode ser reativado
+        const reactivationStatus = await PlanoService.canReactivateStudent(trainerId, alunoId);
+        
+        if (!reactivationStatus.canReactivate) {
+            await session.abortTransaction();
+            return res.status(403).json({ 
+                message: "Você não possui tokens/vagas disponíveis neste ciclo. Compre um token avulso ou aguarde o próximo ciclo.",
+                code: 'STUDENT_LIMIT_EXCEEDED'
+            });
+        }
+
+        let updateData: any = { status: 'active' };
+        let slotInfo = null;
+
+        if (reactivationStatus.hasReservedToken) {
+            // Aluno já tem token reservado, apenas reativa
+            slotInfo = { message: "Aluno reativado. O token deste ciclo já está vinculado a este aluno." };
+        } else {
+            // Precisa alocar novo slot
+            const planStatus = await PlanoService.getPersonalCurrentPlan(trainerId);
+            const limiteBasePlano = planStatus.isExpired ? 0 : (planStatus.plano?.limiteAlunos || 0);
+            const alunosAtivosNoPlano = await Aluno.countDocuments({
+                trainerId, status: 'active', slotType: 'plan'
+            }).session(session);
+
+            if (alunosAtivosNoPlano < limiteBasePlano) {
+                // Usar slot do plano
+                updateData.slotType = 'plan';
+                updateData.slotId = new mongoose.Types.ObjectId(planStatus.personalPlano!._id as any);
+                updateData.slotStartDate = planStatus.personalPlano!.dataInicio;
+                updateData.slotEndDate = planStatus.personalPlano!.dataVencimento;
+                updateData.cycleId = await PlanoService.getCurrentCycleId(trainerId);
+                updateData.tokenReservedForCycle = false;
+            } else {
+                // Usar token avulso
+                const token = await TokenAvulso.findOne({
+                    personalTrainerId: trainerId,
+                    ativo: true,
+                    dataVencimento: { $gt: new Date() }
+                }).sort({ dataVencimento: 1 }).session(session);
+
+                if (!token) {
+                    await session.abortTransaction();
+                    return res.status(403).json({ message: "Não há vagas de plano ou tokens avulsos disponíveis." });
+                }
+                
+                updateData.slotType = 'token';
+                updateData.slotId = new mongoose.Types.ObjectId(token._id as any);
+                updateData.slotStartDate = new Date();
+                updateData.slotEndDate = token.dataVencimento;
+                updateData.cycleId = await PlanoService.getCurrentCycleId(trainerId);
+                updateData.tokenReservedForCycle = true;
+
+                if (token.quantidade > 1) {
+                    token.quantidade -= 1;
+                    await token.save({ session });
+                } else {
+                    await TokenAvulso.deleteOne({ _id: token._id }).session(session);
+                }
+            }
+        }
+
+        const alunoReativado = await Aluno.findOneAndUpdate(
+            { _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) },
+            { $set: updateData },
+            { new: true, session }
+        ).select('-passwordHash');
+
+        if (!alunoReativado) {
+            await session.abortTransaction();
+            return res.status(404).json({ message: "Aluno não encontrado ou não pertence a você." });
+        }
+
+        await session.commitTransaction();
+        
+        res.status(200).json({
+            message: slotInfo?.message || "Aluno reativado com sucesso!",
+            aluno: alunoReativado
+        });
+
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        next(error);
+    } finally {
+        session.endSession();
     }
 });
 

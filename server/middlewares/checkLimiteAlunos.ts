@@ -34,6 +34,7 @@ export const checkLimiteAlunos = async (req: Request, res: Response, next: NextF
                     currentLimit: status.currentLimit,
                     activeStudents: status.activeStudents,
                     availableSlots: status.availableSlots,
+                    reservedTokens: status.reservedTokens,
                     requestedQuantity: quantidadeDesejada
                 }
             });
@@ -80,7 +81,8 @@ export const checkCanActivateStudent = async (req: Request, res: Response, next:
                 data: {
                     currentLimit: status.currentLimit,
                     activeStudents: status.activeStudents,
-                    availableSlots: status.availableSlots
+                    availableSlots: status.availableSlots,
+                    reservedTokens: status.reservedTokens
                 }
             });
         }

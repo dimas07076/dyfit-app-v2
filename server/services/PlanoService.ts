@@ -56,6 +56,47 @@ const INITIAL_PLANS = [
 
 export class PlanoService {
     /**
+     * Obtém o ID do ciclo atual baseado no plano ativo do personal
+     */
+    async getCurrentCycleId(personalTrainerId: string): Promise<mongoose.Types.ObjectId | null> {
+        try {
+            const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+            const personalPlanoAtivo = await PersonalPlano.findOne({
+                personalTrainerId: trainerObjectId,
+                ativo: true,
+                dataVencimento: { $gt: new Date() }
+            }).sort({ dataInicio: -1 });
+            
+            return personalPlanoAtivo?._id as mongoose.Types.ObjectId || null;
+        } catch (error) {
+            console.error('❌ Erro ao buscar ciclo atual:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Conta tokens reservados no ciclo atual
+     */
+    async getReservedTokensInCurrentCycle(personalTrainerId: string): Promise<number> {
+        try {
+            const cycleId = await this.getCurrentCycleId(personalTrainerId);
+            if (!cycleId) return 0;
+
+            const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+            const reservedCount = await Aluno.countDocuments({
+                trainerId: trainerObjectId,
+                cycleId,
+                tokenReservedForCycle: true
+            });
+
+            return reservedCount;
+        } catch (error) {
+            console.error('❌ Erro ao contar tokens reservados:', error);
+            return 0;
+        }
+    }
+
+    /**
      * Retorna a quantidade de tokens avulsos ativos
      */
     async getTokensAvulsosAtivos(personalTrainerId: string): Promise<number> {
@@ -152,23 +193,105 @@ export class PlanoService {
     }
 
     /**
-     * Verifica se é possível ativar mais alunos
+     * Verifica se é possível ativar mais alunos considerando tokens reservados
      */
     async canActivateMoreStudents(personalTrainerId: string, quantidadeDesejada: number = 1): Promise<{
         canActivate: boolean;
         currentLimit: number;
         activeStudents: number;
         availableSlots: number;
+        reservedTokens: number;
     }> {
-        const status = await this.getPersonalCurrentPlan(personalTrainerId);
-        const availableSlots = status.limiteAtual - status.alunosAtivos;
+        const [status, reservedTokens] = await Promise.all([
+            this.getPersonalCurrentPlan(personalTrainerId),
+            this.getReservedTokensInCurrentCycle(personalTrainerId)
+        ]);
+        
+        // Considera tanto alunos ativos quanto tokens reservados para alunos inativos
+        const totalSlotsUsed = status.alunosAtivos + reservedTokens;
+        const availableSlots = status.limiteAtual - totalSlotsUsed;
         
         return {
             canActivate: availableSlots >= quantidadeDesejada,
             currentLimit: status.limiteAtual,
             activeStudents: status.alunosAtivos,
-            availableSlots
+            availableSlots,
+            reservedTokens
         };
+    }
+
+    /**
+     * Verifica se um aluno pode ser reativado usando token já reservado
+     */
+    async canReactivateStudent(personalTrainerId: string, alunoId: string): Promise<{
+        canReactivate: boolean;
+        hasReservedToken: boolean;
+        needsNewToken: boolean;
+    }> {
+        try {
+            const cycleId = await this.getCurrentCycleId(personalTrainerId);
+            if (!cycleId) {
+                return { canReactivate: false, hasReservedToken: false, needsNewToken: true };
+            }
+
+            const aluno = await Aluno.findOne({
+                _id: new mongoose.Types.ObjectId(alunoId),
+                trainerId: new mongoose.Types.ObjectId(personalTrainerId),
+                cycleId,
+                tokenReservedForCycle: true
+            });
+
+            if (aluno) {
+                // Aluno tem token reservado, pode reativar sem consumir novo token
+                return { canReactivate: true, hasReservedToken: true, needsNewToken: false };
+            }
+
+            // Aluno não tem token reservado, precisa verificar disponibilidade
+            const availability = await this.canActivateMoreStudents(personalTrainerId, 1);
+            return { 
+                canReactivate: availability.canActivate, 
+                hasReservedToken: false, 
+                needsNewToken: true 
+            };
+        } catch (error) {
+            console.error('❌ Erro ao verificar reativação do aluno:', error);
+            return { canReactivate: false, hasReservedToken: false, needsNewToken: true };
+        }
+    }
+
+    /**
+     * Limpa reservas de tokens do ciclo anterior
+     */
+    async clearPreviousCycleTokenReservations(personalTrainerId: string): Promise<number> {
+        try {
+            const currentCycleId = await this.getCurrentCycleId(personalTrainerId);
+            if (!currentCycleId) return 0;
+
+            const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
+            
+            // Remove reservas de tokens de ciclos diferentes do atual
+            const result = await Aluno.updateMany(
+                {
+                    trainerId: trainerObjectId,
+                    tokenReservedForCycle: true,
+                    $or: [
+                        { cycleId: { $ne: currentCycleId } },
+                        { cycleId: { $exists: false } }
+                    ]
+                },
+                {
+                    $unset: { 
+                        cycleId: "",
+                        tokenReservedForCycle: ""
+                    }
+                }
+            );
+
+            return result.modifiedCount;
+        } catch (error) {
+            console.error('❌ Erro ao limpar reservas de tokens:', error);
+            return 0;
+        }
     }
 
     /**
