@@ -196,6 +196,15 @@ export default function SolicitarRenovacaoPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: planHistory, isLoading: loadingPlanHistory, error: errorPlanHistory } = useQuery<{
+    hasEverHadPlan: boolean;
+    canActivateFreePlan: boolean;
+  }>({
+    queryKey: ["personal-plan-history"],
+    queryFn: () => fetchWithAuth(`/api/personal/plan-history`, {}, "personalAdmin"),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const openRequest = useMemo(() => {
     const OPEN_STATUSES: RenewalStatus[] = [
       RStatus.REQUESTED, RStatus.LINK_SENT, RStatus.PROOF_SUBMITTED,
@@ -269,8 +278,9 @@ export default function SolicitarRenovacaoPage() {
             title: "Plano Free Ativado!",
             description: "Você já pode começar a usar a plataforma. Redirecionando...",
         });
-        // Invalida a query do plano para que o dashboard seja recarregado com o estado correto.
+        // Invalida as queries relacionadas para que o estado seja atualizado
         await queryClient.invalidateQueries({ queryKey: ["personalPlanStatus"] });
+        await queryClient.invalidateQueries({ queryKey: ["personal-plan-history"] });
         // Navega para o dashboard após a ativação.
         navigate("/");
     },
@@ -286,12 +296,12 @@ export default function SolicitarRenovacaoPage() {
   const freePlan = planos.find(p => p.tipo === 'free');
   // <<< FIM DA NOVA LÓGICA >>>
 
-  if (loadingList || loadingPlanos) {
+  if (loadingList || loadingPlanos || loadingPlanHistory) {
     return <LoadingSpinner text="Carregando dados de renovação..." />;
   }
 
-  if (errorList || errorPlanos) {
-    return <ErrorMessage title="Erro ao Carregar" message={errorList?.message || errorPlanos?.message || "Não foi possível carregar a página."} />;
+  if (errorList || errorPlanos || errorPlanHistory) {
+    return <ErrorMessage title="Erro ao Carregar" message={errorList?.message || errorPlanos?.message || errorPlanHistory?.message || "Não foi possível carregar a página."} />;
   }
 
   return (
@@ -329,8 +339,8 @@ export default function SolicitarRenovacaoPage() {
           <h2 className="text-xl font-semibold mb-4">Escolha seu Plano</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
-            {/* Renderiza o card do Plano Free com lógica de ativação direta */}
-            {freePlan && (
+            {/* Renderiza o card do Plano Free apenas se o usuário nunca ativou nenhum plano */}
+            {freePlan && planHistory?.canActivateFreePlan && (
               <Card className="flex flex-col bg-blue-50 border-blue-200">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

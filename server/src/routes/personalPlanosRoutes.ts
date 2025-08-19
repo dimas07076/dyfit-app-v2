@@ -126,6 +126,28 @@ router.get('/planos-disponiveis', async (req: Request, res: Response, next: Next
 });
 
 /**
+ * GET /api/personal/plan-history - Verifica se o personal já ativou algum plano anteriormente
+ */
+router.get('/plan-history', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await dbConnect();
+    const personalTrainerId = (req as any).user.id;
+    
+    // Verifica se o personal já teve algum plano (ativo ou expirado)
+    const existingPlan = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+    const hasEverHadPlan = !!(existingPlan.plano || existingPlan.personalPlano);
+    
+    res.json({
+      hasEverHadPlan,
+      canActivateFreePlan: !hasEverHadPlan
+    });
+  } catch (error) {
+    console.error('Erro ao verificar histórico de planos:', error);
+    next(error);
+  }
+});
+
+/**
  * POST /api/personal/activate-free-plan - Ativa o plano "Free" para o personal logado.
  */
 router.post('/activate-free-plan', async (req: Request, res: Response, next: NextFunction) => {
