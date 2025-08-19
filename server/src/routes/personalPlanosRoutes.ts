@@ -22,6 +22,16 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
     const personalTrainerId = (req as any).user.id;
     const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
 
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    // Adiciona um código de erro específico para que o frontend possa ignorá-lo no handler global.
+    if (!status.plano && !status.personalPlano) {
+      return res.status(404).json({
+        message: 'Nenhum plano ativo ou expirado encontrado para este personal trainer.',
+        code: 'PLAN_NOT_FOUND',
+      });
+    }
+    // <<< FIM DA ALTERAÇÃO >>>
+
     res.json({
       plano: status.plano,
       personalPlano: status.personalPlano,
@@ -116,7 +126,45 @@ router.get('/planos-disponiveis', async (req: Request, res: Response, next: Next
   }
 });
 
-// <<< INÍCIO DA ALTERAÇÃO >>>
+/**
+ * POST /api/personal/activate-free-plan - Ativa o plano "Free" para o personal logado.
+ */
+router.post('/activate-free-plan', async (req: Request, res: Response, next: NextFunction) => {
+  await dbConnect();
+  try {
+    const personalTrainerId = (req as any).user.id;
+
+    // 1. Verifica se o personal já tem algum plano (ativo ou expirado)
+    const existingPlan = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+    if (existingPlan.plano || existingPlan.personalPlano) {
+      return res.status(409).json({ message: 'Você já possui ou já teve um plano. A ativação do plano gratuito é permitida apenas uma vez.' });
+    }
+
+    // 2. Encontra o plano do tipo "free" no banco de dados
+    const freePlan = await Plano.findOne({ tipo: 'free', ativo: true });
+    if (!freePlan || !freePlan._id) {
+      return res.status(404).json({ message: 'O Plano Free não está disponível no momento. Entre em contato com o suporte.' });
+    }
+
+    // 3. Atribui o plano ao personal
+    const assignedPlan = await PlanoService.assignPlanToPersonal(
+      personalTrainerId,
+      freePlan._id.toString(),
+      null, // adminId é nulo para ativação automática
+      freePlan.duracao,
+      'Ativação automática do Plano Free'
+    );
+
+    res.status(200).json({
+      message: 'Plano Free ativado com sucesso!',
+      plan: assignedPlan,
+    });
+  } catch (error) {
+    console.error('Erro ao ativar o Plano Free:', error);
+    next(error);
+  }
+});
+
 /**
  * POST /api/personal/renovar-plano - Finaliza o ciclo de renovação, definindo quais alunos continuam.
  * Esta rota NÃO atribui um novo plano, ela assume que o plano já foi ativado pelo admin.
@@ -201,7 +249,6 @@ router.post('/renovar-plano', async (req: Request, res: Response, next: NextFunc
         await session.endSession();
     }
 });
-// <<< FIM DA ALTERAÇÃO >>>
 
 
 export default router;

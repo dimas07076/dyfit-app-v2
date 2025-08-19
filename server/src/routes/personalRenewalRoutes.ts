@@ -10,6 +10,7 @@ import { getPaymentProofBucket } from '../../utils/gridfs.js';
 import PlanoService from '../../services/PlanoService.js';
 import Aluno from '../../models/Aluno.js';
 import PersonalPlano from '../../models/PersonalPlano.js';
+import Plano from '../../models/Plano.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -46,7 +47,7 @@ async function listMyRenewals(req: any, res: any, next: any) {
 
     const items = await RenewalRequest
       .find(query)
-      .populate('planIdRequested', 'nome') // Popula o nome do plano
+      .populate('planIdRequested', 'nome')
       .sort({ createdAt: -1 })
       .limit(lim)
       .lean<IRenewalRequest[]>();
@@ -62,43 +63,74 @@ router.get('/renewal-requests', listMyRenewals);
 router.get('/', listMyRenewals);
 
 /**
- * Cria uma nova solicitação de renovação (sem comprovante ainda).
+ * Cria uma nova solicitação de renovação/upgrade.
+ * - Token avulso: aceita { isTokenRequest: true } sem exigir planIdRequested
+ * - Plano free: ativa imediatamente o plano e retorna sucesso
+ * - Plano pago: cria uma solicitação para aprovação
  */
 router.post('/', async (req, res, next) => {
   await dbConnect();
   try {
     const personalTrainerId = (req as any).user.id;
-    const { planIdRequested, notes } = req.body as { planIdRequested: string; notes?: string };
+    const { planIdRequested, notes } = req.body as { planIdRequested?: string; notes?: string };
+    const rawIsToken = (req.body as any)?.isTokenRequest;
+    const isTokenRequest = rawIsToken === true || rawIsToken === 'true' || rawIsToken === 1 || rawIsToken === '1';
 
+    // Checagem geral de solicitação aberta
+    const openRequest = await RenewalRequest.findOne({
+        personalTrainerId,
+        status: { $in: [RStatus.REQUESTED, RStatus.LINK_SENT, RStatus.PROOF_SUBMITTED, RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING, RStatus.PAYMENT_LINK_SENT, RStatus.PAYMENT_PROOF_UPLOADED] }
+    });
+    if (openRequest) {
+        return res.status(409).json({ mensagem: 'Já existe uma solicitação em andamento.', code: 'OPEN_REQUEST_EXISTS' });
+    }
+
+    // 🔹 Caso especial: Solicitação de Token Avulso
+    if (isTokenRequest) {
+      const newRequest = new RenewalRequest({
+        personalTrainerId,
+        planIdRequested: undefined,
+        status: RStatus.REQUESTED,
+        notes: 'Solicitação de Token Avulso'
+      });
+      await newRequest.save();
+      return res.status(201).json(newRequest);
+    }
+
+    // 🔸 Fluxo padrão para solicitação de plano (Free ou Pago)
     if (!planIdRequested) {
       return res.status(400).json({ mensagem: 'O ID do plano solicitado é obrigatório.', code: 'MISSING_PLAN_ID' });
     }
 
-    const openRequest = await RenewalRequest.findOne({
-      personalTrainerId,
-      status: { $in: [RStatus.REQUESTED, RStatus.LINK_SENT, RStatus.PROOF_SUBMITTED, RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING, RStatus.PENDING, RStatus.PAYMENT_LINK_SENT, RStatus.PAYMENT_PROOF_UPLOADED] }
-    });
-
-    if (openRequest) {
-      return res.status(409).json({
-        mensagem: 'Você já possui uma solicitação de renovação em andamento. Aguarde a conclusão do processo atual.',
-        code: 'OPEN_REQUEST_EXISTS'
-      });
+    const plano = await Plano.findById(planIdRequested).lean();
+    if (!plano) {
+      return res.status(404).json({ mensagem: 'Plano solicitado não encontrado.' });
     }
 
+    // 🔹 Caso especial: Ativação imediata do Plano Free
+    if (plano.tipo === 'free') {
+      const existingPlan = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+      if (existingPlan.plano || existingPlan.personalPlano) {
+        return res.status(409).json({ message: 'O plano gratuito só pode ser ativado uma vez.' });
+      }
+      await PlanoService.assignPlanToPersonal(personalTrainerId, planIdRequested, null, undefined, 'Ativação automática do Plano Free');
+      return res.status(200).json({ message: 'Plano Free ativado com sucesso!' });
+    }
+
+    // 🔸 Fluxo padrão: Cria solicitação para plano pago
     const newRequest = new RenewalRequest({
       personalTrainerId,
       planIdRequested,
       status: RStatus.REQUESTED,
-      notes,
+      notes
     });
-
     await newRequest.save();
     res.status(201).json(newRequest);
   } catch (error) {
     next(error);
   }
 });
+
 
 /**
  * Download do comprovante (se for arquivo).
@@ -196,94 +228,10 @@ router.post('/:id/proof', upload.single('paymentProof'), async (req, res, next) 
 });
 
 /**
- * Rota para finalizar o ciclo de renovação sem ID específico.
- * Encontra automaticamente a solicitação aprovada do personal e a finaliza.
- * IMPORTANTE: Esta rota deve vir ANTES da rota com parâmetro :id para evitar conflitos
- */
-router.post('/finalize-cycle', async (req, res, next) => {
-    await dbConnect();
-    const userId = (req as any).user.id;
-    const { keepStudentIds = [], removeStudentIds = [], note } = req.body || {};
-    const session = await mongoose.startSession();
-  
-    try {
-      await session.withTransaction(async () => {
-        // Encontra a solicitação aprovada ou pendente de atribuição de ciclo
-        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
-        const request = await RenewalRequest.findOne({ 
-          personalTrainerId: userId, 
-          status: { $in: validStatuses }
-        }).session(session);
-        
-        if (!request) {
-          throw { status: 404, message: 'Nenhuma solicitação aprovada encontrada para finalizar.' };
-        }
-        
-        const finalizedStatuses: RenewalStatus[] = [RStatus.FULFILLED, RStatus.REJECTED];
-        if (finalizedStatuses.includes(request.status)) {
-          res.status(200).json({ renewalId: request._id, status: request.status, message: 'Pedido já encerrado.' });
-          return;
-        }
-  
-        const activePlan = await PersonalPlano.findOne({ personalTrainerId: userId, ativo: true }).populate('planoId').session(session);
-        if (!activePlan) throw { status: 409, message: 'Plano ativo não encontrado para aplicar o ciclo.' };
-  
-        const limite = (activePlan as any).planoId?.limiteAlunos ?? 0;
-        if (Array.isArray(keepStudentIds) && keepStudentIds.length > limite) {
-          throw { status: 400, message: `Quantidade de alunos selecionados (${keepStudentIds.length}) excede o limite do plano (${limite}).` };
-        }
-  
-        const personalObjectId = new mongoose.Types.ObjectId(userId);
-  
-        // Inativa todos os alunos ativos do personal
-        await Aluno.updateMany(
-          { trainerId: personalObjectId, status: 'active' },
-          { $set: { status: 'inactive' }, $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" } },
-          { session }
-        );
-        
-        // Reativa apenas os alunos selecionados
-        if (keepStudentIds.length > 0) {
-          await Aluno.updateMany(
-            { _id: { $in: keepStudentIds.map((id: string) => new mongoose.Types.ObjectId(id)) }, trainerId: personalObjectId },
-            { $set: { 
-                status: 'active', 
-                slotType: 'plan', 
-                slotId: activePlan._id, 
-                slotStartDate: activePlan.dataInicio, 
-                slotEndDate: activePlan.dataVencimento 
-              } 
-            },
-            { session }
-          );
-        }
-        
-        // Finaliza a solicitação
-        request.status = RStatus.FULFILLED;
-        request.cycleFinalizedAt = new Date();
-        if (note) request.notes = `${request.notes || ''}\nNota de finalização: ${note}`.trim();
-        await request.save({ session });
-  
-        res.json({
-          renewalId: request._id,
-          status: request.status,
-          cycleFinalizedAt: request.cycleFinalizedAt,
-          kept: keepStudentIds,
-          removed: removeStudentIds,
-        });
-      });
-    } catch (error) {
-      next(error);
-    } finally {
-      await session.endSession();
-    }
-});
-
-/**
  * Rota para o personal finalizar o ciclo de renovação, ativando os alunos selecionados.
- * Esta rota aceita um ID específico da solicitação.
+ * Esta rota aceita um ID específico da solicitação de forma opcional.
  */
-router.post('/:id/finalize-cycle', async (req, res, next) => {
+router.post('/:id?/finalize-cycle', async (req, res, next) => {
     await dbConnect();
     const renewalId = req.params.id;
     const userId = (req as any).user.id;
@@ -292,45 +240,53 @@ router.post('/:id/finalize-cycle', async (req, res, next) => {
   
     try {
       await session.withTransaction(async () => {
-        if (!mongoose.isValidObjectId(renewalId)) {
-          throw { status: 400, message: 'ID da solicitação inválido.' };
+        let requestQuery: any = {
+            personalTrainerId: userId,
+            status: { $in: [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING] }
+        };
+        if (renewalId) {
+            if (!mongoose.isValidObjectId(renewalId)) {
+                throw { status: 400, message: 'ID da solicitação inválido.' };
+            }
+            requestQuery._id = renewalId;
         }
-  
-        const request = await RenewalRequest.findById(renewalId).session(session);
-        if (!request) throw { status: 404, message: 'Solicitação não encontrada.' };
-        if (request.personalTrainerId.toString() !== userId) {
-          throw { status: 403, message: 'Sem permissão para finalizar esta solicitação.' };
+
+        const request = await RenewalRequest.findOne(requestQuery).session(session);
+
+        if (!request) {
+            const err: any = new Error('Nenhuma solicitação de renovação aprovada foi encontrada para finalizar.');
+            err.status = 404;
+            err.code = 'NO_APPROVED_REQUEST_FOUND';
+            throw err;
         }
-        
-        const finalizedStatuses: RenewalStatus[] = [RStatus.FULFILLED, RStatus.REJECTED];
-        if (finalizedStatuses.includes(request.status)) {
-          res.status(200).json({ renewalId: request._id, status: request.status, message: 'Pedido já encerrado.' });
-          return;
-        }
-        
-        const validStatuses: RenewalStatus[] = [RStatus.APPROVED, RStatus.CYCLE_ASSIGNMENT_PENDING];
-        if (!validStatuses.includes(request.status)) {
-          throw { status: 409, message: `Estado inválido: ${request.status}. A solicitação precisa estar aprovada.` };
-        }
-  
+
         const activePlan = await PersonalPlano.findOne({ personalTrainerId: userId, ativo: true }).populate('planoId').session(session);
-        if (!activePlan) throw { status: 409, message: 'Plano ativo não encontrado para aplicar o ciclo.' };
-  
+        if (!activePlan) {
+            const err: any = new Error('Nenhum plano ativo foi encontrado para aplicar o novo ciclo de alunos.');
+            err.status = 409;
+            err.code = 'NO_ACTIVE_PLAN_FOR_CYCLE';
+            throw err;
+        }
+
         const limite = (activePlan as any).planoId?.limiteAlunos ?? 0;
         if (Array.isArray(keepStudentIds) && keepStudentIds.length > limite) {
-          throw { status: 400, message: `Quantidade de alunos selecionados (${keepStudentIds.length}) excede o limite do plano (${limite}).` };
+            const err: any = new Error(`Quantidade de alunos selecionados (${keepStudentIds.length}) excede o limite do plano (${limite}).`);
+            err.status = 400;
+            err.code = 'STUDENT_LIMIT_EXCEEDED';
+            throw err;
         }
   
         const personalObjectId = new mongoose.Types.ObjectId(userId);
   
-        // Inativa todos os alunos ativos do personal
         await Aluno.updateMany(
-          { trainerId: personalObjectId, status: 'active' },
-          { $set: { status: 'inactive' }, $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" } },
+          { trainerId: personalObjectId },
+          { 
+              $set: { status: 'inactive' },
+              $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+          },
           { session }
         );
         
-        // Reativa apenas os alunos selecionados
         if (keepStudentIds.length > 0) {
           await Aluno.updateMany(
             { _id: { $in: keepStudentIds.map((id: string) => new mongoose.Types.ObjectId(id)) }, trainerId: personalObjectId },
@@ -346,7 +302,6 @@ router.post('/:id/finalize-cycle', async (req, res, next) => {
           );
         }
         
-        // Finaliza a solicitação
         request.status = RStatus.FULFILLED;
         request.cycleFinalizedAt = new Date();
         if (note) request.notes = `${request.notes || ''}\nNota de finalização: ${note}`.trim();

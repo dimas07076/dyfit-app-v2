@@ -1,5 +1,5 @@
 // client/src/App.tsx
-import React, { Suspense, lazy, useContext, useEffect } from 'react';
+import React, { Suspense, lazy, useContext, useEffect, useState } from 'react';
 import { Switch, Route, Redirect, useLocation, RouteProps } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -10,17 +10,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
 import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
-// <<< INÍCIO DA CORREÇÃO >>>
 import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
-// <<< FIM DA CORREÇÃO >>>
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';
 import { useToast } from '@/hooks/use-toast';
-// ⬇️ Usado na checagem assíncrona do restaurador de rota
 import { fetchWithAuth } from "@/lib/apiClient";
-
-// Unified PWA updates manager
 import { AppUpdatesManager } from '@/components/AppUpdatesManager';
 
 // --- Páginas ---
@@ -53,6 +48,38 @@ const GerenciarConvitesPage = lazy(() => import('@/pages/admin/GerenciarConvites
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
 const GerenciarPlanosPersonalPage = lazy(() => import('@/pages/admin/GerenciarPlanosPersonalPage'));
 const DemoDashboard = lazy(() => import("@/pages/demo-dashboard"));
+
+// <<< INÍCIO DA ALTERAÇÃO 1: CRIAR O PLAN GATE >>>
+// Hook para resolver o status do plano do personal autenticado
+function usePersonalPlanGate(user: any) {
+  const [state, setState] = useState<'checking' | 'none' | 'hasPlan'>('checking');
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!user) { setState('checking'); return; }
+      try {
+        await fetchWithAuth("/api/personal/meu-plano"); // 200 OK => tem plano
+        if (alive) setState('hasPlan');
+      } catch (e: any) {
+        // Erro 404 com código PLAN_NOT_FOUND => sem plano
+        const code = e?.code || (e?.response?.data as any)?.code;
+        const status = e?.status || e?.response?.status;
+        if (alive && (code === 'PLAN_NOT_FOUND' || status === 404)) {
+          setState('none');
+        } else {
+          // Outros erros (4xx, 5xx) não devem travar o app; assume que tem plano para não bloquear o acesso
+          if (alive) setState('hasPlan');
+        }
+      }
+    };
+    run();
+    return () => { alive = false; };
+  }, [user?.id]); // Dispara quando o usuário loga ou muda
+
+  return state; // Retorna 'checking', 'none', ou 'hasPlan'
+}
+// <<< FIM DA ALTERAÇÃO 1 >>>
 
 interface CustomRouteProps extends Omit<RouteProps, 'component'> { component: React.ComponentType<any>; }
 
@@ -93,6 +120,11 @@ function AppContent() {
 
   const isDebugMode = import.meta.env.VITE_DEBUG_INVITATIONS === 'true';
   
+  // <<< INÍCIO DA ALTERAÇÃO 2: INJETAR O GATE NO FLUXO >>>
+  // Usamos o hook aqui para ter acesso ao estado do plano
+  const planState = usePersonalPlanGate(user);
+  // <<< FIM DA ALTERAÇÃO 2 >>>
+
   React.useEffect(() => {
     if (isDebugMode || import.meta.env.DEV) {
       console.log('[AppContent] Location changed:', location);
@@ -108,7 +140,6 @@ function AppContent() {
   }, [user, aluno, location]);
 
   useEffect(() => {
-    // ⬇️ Checa se deve restaurar /renovar-plano – só se houver approved pendente
     const hasApprovedPending = async (): Promise<boolean> => {
       try {
         const list = await fetchWithAuth<any[]>("/api/personal/renewal-requests?status=approved,APPROVED");
@@ -119,6 +150,16 @@ function AppContent() {
     };
 
     const restabelecerRota = async () => {
+      // <<< INÍCIO DA ALTERAÇÃO 3: BLINDAR O RESTAURADOR DE ROTA >>>
+      // Se o usuário é um personal e foi detectado que ele não tem plano,
+      // a restauração de rota é bloqueada para garantir o onboarding.
+      if (user && planState === 'none') {
+        console.log("[Route Restoration] Bloqueado: usuário sem plano. Mantendo na rota raiz (/).");
+        localStorage.setItem("rotaAtual", "/");
+        return false;
+      }
+      // <<< FIM DA ALTERAÇÃO 3 >>>
+      
       const rotaSalva = localStorage.getItem("rotaAtual");
       const rotaAtual = window.location.pathname;
       
@@ -128,6 +169,12 @@ function AppContent() {
       const rotaProtegida = rotaSalva && !rotaSalva.includes("/login");
       
       if (usuarioLogado && rotaProtegida && rotaAtual !== rotaSalva) {
+        if (rotaSalva.startsWith("/meu-plano")) {
+          console.log("[Route Restoration] Rota /meu-plano ignorada. Redirecionando para a raiz (/) para garantir o fluxo de onboarding.");
+          navigate("/", { replace: true });
+          return;
+        }
+
         console.log("[Route Restoration] Tentando restaurar rota:", rotaSalva, "atual:", rotaAtual);
         
         let rotaValida = false;
@@ -142,7 +189,6 @@ function AppContent() {
           return false;
         }
 
-        // ✅ Regra específica: /renovar-plano só pode ser restaurada se houver approved
         if (rotaSalva!.startsWith("/renovar-plano")) {
           const ok = await hasApprovedPending();
           if (!ok) {
@@ -184,7 +230,7 @@ function AppContent() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleAppFocus);
     };
-  }, [navigate]);
+  }, [navigate, user, planState]); // Adicionado 'user' e 'planState' às dependências
 
   useEffect(() => {
     const handleAuthFailed = (event: Event) => {
@@ -192,6 +238,11 @@ function AppContent() {
       const { status, forAluno, forPersonalAdmin, code } = customEvent.detail;
 
       console.log(`[Global Auth Handler] Evento 'auth-failed' recebido:`, customEvent.detail);
+
+      if (code === 'PLAN_NOT_FOUND') {
+        console.log("[Global Auth Handler] Ignorando evento 'PLAN_NOT_FOUND', pois será tratado pela página.");
+        return;
+      }
 
       const shouldProcessAlunoEvent = forAluno && aluno;
       const shouldProcessPersonalEvent = forPersonalAdmin && user;
@@ -275,22 +326,34 @@ function AppContent() {
   if (isUserLoading || isLoadingAluno) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
-
-  const restaurandoRota = localStorage.getItem("restaurandoRota");
-  if (restaurandoRota) {
-    console.log("[AppContent] Route restoration in progress, blocking default redirects");
-    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
-  }
   
   if (user) {
-    if (location.startsWith("/login")) {
-      const rotaSalva = localStorage.getItem("rotaAtual");
-      if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/")) {
-        return <Redirect to={rotaSalva} />;
-      }
-      const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
-      return <Redirect to={redirectTo} />;
+    // <<< INÍCIO DA ALTERAÇÃO 4: APLICAR O GATE ANTES DE RENDERIZAR >>>
+    if (planState === 'checking') {
+      return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
     }
+
+    // Se não tem plano, força a permanência na raiz (Dashboard)
+    const allowedRoutesForNoPlan = ['/', '/solicitar-renovacao'];
+    if (planState === 'none' && !allowedRoutesForNoPlan.some(route => location.startsWith(route))) {
+      localStorage.setItem("rotaAtual", "/");
+      navigate("/", { replace: true });
+      return null;
+    }
+
+    if (location.startsWith("/login")) {
+        // Curto-circuito extra para o pós-login
+        if (planState === 'none') {
+            return <Redirect to="/" />;
+        }
+        const rotaSalva = localStorage.getItem("rotaAtual");
+        if (rotaSalva && !rotaSalva.includes("/login") && !rotaSalva.startsWith("/aluno/") && !rotaSalva.startsWith("/meu-plano")) {
+            return <Redirect to={rotaSalva} />;
+        }
+        const redirectTo = user.role.toLowerCase() === 'admin' ? "/admin" : "/";
+        return <Redirect to={redirectTo} />;
+    }
+    // <<< FIM DA ALTERAÇÃO 4 >>>
     
     if (user.role.toLowerCase() === 'admin') return <AdminApp />;
     return <PersonalApp />;
