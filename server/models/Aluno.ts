@@ -28,6 +28,13 @@ export interface IAluno extends Document {
   slotId?: mongoose.Types.ObjectId;
   slotStartDate?: Date;
   slotEndDate?: Date;
+  /**
+   * Controle anti-abuso de tokens durante o ciclo.
+   * cycleId: Identifica o ciclo atual (baseado no PersonalPlano ativo)
+   * tokenReservedForCycle: Indica se o token está reservado para este aluno no ciclo atual
+   */
+  cycleId?: mongoose.Types.ObjectId;
+  tokenReservedForCycle?: boolean;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -77,6 +84,9 @@ const alunoSchema = new Schema<IAluno>(
     slotId: { type: Schema.Types.ObjectId, required: false },
     slotStartDate: { type: Date, required: false },
     slotEndDate: { type: Date, required: false },
+    // Campos de controle anti-abuso de tokens
+    cycleId: { type: Schema.Types.ObjectId, required: false },
+    tokenReservedForCycle: { type: Boolean, default: false },
   },
   {
     timestamps: true

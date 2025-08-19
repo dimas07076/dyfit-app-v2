@@ -44,6 +44,9 @@ const alunoSchema = new Schema({
     slotId: { type: Schema.Types.ObjectId, required: false },
     slotStartDate: { type: Date, required: false },
     slotEndDate: { type: Date, required: false },
+    // Campos de controle anti-abuso de tokens
+    cycleId: { type: Schema.Types.ObjectId, required: false },
+    tokenReservedForCycle: { type: Boolean, default: false },
 }, {
     timestamps: true
 });
