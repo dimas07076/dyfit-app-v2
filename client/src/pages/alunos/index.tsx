@@ -28,10 +28,10 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
     };
 
     return (
-        <div className="group relative flex items-center justify-between p-4 md:p-5 border-b last:border-b-0
+        <div className="group relative flex items-center justify-between p-4 md:p-5 border-b last:border-b-0 
                        hover:bg-gradient-to-r hover:from-blue-50/80 hover:via-indigo-50/40 hover:to-purple-50/80 
                        dark:hover:from-blue-900/20 dark:hover:via-indigo-900/10 dark:hover:to-purple-900/20 
-                       transition-all duration-300 ease-out
+                       transition-all duration-300 ease-out cursor-pointer
                        hover:shadow-md hover:-translate-y-0.5 rounded-lg mx-2">
             
             {/* Background gradient overlay on hover */}
@@ -117,7 +117,7 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
                                                    transition-colors duration-200" 
                                         onClick={() => onDelete(student)}>
                             <UserX className="mr-2 h-4 w-4" /> 
-                            <span className="font-medium">Remover</span>
+                            <span className="font-medium">Inativar</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -154,17 +154,17 @@ export default function StudentsIndex() {
 
     const deleteStudentMutation = useMutation<any, Error, string>({
         mutationFn: (alunoId: string) => {
-            console.log("Deleting student with ID:", alunoId);
+            console.log("Inactivating student with ID:", alunoId);
             return fetchWithAuth(`/api/aluno/gerenciar/${alunoId}`, { method: 'DELETE' });
         },
-        onSuccess: () => {
-            console.log("Student deleted successfully.");
-            toast({ title: "Aluno Removido", description: `O aluno foi removido com sucesso.` });
+        onSuccess: (data) => {
+            console.log("Student inactivated successfully.");
+            toast({ title: "Aluno Inativado", description: data.message || `O aluno foi marcado como inativo.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
         },
         onError: (error) => {
-            console.error("Error deleting student:", error);
-            toast({ variant: "destructive", title: "Erro ao Remover", description: error.message || "Não foi possível remover o aluno." });
+            console.error("Error inactivating student:", error);
+            toast({ variant: "destructive", title: "Erro ao Inativar", description: error.message || "Não foi possível inativar o aluno." });
         },
         onSettled: () => closeConfirmDialog(),
     });
@@ -176,10 +176,11 @@ export default function StudentsIndex() {
     console.log("Filtered students:", filteredStudents);
 
     const handleDeleteClick = (aluno: Aluno) => {
-        console.log("Handle delete click for student:", aluno.nome);
+        console.log("Handle inactivate click for student:", aluno.nome);
         openConfirmDialog({
-            titulo: "Remover Aluno",
-            mensagem: `Tem certeza que deseja remover o aluno ${aluno.nome}?`,
+            titulo: "Inativar Aluno",
+            mensagem: `Tem certeza que deseja inativar ${aluno.nome}? O acesso dele será bloqueado, mas a vaga continuará ocupada por ele até o fim do seu ciclo atual.`,
+            textoConfirmar: "Sim, Inativar",
             onConfirm: () => deleteStudentMutation.mutate(aluno._id),
         });
     };
@@ -396,7 +397,7 @@ export default function StudentsIndex() {
                                                                      transition-all duration-200 rounded-lg
                                                                      hover:scale-110 active:scale-95" 
                                                             onClick={() => handleDeleteClick(student)} 
-                                                            title="Remover">
+                                                            title="Inativar">
                                                         <UserX className="h-4 w-4" />
                                                     </Button>
                                                 </div>
@@ -487,7 +488,7 @@ export default function StudentsIndex() {
             </Card>
 
             <AlunoViewModal aluno={selectedStudent} open={isViewModalOpen} onOpenChange={setIsViewModalOpen} />
-            <ModalConfirmacao isOpen={isConfirmOpen} onClose={closeConfirmDialog} onConfirm={confirmAction} titulo={confirmOptions.titulo} mensagem={confirmOptions.mensagem} isLoadingConfirm={deleteStudentMutation.isPending}/>
+            <ModalConfirmacao isOpen={isConfirmOpen} onClose={closeConfirmDialog} onConfirm={confirmAction} titulo={confirmOptions.titulo} mensagem={confirmOptions.mensagem} textoConfirmar={confirmOptions.textoConfirmar} isLoadingConfirm={deleteStudentMutation.isPending}/>
             
             <GerarConviteAlunoModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} />
         </div>

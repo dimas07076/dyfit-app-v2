@@ -101,13 +101,12 @@ export class PlanoService {
             
             const trainerObjectId = new mongoose.Types.ObjectId(personalTrainerId);
 
-            const [personalPlanoAtivo, alunosAtivos, tokensAtivos] = await Promise.all([
+            const [personalPlanoAtivo, tokensAtivos] = await Promise.all([
                 PersonalPlano.findOne({
                     personalTrainerId: trainerObjectId,
                     ativo: true,
                     dataVencimento: { $gt: new Date() }
                 }).populate('planoId').sort({ dataInicio: -1 }).lean(),
-                Aluno.countDocuments({ trainerId: trainerObjectId, status: 'active' }),
                 this.getTokensAvulsosAtivos(personalTrainerId)
             ]);
             
@@ -133,6 +132,18 @@ export class PlanoService {
 
             const limiteBaseDoPlano = !isExpired && plano ? plano.limiteAlunos : 0;
             const limiteAtual = limiteBaseDoPlano + tokensAtivos;
+
+            // <<< INÍCIO DA ALTERAÇÃO CRÍTICA >>>
+            // Contagem de alunos agora se baseia em quem tem um slot VÁLIDO do plano ATUAL,
+            // independentemente do status ('active' ou 'inactive') do aluno.
+            let alunosAtivos = 0;
+            if (personalPlanoAtivo) {
+                alunosAtivos = await Aluno.countDocuments({
+                    trainerId: trainerObjectId,
+                    slotId: personalPlanoAtivo._id
+                });
+            }
+            // <<< FIM DA ALTERAÇÃO CRÍTICA >>>
 
             const result = {
                 plano: plano,

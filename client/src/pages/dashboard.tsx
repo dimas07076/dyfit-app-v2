@@ -1,38 +1,81 @@
 // client/src/pages/dashboard.tsx
-import React, { Suspense, lazy } from "react";
+import { Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useUser } from "@/context/UserContext";
 import { apiRequest } from "@/lib/queryClient"; 
-import { useThrottle } from "@/hooks/useDebounce";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/dashboard/stats-card";
 
 import { Button } from "@/components/ui/button";
-import { Plus, LayoutDashboard, Zap } from "lucide-react";
+import { LayoutDashboard, Zap, Rocket } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner"; 
 import ErrorMessage from "@/components/ErrorMessage"; 
 import ErrorBoundary from "@/components/ErrorBoundary"; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PersonalPlanStatus } from "../../../shared/types/planos";
 
 // Lazy load heavy components for better performance
 const AlunosAtivosList = lazy(() => import("@/components/ui/dashboard/AlunosAtivosList").then(module => ({
   default: module.AlunosAtivosList
 })));
 
-// <<< ALTERAÇÃO: Interface de dados atualizada >>>
 interface DashboardStatsData {
   totalAlunos: number;
   treinosAtivos: number; 
   totalTreinosModelo?: number;
-  feedbacksHojeCount?: number; // Novo campo para feedbacks
+  feedbacksHojeCount?: number;
 }
+
+const WelcomeCard = () => (
+  <div className="flex items-center justify-center h-full">
+    <Card className="max-w-2xl text-center shadow-2xl animate-fade-in">
+      <CardHeader>
+        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center mb-4 transform rotate-45">
+          <Rocket className="h-8 w-8 text-white -rotate-45" />
+        </div>
+        <CardTitle className="text-3xl font-bold">
+          Tudo pronto para começar!
+        </CardTitle>
+        <p className="text-muted-foreground pt-2">
+          Sua conta foi criada com sucesso. O próximo passo é ativar seu primeiro plano para começar a gerenciar seus alunos e treinos.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <p>
+          Você pode começar com o nosso <strong>Plano Free</strong>, que é gratuito por 7 dias e permite cadastrar 1 aluno, ou escolher um dos nossos planos pagos para mais recursos.
+        </p>
+      </CardContent>
+      <CardFooter>
+        <Link href="/solicitar-renovacao" className="w-full">
+          <Button size="lg" className="w-full">
+            <Zap className="mr-2 h-4 w-4" />
+            Escolher um Plano Agora
+          </Button>
+        </Link>
+      </CardFooter>
+    </Card>
+  </div>
+);
 
 export default function Dashboard() {
   const { user } = useUser();
   const trainerId = user?.id; 
   const saudacaoNome = user?.firstName || user?.username || "Personal";
+
+  // Query para buscar o status do plano do personal
+  const { data: planStatus, isLoading: isLoadingPlan, error: errorPlan } = useQuery<PersonalPlanStatus, Error>({
+    queryKey: ["personalPlanStatus", trainerId],
+    queryFn: () => apiRequest("GET", "/api/personal/meu-plano"),
+    enabled: !!trainerId,
+    staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error: any) => {
+      // Se o erro for 404 (plano não encontrado), não tenta novamente.
+      if (error.message.includes("404")) return false;
+      return failureCount < 3;
+    },
+  });
 
   const { 
     data: dashboardStats, 
@@ -42,14 +85,12 @@ export default function Dashboard() {
     queryKey: ["dashboardGeral", trainerId], 
     queryFn: async () => {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar estatísticas.");
-      // O backend precisará ser ajustado para retornar 'feedbacksHojeCount'
       return apiRequest<DashboardStatsData>("GET", `/api/dashboard/geral?trainerId=${trainerId}`);
     },
-    enabled: !!trainerId, 
+    enabled: !!trainerId && !!planStatus?.plano, // Só busca as estatísticas se o plano existir
   });
-
-  // <<< ALTERAÇÃO: Texto de saudação melhorado >>>
-  const saudacaoSubtexto = isLoadingStats
+  
+  const saudacaoSubtexto = (isLoadingStats && planStatus?.plano)
     ? "Carregando um resumo do seu dia..."
     : "Aqui está um resumo da sua atividade e administração de alunos.";
 
@@ -57,6 +98,28 @@ export default function Dashboard() {
     return <div className="bg-blue-50 dark:bg-slate-900 h-full"><LoadingSpinner text="Carregando dados do usuário..." /></div>;
   }
 
+  if (isLoadingPlan) {
+    return <div className="h-full"><LoadingSpinner text="Verificando seu plano..." /></div>;
+  }
+  
+  // Se a busca do plano der erro (exceto 404), mostra o erro.
+  if (errorPlan && !errorPlan.message.includes("404")) {
+    return <ErrorMessage title="Erro ao Carregar seu Plano" message={errorPlan.message} />;
+  }
+
+  // Se o plano não existir (novo usuário), mostra o card de boas-vindas.
+  if (!planStatus || !planStatus.plano) {
+    return (
+      <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 lg:p-8 
+                     bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-purple-50/80 
+                     dark:from-slate-900 dark:via-slate-800/95 dark:to-indigo-900/80 
+                     min-h-screen">
+        <WelcomeCard />
+      </div>
+    );
+  }
+
+  // Se o plano existir, mostra o dashboard completo.
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 lg:p-8 
@@ -64,7 +127,6 @@ export default function Dashboard() {
                      dark:from-slate-900 dark:via-slate-800/95 dark:to-indigo-900/80 
                      min-h-screen">
         
-        {/* Enhanced Header with Modern Typography */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 md:mb-10">
           <div className="space-y-2">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight
@@ -114,7 +176,6 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 md:space-y-10">
-          {/* Enhanced Stats Cards with Responsive Grid */}
           <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-100">
               <StatsCard 
@@ -162,7 +223,6 @@ export default function Dashboard() {
                          border border-white/30 dark:border-slate-700/50 shadow-2xl 
                          hover:shadow-3xl transition-all duration-500 rounded-xl overflow-hidden">
             
-            {/* Gradient background overlay */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-indigo-50/20 to-purple-50/30 
                            dark:from-blue-900/10 dark:via-indigo-900/5 dark:to-purple-900/10" />
             
@@ -179,7 +239,6 @@ export default function Dashboard() {
             
             <CardContent className="relative grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 p-6">
               
-              {/* Add Student Button */}
               <Link href="/alunos/novo" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
@@ -201,7 +260,6 @@ export default function Dashboard() {
                 </Button>
               </Link>
               
-              {/* Create Workout Button */}
               <Link href="/treinos" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
@@ -223,7 +281,6 @@ export default function Dashboard() {
                 </Button>
               </Link>
               
-              {/* New Exercise Button */}
               <Link href="/exercises" className="group">
                 <Button variant="outline" 
                         className="w-full min-h-[60px] md:min-h-[70px] text-base md:text-lg font-semibold p-4 md:p-6
@@ -245,7 +302,6 @@ export default function Dashboard() {
                 </Button>
               </Link>
               
-              {/* New Assessment Button (Disabled) */}
               <div className="group">
                 <Button variant="outline" 
                         disabled
@@ -253,8 +309,8 @@ export default function Dashboard() {
                                  bg-gradient-to-br from-gray-50 to-gray-100 
                                  dark:from-gray-800/50 dark:to-gray-700/50 
                                  border-2 border-gray-200 dark:border-gray-600
-                                 shadow-md cursor-not-allowed opacity-60
                                  text-gray-500 dark:text-gray-400
+                                 cursor-not-allowed opacity-60
                                  rounded-xl">
                   <div className="flex items-center justify-center">
                     <div className="font-bold">Nova Avaliação +</div>
