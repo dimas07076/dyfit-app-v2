@@ -65,10 +65,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const shouldRedirect = options?.redirect ?? true;
     console.log(`[UserContext] logout chamado. Limpando dados do Personal/Admin. Redirecionar: ${shouldRedirect}`);
     handleSetUser(null);
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    // Limpa a rota salva para garantir que o próximo login comece do zero.
+    localStorage.removeItem('rotaAtual');
+    // <<< FIM DA ALTERAÇÃO >>>
 
-    // <<< CORREÇÃO PRINCIPAL AQUI >>>
-    // Só redireciona se um Aluno NÃO estiver logado.
-    // Isso impede que o logout do Personal (em background) expulse um Aluno logado.
     const alunoToken = localStorage.getItem('alunoAuthToken');
     if (shouldRedirect && !alunoToken) {
       console.log("[UserContext] Nenhum Aluno logado. Redirecionando para /login.");

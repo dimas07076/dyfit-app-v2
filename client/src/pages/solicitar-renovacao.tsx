@@ -1,7 +1,6 @@
 // client/src/pages/solicitar-renovacao.tsx
 import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// <<< CORREÇÃO: apiRequest foi re-adicionado ao import >>>
 import { fetchWithAuth, apiRequest } from "@/lib/apiClient";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -12,8 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorMessage from "@/components/ErrorMessage";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-// <<< CORREÇÃO: Info foi re-adicionado ao import >>>
-import { Info, Loader2, Link as LinkIcon, Upload, CheckCircle, Clock, XCircle } from "lucide-react";
+import { Info, Loader2, Link as LinkIcon, Upload, CheckCircle, Clock, XCircle, Zap, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -43,6 +41,7 @@ interface PlanoDisponivel {
   limiteAlunos: number;
   preco?: number | string;
   duracao?: number | string;
+  tipo?: 'free' | 'paid';
 }
 
 interface RenewalRequest {
@@ -251,6 +250,42 @@ export default function SolicitarRenovacaoPage() {
     }
   });
 
+  const solicitarTokenMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/personal/renewal-requests`, { isTokenRequest: true }),
+    onSuccess: async () => {
+      toast({ title: "Solicitação de Token Enviada", description: "Aguarde o administrador enviar o link de pagamento." });
+      await queryClient.invalidateQueries({ queryKey: ["personal-renewals", "list"] });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Erro ao solicitar token", description: error?.message || "Não foi possível criar a solicitação." });
+    },
+  });
+
+  // <<< INÍCIO DA NOVA LÓGICA PARA ATIVAR PLANO FREE >>>
+  const activateFreePlanMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/personal/activate-free-plan"),
+    onSuccess: async () => {
+        toast({
+            title: "Plano Free Ativado!",
+            description: "Você já pode começar a usar a plataforma. Redirecionando...",
+        });
+        // Invalida a query do plano para que o dashboard seja recarregado com o estado correto.
+        await queryClient.invalidateQueries({ queryKey: ["personalPlanStatus"] });
+        // Navega para o dashboard após a ativação.
+        navigate("/");
+    },
+    onError: (error: any) => {
+        toast({
+            variant: "destructive",
+            title: "Erro ao Ativar Plano",
+            description: error?.message || "Não foi possível ativar o Plano Free.",
+        });
+    },
+  });
+
+  const freePlan = planos.find(p => p.tipo === 'free');
+  // <<< FIM DA NOVA LÓGICA >>>
+
   if (loadingList || loadingPlanos) {
     return <LoadingSpinner text="Carregando dados de renovação..." />;
   }
@@ -262,7 +297,7 @@ export default function SolicitarRenovacaoPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Renovação de Plano</h1>
+        <h1 className="text-3xl font-bold">Planos e Renovações</h1>
         <p className="text-muted-foreground mt-1">Gerencie suas solicitações e escolha seu próximo plano.</p>
       </div>
 
@@ -291,11 +326,65 @@ export default function SolicitarRenovacaoPage() {
 
       {!openRequest && (
         <div>
-          <h2 className="text-xl font-semibold mb-4">Escolha um Plano para Solicitar</h2>
+          <h2 className="text-xl font-semibold mb-4">Escolha seu Plano</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {planos.map(plano => (
+            {/* <<< INÍCIO DA ALTERAÇÃO >>> */}
+            {/* Renderiza o card do Plano Free com lógica de ativação direta */}
+            {freePlan && (
+              <Card className="flex flex-col bg-blue-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="text-blue-600" />
+                    {freePlan.nome}
+                  </CardTitle>
+                  <CardDescription>{freePlan.descricao}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-2">
+                  <p><strong>Limite:</strong> {freePlan.limiteAlunos} alunos</p>
+                  <p><strong>Preço:</strong> Gratuito</p>
+                  <p><strong>Duração:</strong> {freePlan.duracao} dias</p>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="w-full"
+                    onClick={() => activateFreePlanMutation.mutate()}
+                    disabled={activateFreePlanMutation.isPending}
+                  >
+                    {activateFreePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ativar Plano Gratuito
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
+            {/* Filtra a lista de planos para não exibir o do tipo "free" */}
+            {planos.filter(plano => plano.tipo !== 'free').map(plano => (
               <PlanCard key={plano._id} plano={plano} onSelect={solicitarMutation.mutate} isSubmitting={solicitarMutation.isPending} />
             ))}
+            {/* <<< FIM DA ALTERAÇÃO >>> */}
+            <Card className="flex flex-col bg-amber-50 border-amber-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="text-amber-600" />
+                  Token Avulso
+                </CardTitle>
+                <CardDescription>Adicione uma vaga extra temporária ao seu plano atual.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow space-y-2">
+                <p><strong>Limite:</strong> +1 aluno</p>
+                <p><strong>Preço:</strong> R$ 14,90</p>
+                <p><strong>Duração:</strong> 30 dias</p>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full bg-amber-500 hover:bg-amber-600" 
+                  onClick={() => solicitarTokenMutation.mutate()} 
+                  disabled={solicitarTokenMutation.isPending}
+                >
+                  {solicitarTokenMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Solicitar Token
+                </Button>
+              </CardFooter>
+            </Card>
           </div>
         </div>
       )}

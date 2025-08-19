@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import PersonalTrainer from '../../models/PersonalTrainer.js';
 import ConvitePersonal from '../../models/ConvitePersonal.js';
 import dbConnect from '../../lib/dbConnect.js';
-import PlanoService from '../../services/PlanoService.js'; // <- NOVA importação
+import PlanoService from '../../services/PlanoService.js'; // <- A importação permanece, caso seja usada em outro lugar
 
 const router = express.Router();
 
@@ -112,24 +112,10 @@ router.post('/registrar/:tokenDeConvite', async (req: Request, res: Response, ne
 
     await session.commitTransaction();
 
-    // === ATRIBUIR PLANO FREE AUTOMATICAMENTE ===
-    try {
-      await PlanoService.ensureInitialPlansExist();
-      const planos = await PlanoService.getAllPlans();
-      const freePlan = planos.find(p => (p as any).tipo === 'free');
-      if (freePlan) {
-        await PlanoService.assignPlanToPersonal(
-          String(novoPersonal._id),                     // converte _id para string
-          String((freePlan as any)._id),
-          null,
-          (freePlan as any).duracao,
-          'Plano Free automático na criação de conta'
-        );
-      }
-    } catch (err) {
-      console.error('Erro ao atribuir plano Free:', err);
-      // Não impede o cadastro; apenas registra o erro
-    }
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    // O bloco que atribuía o Plano Free automaticamente foi REMOVIDO daqui.
+    // O personal será criado sem plano, e o frontend o guiará para a escolha.
+    // <<< FIM DA ALTERAÇÃO >>>
 
     res.status(201).json({ mensagem: "Personal registrado com sucesso! Você já pode fazer login." });
 

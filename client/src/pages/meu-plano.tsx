@@ -1,55 +1,72 @@
 // client/src/pages/meu-plano.tsx
-import React from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/context/UserContext";
-import { apiRequest } from "@/lib/queryClient"; 
+import { apiRequest } from "@/lib/queryClient";
 import { useThrottle } from "@/hooks/useDebounce";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { 
-    CalendarDays, 
-    Users, 
-    Crown, 
-    AlertTriangle, 
-    CheckCircle, 
+import {
+    CalendarDays,
+    Users,
+    Crown,
+    AlertTriangle,
+    CheckCircle,
     Clock,
     TrendingUp,
     Zap,
     Briefcase,
     RocketIcon
 } from "lucide-react";
-import LoadingSpinner from "@/components/LoadingSpinner"; 
-import ErrorMessage from "@/components/ErrorMessage"; 
-import ErrorBoundary from "@/components/ErrorBoundary"; 
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorMessage from "@/components/ErrorMessage";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { PersonalPlanStatus } from "../../../shared/types/planos";
 
 export default function MeuPlano() {
   const { user } = useUser();
   const trainerId = user?.id;
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
 
-  // Throttled upgrade handler to prevent multiple rapid clicks
   const handleUpgradeClick = useThrottle(() => {
-    console.log('Upgrade clicked');
-    // TODO: Navigate to upgrade page or show modal
-    // Example: setLocationWouter("/upgrade") or openUpgradeModal()
+    navigate("/solicitar-renovacao");
   }, 1000);
 
-  // Query for plan status
-  const { 
-    data: planStatus, 
-    isLoading: isLoadingPlan, 
-    error: errorPlan 
+  const {
+    data: planStatus,
+    isLoading: isLoadingPlan,
+    error: errorPlan
   } = useQuery<PersonalPlanStatus, Error>({
-    queryKey: ["planStatus", trainerId], 
+    queryKey: ["planStatus", trainerId],
     queryFn: async () => {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar status do plano.");
       return apiRequest<PersonalPlanStatus>("GET", "/api/personal/meu-plano");
     },
-    enabled: !!trainerId, 
+    enabled: !!trainerId,
+    retry: (failureCount, error: any) => {
+        if (error.message.includes("404")) {
+            return false;
+        }
+        return failureCount < 2;
+    },
   });
+
+  useEffect(() => {
+    if (errorPlan && errorPlan.message.includes("404")) {
+      toast({
+        title: "Bem-vindo(a)!",
+        description: "Para começar, por favor, escolha ou ative um plano.",
+      });
+      navigate("/solicitar-renovacao", { replace: true });
+    }
+  }, [errorPlan, navigate, toast]);
+
 
   if (!user) {
     return <div className="bg-blue-50 dark:bg-slate-900 h-full"><LoadingSpinner text="Carregando dados do usuário..." /></div>;
@@ -68,7 +85,7 @@ export default function MeuPlano() {
     );
   }
 
-  if (errorPlan) {
+  if (errorPlan && !errorPlan.message.includes("404")) {
     return (
       <ErrorBoundary>
         <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -79,13 +96,7 @@ export default function MeuPlano() {
   }
 
   if (!planStatus) {
-    return (
-      <ErrorBoundary>
-        <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-          <ErrorMessage title="Plano não encontrado" message="Não foi possível carregar as informações do seu plano." />
-        </div>
-      </ErrorBoundary>
-    );
+    return <LoadingSpinner text="Verificando seu plano..." />;
   }
 
   const {
@@ -99,7 +110,6 @@ export default function MeuPlano() {
     vagasDisponiveis = 0
   } = planStatus;
 
-  // Ensure percentualUso displays properly - show 0% when null/undefined
   const displayPercentualUso = percentualUso ?? 0;
 
   const getStatusInfo = () => {
@@ -154,7 +164,6 @@ export default function MeuPlano() {
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        {/* Header */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 bg-gradient-to-r from-sky-600 to-amber-600 bg-clip-text text-transparent flex items-center gap-2">
@@ -167,7 +176,6 @@ export default function MeuPlano() {
           </div>
         </header>
 
-        {/* Main Plan Card */}
         <Card className={`${statusInfo.bgColor} ${statusInfo.borderColor} border-2 mb-6 shadow-md`}>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -188,7 +196,6 @@ export default function MeuPlano() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Usage Statistics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="flex items-center justify-center w-12 h-12 bg-white shadow-md rounded-xl mx-auto mb-3">
@@ -225,7 +232,6 @@ export default function MeuPlano() {
               )}
             </div>
 
-            {/* Usage Progress */}
             <div className="bg-white/70 p-4 rounded-xl">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm font-medium text-gray-700">Utilização do Plano</span>
@@ -243,10 +249,8 @@ export default function MeuPlano() {
           </CardContent>
         </Card>
 
-        {/* Plan Details Cards */}
         {plano && personalPlano && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Plan Information Card */}
             <Card className="bg-white shadow-md border border-zinc-100">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -272,7 +276,6 @@ export default function MeuPlano() {
               </CardContent>
             </Card>
 
-            {/* Dates Card */}
             <Card className="bg-white shadow-md border border-zinc-100">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -304,7 +307,6 @@ export default function MeuPlano() {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex gap-4 mb-6">
           {!podeAtivarMais && (
             <Button 
@@ -326,7 +328,6 @@ export default function MeuPlano() {
           )}
         </div>
 
-        {/* Warnings */}
         {daysUntilExpiration !== null && daysUntilExpiration <= 7 && daysUntilExpiration > 0 && (
           <Card className="bg-yellow-50 border-yellow-200 border-2 mb-4">
             <CardContent className="pt-6">

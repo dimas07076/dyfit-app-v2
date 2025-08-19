@@ -74,10 +74,11 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.removeItem(ALUNO_TOKEN_KEY);
     localStorage.removeItem(ALUNO_REFRESH_TOKEN_KEY);
     localStorage.removeItem('alunoData');
+    // <<< INÍCIO DA ALTERAÇÃO >>>
+    // Limpa a rota salva para garantir que o próximo login comece do zero.
+    localStorage.removeItem('rotaAtual');
+    // <<< FIM DA ALTERAÇÃO >>>
     
-    // <<< CORREÇÃO PRINCIPAL AQUI >>>
-    // Só redireciona se um Personal/Admin NÃO estiver logado.
-    // Isso impede que o logout do Aluno (em background) expulse um Personal logado.
     const personalToken = localStorage.getItem('authToken');
     if (shouldRedirect && !personalToken) {
         console.log("[AlunoContext] Nenhum Personal logado. Redirecionando para /login.");
@@ -114,7 +115,6 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const checkAlunoSession = useCallback(async () => {
     setIsLoadingAluno(true);
-    // <<< CORREÇÃO: Não fazer nada se estiver em rotas públicas de convite >>>
     if (isPublicInviteRoute()) {
         setIsLoadingAluno(false);
         return;
@@ -137,7 +137,6 @@ export const AlunoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } else {
         const refreshed = await refreshAlunoToken();
         if (!refreshed) {
-             // Só limpa o estado se não houver token, sem forçar logout/redirect
              setAluno(null);
              setTokenAluno(null);
         }
