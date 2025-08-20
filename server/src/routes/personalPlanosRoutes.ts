@@ -89,19 +89,25 @@ router.get('/tokens-ativos', async (req: Request, res: Response, next: NextFunct
 });
 
 /**
- * GET /api/personal/meus-tokens - Lista detalhes dos tokens avulsos ativos do personal
+ * GET /api/personal/meus-tokens - Lista detalhes de todos os tokens avulsos do personal (ativos, expirados, consumidos)
  */
 router.get('/meus-tokens', async (req, res, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
     const detalhes = await PlanoService.getDetailedTokensForAdmin(personalTrainerId);
-    const tokens = detalhes.activeTokens.map(token => ({
+    
+    // Combinar todos os tokens (ativos + expirados) para transparência total
+    const allTokens = [...detalhes.activeTokens, ...detalhes.expiredTokens];
+    
+    const tokens = allTokens.map(token => ({
       id: token._id,
       quantidade: token.quantidade,
       dataAdicao: token.createdAt,
-      dataVencimento: token.dataVencimento
+      dataVencimento: token.dataVencimento,
+      ativo: token.ativo
     }));
+    
     res.json({ tokens });
   } catch (error) {
     console.error('Erro ao buscar tokens do personal:', error);

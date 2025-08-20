@@ -62,11 +62,11 @@ export default function MeuPlano() {
     data: tokensData,
     isLoading: isLoadingTokens,
     error: errorTokens
-  } = useQuery<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string }> }, Error>({
+  } = useQuery<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string; ativo: boolean }> }, Error>({
     queryKey: ["detailedTokens", trainerId],
     queryFn: async () => {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar tokens.");
-      return apiRequest<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string }> }>("GET", "/api/personal/meus-tokens");
+      return apiRequest<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string; ativo: boolean }> }>("GET", "/api/personal/meus-tokens");
     },
     enabled: !!trainerId && !!planStatus,
     retry: 2,
@@ -402,7 +402,7 @@ export default function MeuPlano() {
         )}
 
         {/* Card de Tokens Avulsos Detalhados */}
-        {tokensData && tokensData.tokens && tokensData.tokens.length > 0 && (
+        {planStatus && (
           <Card className="bg-white shadow-md border border-amber-200 mb-6">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -414,23 +414,38 @@ export default function MeuPlano() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {tokensData.tokens.map((token, index) => {
+              {tokensData && tokensData.tokens && tokensData.tokens.length > 0 ? (
+                <div className="space-y-4">
+                  {tokensData.tokens.map((token, index) => {
                   const dataVencimento = new Date(token.dataVencimento);
                   const dataAdicao = new Date(token.dataAdicao);
                   const hoje = new Date();
                   const diasRestantes = Math.ceil((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
                   
-                  // Determinar se o token está sendo usado
-                  const tokenIndex = index;
-                  const isTokenUsado = tokenIndex < tokensUsados;
+                  // Determinar status real do token baseado em múltiplos fatores
                   const isTokenVencido = diasRestantes <= 0;
+                  const isTokenInativo = !token.ativo;
+                  
+                  // Para tokens ativos, determinar se está sendo usado
+                  let isTokenUsado = false;
+                  if (!isTokenVencido && !isTokenInativo) {
+                    // Ordenar por data de vencimento para determinar ordem de uso
+                    const tokensAtivos = tokensData.tokens
+                      .filter(t => new Date(t.dataVencimento) > hoje && t.ativo)
+                      .sort((a, b) => new Date(a.dataVencimento).getTime() - new Date(b.dataVencimento).getTime());
+                    const indexNaOrdem = tokensAtivos.findIndex(t => t.id === token.id);
+                    isTokenUsado = indexNaOrdem < tokensUsados;
+                  }
                   
                   let statusToken, statusColor, statusBg;
                   if (isTokenVencido) {
                     statusToken = "Vencido";
                     statusColor = "text-red-600";
                     statusBg = "bg-red-50 border-red-200";
+                  } else if (isTokenInativo) {
+                    statusToken = "Consumido";
+                    statusColor = "text-gray-600";
+                    statusBg = "bg-gray-50 border-gray-200";
                   } else if (isTokenUsado) {
                     statusToken = "Em Uso";
                     statusColor = "text-amber-600";
@@ -448,10 +463,18 @@ export default function MeuPlano() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Zap className={`w-4 h-4 ${isTokenUsado ? 'text-amber-600' : isTokenVencido ? 'text-red-600' : 'text-green-600'}`} />
+                          <Zap className={`w-4 h-4 ${
+                            isTokenVencido ? 'text-red-600' : 
+                            isTokenInativo ? 'text-gray-600' :
+                            isTokenUsado ? 'text-amber-600' : 'text-green-600'
+                          }`} />
                           <span className="font-semibold text-gray-800">Token #{index + 1}</span>
                           <Badge 
-                            variant={isTokenVencido ? "destructive" : isTokenUsado ? "default" : "secondary"}
+                            variant={
+                              isTokenVencido ? "destructive" : 
+                              isTokenInativo ? "secondary" :
+                              isTokenUsado ? "default" : "secondary"
+                            }
                             className="text-xs"
                           >
                             {statusToken}
@@ -501,9 +524,13 @@ export default function MeuPlano() {
                           <span className="text-xs text-red-600">
                             ⚠️ Token vencido e não pode mais ser utilizado
                           </span>
+                        ) : isTokenInativo ? (
+                          <span className="text-xs text-gray-600">
+                            📋 Token consumido permanentemente 
+                          </span>
                         ) : isTokenUsado ? (
                           <span className="text-xs text-amber-700">
-                            🔋 Token sendo usado para ampliar capacidade (aluno #{limitePlano + tokenIndex + 1})
+                            🔋 Token sendo usado para ampliar capacidade (aluno #{limitePlano + Math.floor(index / 1) + 1})
                           </span>
                         ) : (
                           <span className="text-xs text-green-700">
@@ -515,6 +542,17 @@ export default function MeuPlano() {
                   );
                 })}
               </div>
+              ) : !isLoadingTokens && !errorTokens ? (
+                <div className="text-center py-8">
+                  <Zap className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-600 text-sm">
+                    Nenhum token avulso encontrado
+                  </p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    Tokens aparecerão aqui quando adicionados pelo administrador
+                  </p>
+                </div>
+              ) : null}
               
               {isLoadingTokens && (
                 <div className="text-center py-4">
