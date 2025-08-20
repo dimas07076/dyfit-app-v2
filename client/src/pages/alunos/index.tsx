@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, UserX, Mail, MoreVertical } from "lucide-react";
+import { Eye, Pencil, Plus, Search, Mail, MoreVertical, Trash2 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModalConfirmacao } from "@/components/ui/modal-confirmacao";
@@ -116,8 +116,8 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
                                                    focus:bg-red-50 dark:focus:bg-red-900/30
                                                    transition-colors duration-200" 
                                         onClick={() => onDelete(student)}>
-                            <UserX className="mr-2 h-4 w-4" /> 
-                            <span className="font-medium">Inativar</span>
+                            <Trash2 className="mr-2 h-4 w-4" /> 
+                            <span className="font-medium">Excluir</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -154,17 +154,17 @@ export default function StudentsIndex() {
 
     const deleteStudentMutation = useMutation<any, Error, string>({
         mutationFn: (alunoId: string) => {
-            console.log("Inactivating student with ID:", alunoId);
+            console.log("Deleting student with ID:", alunoId);
             return fetchWithAuth(`/api/aluno/gerenciar/${alunoId}`, { method: 'DELETE' });
         },
         onSuccess: (data) => {
-            console.log("Student inactivated successfully.");
-            toast({ title: "Aluno Inativado", description: data.message || `O aluno foi marcado como inativo.` });
+            console.log("Student deleted successfully.");
+            toast({ title: "Aluno Excluído", description: data.message || `O aluno foi removido permanentemente.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
         },
         onError: (error) => {
-            console.error("Error inactivating student:", error);
-            toast({ variant: "destructive", title: "Erro ao Inativar", description: error.message || "Não foi possível inativar o aluno." });
+            console.error("Error deleting student:", error);
+            toast({ variant: "destructive", title: "Erro ao Excluir", description: error.message || "Não foi possível excluir o aluno." });
         },
         onSettled: () => closeConfirmDialog(),
     });
@@ -176,11 +176,11 @@ export default function StudentsIndex() {
     console.log("Filtered students:", filteredStudents);
 
     const handleDeleteClick = (aluno: Aluno) => {
-        console.log("Handle inactivate click for student:", aluno.nome);
+        console.log("Handle delete click for student:", aluno.nome);
         openConfirmDialog({
-            titulo: "Inativar Aluno",
-            mensagem: `Tem certeza que deseja inativar ${aluno.nome}? O acesso dele será bloqueado, mas a vaga continuará ocupada por ele até o fim do seu ciclo atual.`,
-            textoConfirmar: "Sim, Inativar",
+            titulo: "Excluir Aluno",
+            mensagem: `Tem certeza que deseja excluir ${aluno.nome}? Esta ação é permanente e removerá todos os dados do aluno, incluindo suas fichas de treino.`,
+            textoConfirmar: "Sim, Excluir",
             onConfirm: () => deleteStudentMutation.mutate(aluno._id),
         });
     };
@@ -397,8 +397,8 @@ export default function StudentsIndex() {
                                                                      transition-all duration-200 rounded-lg
                                                                      hover:scale-110 active:scale-95" 
                                                             onClick={() => handleDeleteClick(student)} 
-                                                            title="Inativar">
-                                                        <UserX className="h-4 w-4" />
+                                                            title="Excluir">
+                                                        <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             </TableCell>
