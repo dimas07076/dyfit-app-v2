@@ -106,14 +106,26 @@ export default function MeuPlano() {
     alunosAtivos,
     tokensAvulsos,
     percentualUso = 0,
-    podeAtivarMais = false,
-    vagasDisponiveis = 0
+    podeAtivarMais = false
   } = planStatus;
+
+  // Derivações seguras conforme especificação
+  const alunosAtivosCalc = alunosAtivos ?? 0;
+  const limitePlano = plano?.limiteAlunos ?? limiteAtual ?? 0;
+  const tokens = tokensAvulsos ?? 0;
+
+  const capacidadeTotal = Math.max(0, limitePlano) + Math.max(0, tokens);
+  const slotsRestantes = Math.max(0, (limitePlano - alunosAtivosCalc)) + Math.max(0, tokens);
+
+  // Progresso: ocupação sobre a capacidade total potencial
+  const progresso = capacidadeTotal > 0
+    ? Math.min(100, Math.round((alunosAtivosCalc / capacidadeTotal) * 100))
+    : 0;
 
   const displayPercentualUso = percentualUso ?? 0;
 
   const getStatusInfo = () => {
-    if (displayPercentualUso >= 90) {
+    if (progresso >= 90) {
       return {
         variant: 'destructive' as const,
         icon: AlertTriangle,
@@ -123,7 +135,7 @@ export default function MeuPlano() {
         borderColor: 'border-red-200'
       };
     }
-    if (displayPercentualUso >= 70) {
+    if (progresso >= 70) {
       return {
         variant: 'default' as const,
         icon: Clock,
@@ -202,7 +214,7 @@ export default function MeuPlano() {
                   <Users className="w-6 h-6 text-sky-600" />
                 </div>
                 <p className="text-sm text-gray-600 mb-1">Alunos Ativos</p>
-                <p className="text-2xl font-bold text-gray-800">{alunosAtivos}</p>
+                <p className="text-2xl font-bold text-gray-800">{alunosAtivosCalc}</p>
               </div>
 
               <div className="text-center">
@@ -210,7 +222,7 @@ export default function MeuPlano() {
                   <TrendingUp className="w-6 h-6 text-purple-600" />
                 </div>
                 <p className="text-sm text-gray-600 mb-1">Limite</p>
-                <p className="text-2xl font-bold text-gray-800">{limiteAtual}</p>
+                <p className="text-2xl font-bold text-gray-800">{limitePlano}</p>
               </div>
 
               <div className="text-center">
@@ -218,16 +230,16 @@ export default function MeuPlano() {
                   <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
                 <p className="text-sm text-gray-600 mb-1">Disponível</p>
-                <p className="text-2xl font-bold text-gray-800">{vagasDisponiveis}</p>
+                <p className="text-2xl font-bold text-gray-800">{slotsRestantes}</p>
               </div>
 
-              {tokensAvulsos > 0 && (
+              {tokens > 0 && (
                 <div className="text-center">
                   <div className="flex items-center justify-center w-12 h-12 bg-white shadow-md rounded-xl mx-auto mb-3">
                     <Zap className="w-6 h-6 text-amber-600" />
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Tokens</p>
-                  <p className="text-2xl font-bold text-gray-800">{tokensAvulsos}</p>
+                  <p className="text-2xl font-bold text-gray-800">{tokens}</p>
                 </div>
               )}
             </div>
@@ -235,16 +247,59 @@ export default function MeuPlano() {
             <div className="bg-white/70 p-4 rounded-xl">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm font-medium text-gray-700">Utilização do Plano</span>
-                <span className="text-sm text-gray-600">{displayPercentualUso}%</span>
+                <span className="text-sm text-gray-600">{progresso}%</span>
               </div>
               <Progress 
-                value={displayPercentualUso} 
+                value={progresso} 
                 className="h-3"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>{alunosAtivos} usados</span>
-                <span>{limiteAtual} total</span>
+                <span>{alunosAtivosCalc} usados</span>
+                <span>{capacidadeTotal} total</span>
               </div>
+            </div>
+
+            {/* Novas linhas conforme especificação */}
+            <div className="bg-white/50 p-4 rounded-xl space-y-3">
+              <div className="text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Alunos ativos:</span>
+                  <span className="font-semibold text-gray-800">{alunosAtivosCalc}</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Limite do plano:</span>
+                  <span className="font-semibold text-gray-800">{limitePlano}</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Tokens avulsos disponíveis:</span>
+                  <span className="font-semibold text-gray-800">{tokens}</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Capacidade total potencial:</span>
+                  <span className="font-semibold text-sky-600">{capacidadeTotal}</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Slots restantes:</span>
+                  <span className="font-semibold text-green-600">{slotsRestantes}</span>
+                </div>
+              </div>
+              
+              {/* Texto explicativo quando tokens > 0 */}
+              {tokens > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    Tokens avulsos ampliam temporariamente sua capacidade de alunos. Cada token cobre 1 aluno por até 30 dias.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -341,7 +396,7 @@ export default function MeuPlano() {
           </Card>
         )}
 
-        {!podeAtivarMais && limiteAtual > 0 && (
+        {!podeAtivarMais && capacidadeTotal > 0 && (
           <Card className="bg-red-50 border-red-200 border-2">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-red-800">
