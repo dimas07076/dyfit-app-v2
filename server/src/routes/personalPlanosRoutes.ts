@@ -110,6 +110,61 @@ router.get('/meus-tokens', async (req, res, next: NextFunction) => {
 });
 
 /**
+ * GET /api/personal/debug-tokens - Debug endpoint to check token status for troubleshooting
+ */
+router.get('/debug-tokens', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await dbConnect();
+    const personalTrainerId = (req as any).user.id;
+    
+    console.log(`🐛 DEBUG: Token debug endpoint called for ${personalTrainerId}`);
+    
+    // Get all tokens (including expired ones) for this personal trainer
+    const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+    const allTokens = await TokenAvulso.find({ personalTrainerId }).sort({ createdAt: -1 });
+    
+    const now = new Date();
+    const activeTokens = allTokens.filter(token => 
+      token.ativo === true && 
+      token.dataVencimento && 
+      token.dataVencimento > now
+    );
+    
+    const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + (token.quantidade || 0), 0);
+    
+    // Also get the official count using the service method
+    const serviceCount = await PlanoService.getTokensAvulsosAtivos(personalTrainerId);
+    
+    res.json({
+      personalTrainerId,
+      currentTime: now.toISOString(),
+      allTokensCount: allTokens.length,
+      activeTokensCount: activeTokens.length,
+      totalActiveQuantity,
+      serviceCalculatedCount: serviceCount,
+      allTokens: allTokens.map(token => ({
+        id: token._id,
+        quantidade: token.quantidade,
+        ativo: token.ativo,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        isExpired: token.dataVencimento ? token.dataVencimento <= now : true,
+        createdAt: token.createdAt?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      })),
+      activeTokens: activeTokens.map(token => ({
+        id: token._id,
+        quantidade: token.quantidade,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      }))
+    });
+  } catch (error) {
+    console.error('🐛 DEBUG: Erro no endpoint de debug de tokens:', error);
+    next(error);
+  }
+});
+
+/**
  * GET /api/personal/planos-disponiveis - Lista todos os planos disponíveis para upgrade/downgrade
  */
 router.get('/planos-disponiveis', async (req: Request, res: Response, next: NextFunction) => {
