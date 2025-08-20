@@ -68,10 +68,18 @@ router.post('/', async (req, res, next) => {
   await dbConnect();
   try {
     const personalTrainerId = (req as any).user.id;
-    const { planIdRequested, notes } = req.body as { planIdRequested: string; notes?: string };
+    const { planIdRequested, notes, isTokenRequest } = req.body as { 
+      planIdRequested?: string; 
+      notes?: string; 
+      isTokenRequest?: boolean; 
+    };
 
-    if (!planIdRequested) {
-      return res.status(400).json({ mensagem: 'O ID do plano solicitado é obrigatório.', code: 'MISSING_PLAN_ID' });
+    // Validação condicional: planIdRequested é obrigatório apenas se NÃO for solicitação de token
+    if (!isTokenRequest && !planIdRequested) {
+      return res.status(400).json({ 
+        mensagem: 'O ID do plano solicitado é obrigatório.', 
+        code: 'MISSING_PLAN_ID' 
+      });
     }
 
     const openRequest = await RenewalRequest.findOne({
