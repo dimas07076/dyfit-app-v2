@@ -95,10 +95,17 @@ router.get('/meus-tokens', async (req, res, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    
+    console.log(`🔍 [MEUS-TOKENS] Iniciando busca para personalTrainerId: ${personalTrainerId}`);
+    
     const detalhes = await PlanoService.getDetailedTokensForAdmin(personalTrainerId);
+    
+    console.log(`🔍 [MEUS-TOKENS] Service retornou - activeTokens: ${detalhes.activeTokens.length}, expiredTokens: ${detalhes.expiredTokens.length}, totalActive: ${detalhes.totalActiveQuantity}`);
     
     // Combinar todos os tokens (ativos + expirados) para transparência total
     const allTokens = [...detalhes.activeTokens, ...detalhes.expiredTokens];
+    
+    console.log(`🔍 [MEUS-TOKENS] Total tokens combinados: ${allTokens.length}`);
     
     const tokens = allTokens.map(token => ({
       id: token._id,
@@ -108,9 +115,18 @@ router.get('/meus-tokens', async (req, res, next: NextFunction) => {
       ativo: token.ativo
     }));
     
+    console.log(`🔍 [MEUS-TOKENS] Tokens mapeados:`, tokens.map(t => ({
+      id: t.id,
+      quantidade: t.quantidade,
+      ativo: t.ativo,
+      vencimento: t.dataVencimento
+    })));
+    
+    console.log(`🔍 [MEUS-TOKENS] Enviando resposta com ${tokens.length} tokens`);
+    
     res.json({ tokens });
   } catch (error) {
-    console.error('Erro ao buscar tokens do personal:', error);
+    console.error('❌ [MEUS-TOKENS] Erro ao buscar tokens do personal:', error);
     next(error);
   }
 });

@@ -345,6 +345,8 @@ export class PlanoService {
         totalActiveQuantity: number;
     }> {
         try {
+            console.log(`🔍 [DETAILED-TOKENS] Iniciando busca para personalTrainerId: ${personalTrainerId}`);
+            
             const now = new Date();
             const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -353,9 +355,11 @@ export class PlanoService {
             try {
                 const objectId = new mongoose.Types.ObjectId(personalTrainerId);
                 searchCriteria = { personalTrainerId: objectId };
+                console.log(`🔍 [DETAILED-TOKENS] Usando ObjectId: ${objectId}`);
             } catch {
                 // Fallback para string se ObjectId conversion falhar
                 searchCriteria = { personalTrainerId };
+                console.log(`🔍 [DETAILED-TOKENS] Usando string: ${personalTrainerId}`);
             }
 
             // Buscar TODOS os tokens (incluindo consumidos/inativos) para transparência total
@@ -363,7 +367,12 @@ export class PlanoService {
                 .populate('adicionadoPorAdmin', 'nome')
                 .sort({ dataVencimento: -1 });
 
-            console.log(`🔍 DEBUG: Found ${allTokens.length} total tokens for personal ${personalTrainerId}`);
+            console.log(`🔍 [DETAILED-TOKENS] Found ${allTokens.length} total tokens for personal ${personalTrainerId}`);
+            
+            // Log each token found
+            allTokens.forEach((token, index) => {
+                console.log(`🔍 [DETAILED-TOKENS] Token ${index + 1}: id=${token._id}, ativo=${token.ativo}, vencimento=${token.dataVencimento?.toISOString()}, quantidade=${token.quantidade}`);
+            });
 
             // Separar tokens por status para o frontend
             const activeTokens = allTokens.filter(token => 
@@ -379,12 +388,14 @@ export class PlanoService {
                 token.ativo === false
             );
 
+            console.log(`🔍 [DETAILED-TOKENS] Active: ${activeTokens.length}, Expired: ${expiredTokens.length}, Consumed: ${consumedTokens.length}`);
+
             // Combinar expired e consumed para mostrar histórico completo
             const historicalTokens = [...expiredTokens, ...consumedTokens];
 
             const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
 
-            console.log(`🔍 DEBUG: Active: ${activeTokens.length}, Historical: ${historicalTokens.length}, Total Active Quantity: ${totalActiveQuantity}`);
+            console.log(`🔍 [DETAILED-TOKENS] Final result - Active: ${activeTokens.length}, Historical: ${historicalTokens.length}, Total Active Quantity: ${totalActiveQuantity}`);
 
             return {
                 activeTokens,
@@ -392,7 +403,7 @@ export class PlanoService {
                 totalActiveQuantity
             };
         } catch (error) {
-            console.error('❌ Erro ao buscar tokens detalhados:', error);
+            console.error('❌ [DETAILED-TOKENS] Erro ao buscar tokens detalhados:', error);
             return {
                 activeTokens: [],
                 expiredTokens: [],
