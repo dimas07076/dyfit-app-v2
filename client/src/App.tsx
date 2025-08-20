@@ -10,9 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import MainLayout from "@/components/layout/main-layout";
 import { UserProvider , UserContext } from "@/context/UserContext";
 import { AlunoProvider, useAluno } from "@/context/AlunoContext";
-// <<< INÍCIO DA CORREÇÃO >>>
 import { WorkoutPlayerProvider } from "@/context/WorkoutPlayerContext";
-// <<< FIM DA CORREÇÃO >>>
 import { queryClient } from "@/lib/queryClient";
 import NotFound from "@/pages/not-found";
 import { PWAInstallProvider } from '@/context/PWAInstallContext';

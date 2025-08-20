@@ -1,4 +1,4 @@
-// client/src/hooks/usePlanManagement.ts
+// client/src/hooks/usePersonalTrainers.ts
 import { useState, useCallback, useMemo } from 'react';
 import { PersonalTrainerWithStatus, Plano, AssignPlanForm, AddTokensForm } from '../../../shared/types/planos';
 import { fetchWithAuth } from '../lib/apiClient';

@@ -1,5 +1,5 @@
-// client/src/components/dialogs/admin/EnhancedPlanoModal.tsx
-import React, { useState, useEffect } from 'react';
+// client/src/components/dialogs/admin/PlanoModal.tsx
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -141,12 +141,6 @@ export function PlanoModal({
     }
   };
 
-  const getStatusColor = (percentual: number) => {
-    if (percentual >= 90) return 'bg-red-500';
-    if (percentual >= 70) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-
   const getStatusText = (percentual: number) => {
     if (percentual >= 90) return 'Crítico';
     if (percentual >= 70) return 'Atenção';
@@ -157,6 +151,13 @@ export function PlanoModal({
     if (percentual >= 90) return <XCircle className="w-4 h-4 text-red-500" />;
     if (percentual >= 70) return <AlertCircle className="w-4 h-4 text-yellow-500" />;
     return <CheckCircle className="w-4 h-4 text-green-500" />;
+  };
+
+  const getStatusIndicatorColor = (percentual: number, isExpired: boolean) => {
+    if (isExpired) return 'bg-red-500';
+    if (percentual >= 90) return 'bg-red-500';
+    if (percentual >= 70) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
 
   const selectedPlan = assignForm.planoId ? getPlanById(assignForm.planoId) : null;
@@ -321,7 +322,7 @@ export function PlanoModal({
                     <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                       <div className="flex items-center justify-between mb-2">
                         <div className={`w-3 h-3 rounded-full ${
-                          personal.isExpired ? 'bg-red-500' : getStatusColor(personal.percentualUso)
+                          getStatusIndicatorColor(personal.percentualUso, personal.isExpired)
                         }`} />
                         <Clock className="w-4 h-4 text-orange-400" />
                       </div>
@@ -330,7 +331,7 @@ export function PlanoModal({
                         <div className="w-full bg-orange-200 rounded-full h-3">
                           <div 
                             className={`h-3 rounded-full transition-all duration-300 ${
-                              personal.isExpired ? 'bg-red-500' : getStatusColor(personal.percentualUso)
+                              getStatusIndicatorColor(personal.percentualUso, personal.isExpired)
                             }`}
                             style={{ 
                               width: personal.isExpired ? '100%' : `${Math.min(personal.percentualUso, 100)}%` 
@@ -381,7 +382,7 @@ export function PlanoModal({
                             <p className="font-medium">
                               {personal.dataInicio 
                                 ? new Date(personal.dataInicio).toLocaleDateString('pt-BR')
-                                : new Date(detailedStatus.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')
+                                : new Date((detailedStatus as any)?.currentPlan.personalPlano.dataInicio).toLocaleDateString('pt-BR')
                               }
                             </p>
                           </div>
@@ -394,7 +395,7 @@ export function PlanoModal({
                             <p className={`font-medium ${personal.isExpired ? 'text-red-700' : ''}`}>
                               {personal.dataVencimento 
                                 ? new Date(personal.dataVencimento).toLocaleDateString('pt-BR')
-                                : new Date(detailedStatus.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')
+                                : new Date((detailedStatus as any)?.currentPlan.personalPlano.dataVencimento).toLocaleDateString('pt-BR')
                               }
                             </p>
                           </div>
@@ -414,7 +415,7 @@ export function PlanoModal({
                   )}
 
                   {/* Comprehensive Token Display Section */}
-                  {(detailedStatus?.activeTokens?.length > 0 || detailedStatus?.expiredTokens?.length > 0) && (
+                  {((detailedStatus?.activeTokens?.length || 0) > 0 || (detailedStatus?.expiredTokens?.length || 0) > 0) && (
                     <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border">
                       <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -422,20 +423,20 @@ export function PlanoModal({
                       </h4>
 
                       {/* Active Tokens Summary */}
-                      {detailedStatus?.activeTokens?.length > 0 && (
+                      {(detailedStatus?.activeTokens?.length || 0) > 0 && (
                         <div className="mb-6">
                           <div className="flex items-center justify-between mb-3">
                             <h5 className="font-medium text-green-800 flex items-center gap-2">
                               <CheckCircle className="w-4 h-4 text-green-600" />
-                              Tokens Ativos ({detailedStatus.activeTokens.length})
+                              Tokens Ativos ({detailedStatus?.activeTokens.length})
                             </h5>
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              {detailedStatus.totalActiveTokens || detailedStatus.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens disponíveis
+                              {detailedStatus?.totalActiveTokens || detailedStatus?.activeTokens.reduce((sum, token) => sum + token.quantidade, 0)} tokens disponíveis
                             </Badge>
                           </div>
                           
                           <div className="grid gap-3">
-                            {detailedStatus.activeTokens.map((token, index) => {
+                            {detailedStatus?.activeTokens.map((token, index) => {
                               const createdDate = new Date(token.createdAt);
                               const expirationDate = new Date(token.dataVencimento);
                               const now = new Date();
@@ -495,7 +496,7 @@ export function PlanoModal({
                                           <span className="text-gray-600 text-sm">Adicionado por:</span>
                                           <p className="text-sm font-medium text-blue-700">
                                             {typeof token.adicionadoPorAdmin === 'object' 
-                                              ? token.adicionadoPorAdmin.nome 
+                                              ? (token.adicionadoPorAdmin as any).nome 
                                               : 'Admin'
                                             }
                                           </p>
@@ -517,12 +518,12 @@ export function PlanoModal({
                       )}
 
                       {/* Expired Tokens (Recent) */}
-                      {detailedStatus?.expiredTokens?.length > 0 && (
+                      {(detailedStatus?.expiredTokens?.length || 0) > 0 && (
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <h5 className="font-medium text-red-800 flex items-center gap-2">
                               <XCircle className="w-4 h-4 text-red-600" />
-                              Tokens Expirados Recentes ({detailedStatus.expiredTokens.length})
+                              Tokens Expirados Recentes ({detailedStatus?.expiredTokens.length})
                             </h5>
                             <Badge variant="destructive" className="bg-red-100 text-red-800">
                               Últimos 30 dias
@@ -530,7 +531,7 @@ export function PlanoModal({
                           </div>
                           
                           <div className="grid gap-3">
-                            {detailedStatus.expiredTokens.slice(0, 3).map((token, index) => {
+                            {detailedStatus?.expiredTokens.slice(0, 3).map((token, index) => {
                               const createdDate = new Date(token.createdAt);
                               const expirationDate = new Date(token.dataVencimento);
                               
@@ -570,7 +571,7 @@ export function PlanoModal({
                                           <span className="text-red-600 text-sm">Adicionado por:</span>
                                           <p className="text-sm font-medium text-red-700">
                                             {typeof token.adicionadoPorAdmin === 'object' 
-                                              ? token.adicionadoPorAdmin.nome 
+                                              ? (token.adicionadoPorAdmin as any).nome 
                                               : 'Admin'
                                             }
                                           </p>
@@ -588,10 +589,10 @@ export function PlanoModal({
                               );
                             })}
                             
-                            {detailedStatus.expiredTokens.length > 3 && (
+                            {(detailedStatus?.expiredTokens.length || 0) > 3 && (
                               <div className="text-center py-2">
                                 <p className="text-sm text-gray-500">
-                                  ... e mais {detailedStatus.expiredTokens.length - 3} token{detailedStatus.expiredTokens.length - 3 !== 1 ? 's' : ''} expirado{detailedStatus.expiredTokens.length - 3 !== 1 ? 's' : ''}
+                                  ... e mais {(detailedStatus?.expiredTokens.length || 0) - 3} token{(detailedStatus?.expiredTokens.length || 0) - 3 !== 1 ? 's' : ''} expirado{(detailedStatus?.expiredTokens.length || 0) - 3 !== 1 ? 's' : ''}
                                 </p>
                               </div>
                             )}
@@ -600,7 +601,7 @@ export function PlanoModal({
                       )}
 
                       {/* No Tokens Message */}
-                      {(!detailedStatus?.activeTokens?.length && !detailedStatus?.expiredTokens?.length) && (
+                      {(!(detailedStatus?.activeTokens?.length) && !(detailedStatus?.expiredTokens?.length)) && (
                         <div className="text-center py-8">
                           <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                             <Info className="w-8 h-8 text-gray-400" />
@@ -782,7 +783,7 @@ export function PlanoModal({
               <div className="mt-2">
                 <span className="text-green-600">Vencimento:</span>
                 <p className="text-sm text-gray-700">
-                  {new Date(Date.now() + tokenForm.customDays * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}
+                  {new Date(Date.now() + (tokenForm.customDays || 30) * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}
                 </p>
               </div>
             </div>
