@@ -348,24 +348,47 @@ export class PlanoService {
             const now = new Date();
             const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-            const [activeTokens, expiredTokens] = await Promise.all([
-                TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $gt: now }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: 1 }),
-                TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $lte: now, $gte: thirtyDaysAgo }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: -1 })
-            ]);
+            // Converter personalTrainerId para ObjectId se necessário para busca correta
+            let searchCriteria: any;
+            try {
+                const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+                searchCriteria = { personalTrainerId: objectId };
+            } catch {
+                // Fallback para string se ObjectId conversion falhar
+                searchCriteria = { personalTrainerId };
+            }
+
+            // Buscar TODOS os tokens (incluindo consumidos/inativos) para transparência total
+            const allTokens = await TokenAvulso.find(searchCriteria)
+                .populate('adicionadoPorAdmin', 'nome')
+                .sort({ dataVencimento: -1 });
+
+            console.log(`🔍 DEBUG: Found ${allTokens.length} total tokens for personal ${personalTrainerId}`);
+
+            // Separar tokens por status para o frontend
+            const activeTokens = allTokens.filter(token => 
+                token.ativo === true && token.dataVencimento && token.dataVencimento > now
+            );
+
+            const expiredTokens = allTokens.filter(token => 
+                token.dataVencimento && token.dataVencimento <= now && token.dataVencimento >= thirtyDaysAgo
+            );
+
+            // Tokens consumidos/inativos (incluindo os que foram marcados como ativo: false)
+            const consumedTokens = allTokens.filter(token => 
+                token.ativo === false
+            );
+
+            // Combinar expired e consumed para mostrar histórico completo
+            const historicalTokens = [...expiredTokens, ...consumedTokens];
 
             const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
 
+            console.log(`🔍 DEBUG: Active: ${activeTokens.length}, Historical: ${historicalTokens.length}, Total Active Quantity: ${totalActiveQuantity}`);
+
             return {
                 activeTokens,
-                expiredTokens,
+                expiredTokens: historicalTokens, // Incluir todos os tokens históricos (expirados + consumidos)
                 totalActiveQuantity
             };
         } catch (error) {
