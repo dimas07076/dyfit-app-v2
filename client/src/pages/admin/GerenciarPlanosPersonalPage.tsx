@@ -1,4 +1,4 @@
-// client/src/pages/admin/EnhancedGerenciarPlanosPersonalPage.tsx
+// client/src/pages/admin/GerenciarPlanosPersonalPage.tsx
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -92,12 +92,6 @@ export function GerenciarPlanosPersonalPage() {
         if (percentual >= 90) return <AlertCircle className="w-4 h-4 text-red-500" />;
         if (percentual >= 70) return <Clock className="w-4 h-4 text-yellow-500" />;
         return <CheckCircle className="w-4 h-4 text-green-500" />;
-    };
-
-    const getStatusColor = (percentual: number) => {
-        if (percentual >= 90) return 'bg-red-500';
-        if (percentual >= 70) return 'bg-yellow-500';
-        return 'bg-green-500';
     };
 
     const getStatusText = (percentual: number) => {

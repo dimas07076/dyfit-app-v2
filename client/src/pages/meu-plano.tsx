@@ -17,7 +17,6 @@ import {
     Crown,
     AlertTriangle,
     CheckCircle,
-    Clock,
     TrendingUp,
     Zap,
     Briefcase,
@@ -426,16 +425,26 @@ export default function MeuPlano() {
                   const isTokenVencido = diasRestantes <= 0;
                   const isTokenInativo = !token.ativo;
                   
-                  // Para tokens ativos, determinar se está sendo usado
+                  // <<< INÍCIO DA CORREÇÃO >>>
+                  // A lógica para determinar se um token está em uso é aprimorada.
+                  // Agora, consideramos TODOS os tokens não expirados para determinar a ordem de uso,
+                  // e não apenas aqueles com `ativo: true`.
                   let isTokenUsado = false;
-                  if (!isTokenVencido && !isTokenInativo) {
-                    // Ordenar por data de vencimento para determinar ordem de uso
-                    const tokensAtivos = tokensData.tokens
-                      .filter(t => new Date(t.dataVencimento) > hoje && t.ativo)
+                  if (!isTokenVencido) {
+                    // 1. Pega todos os tokens que ainda não venceram.
+                    const tokensNaoExpirados = tokensData.tokens
+                      .filter(t => new Date(t.dataVencimento) > hoje)
                       .sort((a, b) => new Date(a.dataVencimento).getTime() - new Date(b.dataVencimento).getTime());
-                    const indexNaOrdem = tokensAtivos.findIndex(t => t.id === token.id);
-                    isTokenUsado = indexNaOrdem < tokensUsados;
+                    
+                    // 2. Encontra a posição do token atual nesta lista ordenada.
+                    const indexNaOrdemDeUso = tokensNaoExpirados.findIndex(t => t.id === token.id);
+
+                    // 3. Se a posição do token for menor que o número de tokens que estão sendo usados, ele está "Em Uso".
+                    if (indexNaOrdemDeUso !== -1 && indexNaOrdemDeUso < tokensUsados) {
+                        isTokenUsado = true;
+                    }
                   }
+                  // <<< FIM DA CORREÇÃO >>>
                   
                   let statusToken, statusColor, statusBg;
                   if (isTokenVencido) {
