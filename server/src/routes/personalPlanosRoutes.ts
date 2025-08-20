@@ -121,9 +121,40 @@ router.get('/debug-tokens', async (req: Request, res: Response, next: NextFuncti
     
     // Get all tokens (including expired ones) for this personal trainer
     const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
-    const allTokens = await TokenAvulso.find({ personalTrainerId }).sort({ createdAt: -1 });
+    const mongoose = (await import('mongoose')).default;
+    
+    // Try multiple search approaches to find tokens
+    const searchResults = {
+      byString: [] as any[],
+      byObjectId: [] as any[],
+      allTokensInDB: [] as any[]
+    };
+    
+    try {
+      // Search using string ID (as stored in token)
+      searchResults.byString = await TokenAvulso.find({ personalTrainerId }).sort({ createdAt: -1 });
+    } catch (e: any) {
+      console.log('🐛 DEBUG: Search by string failed:', e.message);
+    }
+    
+    try {
+      // Search using ObjectId
+      const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+      searchResults.byObjectId = await TokenAvulso.find({ personalTrainerId: objectId }).sort({ createdAt: -1 });
+    } catch (e: any) {
+      console.log('🐛 DEBUG: Search by ObjectId failed:', e.message);
+    }
+    
+    try {
+      // Get all tokens in database to see what exists
+      searchResults.allTokensInDB = await TokenAvulso.find({}).limit(20).sort({ createdAt: -1 });
+    } catch (e: any) {
+      console.log('🐛 DEBUG: Get all tokens failed:', e.message);
+    }
     
     const now = new Date();
+    const allTokens = searchResults.byString.length > 0 ? searchResults.byString : searchResults.byObjectId;
+    
     const activeTokens = allTokens.filter(token => 
       token.ativo === true && 
       token.dataVencimento && 
@@ -137,13 +168,32 @@ router.get('/debug-tokens', async (req: Request, res: Response, next: NextFuncti
     
     res.json({
       personalTrainerId,
+      personalTrainerIdType: typeof personalTrainerId,
       currentTime: now.toISOString(),
+      searchResults: {
+        byStringCount: searchResults.byString.length,
+        byObjectIdCount: searchResults.byObjectId.length,
+        allTokensInDBCount: searchResults.allTokensInDB.length
+      },
       allTokensCount: allTokens.length,
       activeTokensCount: activeTokens.length,
       totalActiveQuantity,
       serviceCalculatedCount: serviceCount,
+      allTokensInDB: searchResults.allTokensInDB.map(token => ({
+        id: token._id,
+        personalTrainerId: token.personalTrainerId,
+        personalTrainerIdType: typeof token.personalTrainerId,
+        quantidade: token.quantidade,
+        ativo: token.ativo,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        isExpired: token.dataVencimento ? token.dataVencimento <= now : true,
+        createdAt: token.createdAt?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      })),
       allTokens: allTokens.map(token => ({
         id: token._id,
+        personalTrainerId: token.personalTrainerId,
+        personalTrainerIdType: typeof token.personalTrainerId,
         quantidade: token.quantidade,
         ativo: token.ativo,
         dataVencimento: token.dataVencimento?.toISOString(),

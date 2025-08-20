@@ -70,15 +70,39 @@ export class PlanoService {
             console.log(`🔍 Buscando tokens para personalTrainerId: ${personalTrainerId}`);
             console.log(`🔍 Data atual: ${now.toISOString()}`);
 
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: now }
-            });
+            // Try both string and ObjectId search approaches
+            let tokens: any[] = [];
+            
+            try {
+                // First, try with the string ID as-is
+                tokens = await TokenAvulso.find({
+                    personalTrainerId,
+                    ativo: true,
+                    dataVencimento: { $gt: now }
+                });
+                console.log(`🔍 Tokens encontrados (busca por string): ${tokens.length}`);
+            } catch (error: any) {
+                console.log(`🔍 Busca por string falhou: ${error.message}`);
+            }
+
+            // If no tokens found with string, try with ObjectId
+            if (tokens.length === 0) {
+                try {
+                    const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+                    tokens = await TokenAvulso.find({
+                        personalTrainerId: objectId,
+                        ativo: true,
+                        dataVencimento: { $gt: now }
+                    });
+                    console.log(`🔍 Tokens encontrados (busca por ObjectId): ${tokens.length}`);
+                } catch (error: any) {
+                    console.log(`🔍 Busca por ObjectId falhou: ${error.message}`);
+                }
+            }
 
             console.log(`🔍 Tokens encontrados: ${tokens.length}`);
             tokens.forEach((token, index) => {
-                console.log(`🔍 Token ${index + 1}: quantidade=${token.quantidade}, vencimento=${token.dataVencimento?.toISOString()}, ativo=${token.ativo}`);
+                console.log(`🔍 Token ${index + 1}: id=${token._id}, personalTrainerId=${token.personalTrainerId}, quantidade=${token.quantidade}, vencimento=${token.dataVencimento?.toISOString()}, ativo=${token.ativo}`);
             });
 
             const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
