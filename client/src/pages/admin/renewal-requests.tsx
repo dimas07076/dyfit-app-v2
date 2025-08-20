@@ -57,6 +57,11 @@ interface AdminRenewalRequest {
   proofUploadedAt?: string;
   paymentDecisionAt?: string;
   paymentDecisionNote?: string;
+  // Campos derivados opcionais do backend
+  requestKind?: 'PLAN' | 'TOKEN';
+  requestLabel?: string;
+  requestBadge?: string;
+  requestDescription?: string;
 }
 
 function statusLabel(status: string) {
@@ -190,7 +195,30 @@ export default function AdminRenewalRequests() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p><strong>Plano solicitado:</strong> {req.planIdRequested?.nome || "Manter categoria"}</p>
+                {/* Exibição melhorada do tipo de solicitação */}
+                <div>
+                  <strong>Plano solicitado:</strong>{" "}
+                  <span className="inline-flex items-center gap-2">
+                    {/* Label principal */}
+                    <span>
+                      {req.requestLabel ?? 
+                       req.planIdRequested?.nome ?? 
+                       (!req.planIdRequested ? "Token avulso (30 dias)" : "—")}
+                    </span>
+                    {/* Badge do tipo */}
+                    <Badge variant={!req.planIdRequested ? "default" : "secondary"} className="text-xs">
+                      {req.requestBadge ?? 
+                       (!req.planIdRequested ? "Token" : "Plano")}
+                    </Badge>
+                  </span>
+                  {/* Descrição adicional para tokens */}
+                  {(!req.planIdRequested || req.requestDescription) && (
+                    <div className="text-muted-foreground text-xs mt-1">
+                      {req.requestDescription ?? 
+                       (!req.planIdRequested ? "Crédito de 1 token com validade de 30 dias" : "")}
+                    </div>
+                  )}
+                </div>
                 
                 {(req.status === RStatus.REQUESTED || req.status === RStatus.PENDING) && (
                   <div className="mt-4 pt-4 border-t space-y-2">

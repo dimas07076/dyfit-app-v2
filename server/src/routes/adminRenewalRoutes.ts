@@ -43,7 +43,16 @@ router.get('/', async (req, res, next) => {
       .limit(lim)
       .lean();
 
-    res.json(requests);
+    // Enriquecer resposta com campos derivados para melhor exibição no admin
+    const enrichedRequests = requests.map(doc => ({
+      ...doc,
+      requestKind: doc.planIdRequested ? 'PLAN' : 'TOKEN',
+      requestLabel: (doc.planIdRequested as any)?.nome ?? 'Token avulso (30 dias)',
+      requestBadge: doc.planIdRequested ? 'Plano' : 'Token',
+      requestDescription: doc.planIdRequested ? undefined : 'Crédito de 1 token com validade de 30 dias',
+    }));
+
+    res.json(enrichedRequests);
   } catch (error) {
     console.error('[AdminRenewal] Erro ao listar solicitações:', error);
     next(error);
@@ -128,8 +137,9 @@ router.put('/:id/payment-link', async (req, res, next) => {
 
 /**
  * PUT /api/admin/renewal-requests/:id/approve
- * Aprova uma solicitação e ATIVA o novo plano do personal.
- * O personal então precisará finalizar o ciclo de alunos.
+ * Aprova uma solicitação de renovação (plano ou token).
+ * Para planos: ativa o novo plano e o personal precisará finalizar o ciclo.
+ * Para tokens: adiciona 1 token com validade de 30 dias.
  * Body (opcional): { customDuration?: number, motivo?: string }
  */
 router.put('/:id/approve', async (req, res, next) => {
@@ -150,36 +160,58 @@ router.put('/:id/approve', async (req, res, next) => {
       });
     }
 
-    const planId = request.planIdRequested?.toString();
-    if (!planId) {
-      return res.status(400).json({ mensagem: 'Plano solicitado não foi encontrado na solicitação.', code: 'MISSING_PLAN_ID' });
-    }
+    const adminId = (req as any).user.id;
+    let responseData: any = {};
 
-    const plano = await Plano.findById(planId);
-    if (!plano) {
-      return res.status(400).json({ mensagem: 'O plano solicitado não existe mais no sistema.', code: 'PLAN_NOT_FOUND' });
-    }
+    // Verifica se é uma solicitação de token (sem planIdRequested) ou de plano
+    if (!request.planIdRequested) {
+      // Solicitação de TOKEN AVULSO
+      const newToken = await PlanoService.addTokensToPersonal(
+        request.personalTrainerId.toString(),
+        1, // 1 token
+        adminId,
+        customDuration || 30, // 30 dias por padrão
+        motivo || 'Token avulso aprovado via solicitação de renovação'
+      );
 
-    // Atribui o novo plano (isso desativa o antigo)
-    const newPersonalPlano = await PlanoService.assignPlanToPersonal(
-      request.personalTrainerId.toString(),
-      planId,
-      (req as any).user.id,
-      customDuration,
-      motivo || 'Renovação de plano aprovada'
-    );
+      responseData = {
+        message: "Token avulso adicionado com sucesso!",
+        request,
+        newToken,
+        type: 'token'
+      };
+    } else {
+      // Solicitação de PLANO
+      const planId = request.planIdRequested.toString();
+      const plano = await Plano.findById(planId);
+      if (!plano) {
+        return res.status(400).json({ mensagem: 'O plano solicitado não existe mais no sistema.', code: 'PLAN_NOT_FOUND' });
+      }
+
+      // Atribui o novo plano (isso desativa o antigo)
+      const newPersonalPlano = await PlanoService.assignPlanToPersonal(
+        request.personalTrainerId.toString(),
+        planId,
+        adminId,
+        customDuration,
+        motivo || 'Renovação de plano aprovada'
+      );
+
+      responseData = {
+        message: "Plano renovado e ativado com sucesso. Aguardando o personal definir o ciclo de alunos.",
+        request,
+        newPersonalPlano,
+        type: 'plan'
+      };
+    }
 
     // Atualiza o status da solicitação para indicar que foi aprovada
     request.status = RStatus.APPROVED;
     request.paymentDecisionAt = new Date();
-    request.adminId = new mongoose.Types.ObjectId((req as any).user.id);
+    request.adminId = new mongoose.Types.ObjectId(adminId);
     await request.save();
 
-    res.json({
-      message: "Plano renovado e ativado com sucesso. Aguardando o personal definir o ciclo de alunos.",
-      request,
-      newPersonalPlano,
-    });
+    res.json(responseData);
   } catch (error) {
     next(error);
   }
