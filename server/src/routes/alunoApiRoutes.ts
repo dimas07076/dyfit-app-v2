@@ -266,27 +266,21 @@ router.delete("/gerenciar/:id", authenticateToken, async (req: Request, res: Res
 
     try {
         // <<< INÍCIO DA ALTERAÇÃO >>>
-        // A lógica agora apenas muda o status para 'inactive'.
-        // Os campos de slot (slotType, slotId, etc.) são intencionalmente MANTIDOS.
-        // Isso "prende" o token ao aluno, mesmo inativo, até o fim do ciclo do plano.
-        // A vaga só será liberada na próxima renovação de ciclo.
-        const alunoInativado = await Aluno.findOneAndUpdate(
-            { _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) },
-            { 
-              $set: { status: 'inactive' }
-            },
-            { new: true }
-        ).select('-passwordHash');
+        // A lógica agora remove o aluno permanentemente do banco de dados.
+        const alunoExcluido = await Aluno.findOneAndDelete({
+            _id: new mongoose.Types.ObjectId(alunoId),
+            trainerId: new mongoose.Types.ObjectId(trainerId)
+        });
         // <<< FIM DA ALTERAÇÃO >>>
 
-        if (!alunoInativado) {
+        if (!alunoExcluido) {
             return res.status(404).json({ message: "Aluno não encontrado ou não pertence a você." });
         }
         
         res.status(200).json({
-            // Mensagem ajustada para refletir a nova regra de negócio.
-            message: "Aluno marcado como inativo. A vaga permanecerá ocupada até o final do ciclo do plano.",
-            aluno: alunoInativado
+            // Mensagem ajustada para refletir a exclusão.
+            message: `Aluno '${alunoExcluido.nome}' excluído com sucesso. A vaga ocupada será liberada no próximo ciclo de renovação.`,
+            aluno: alunoExcluido
         });
     } catch (error) {
         next(error);
