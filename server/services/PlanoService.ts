@@ -70,33 +70,31 @@ export class PlanoService {
             console.log(`🔍 Buscando tokens para personalTrainerId: ${personalTrainerId}`);
             console.log(`🔍 Data atual: ${now.toISOString()}`);
 
-            // Try both string and ObjectId search approaches
+            // Since TokenAvulso model expects ObjectId, convert string to ObjectId
             let tokens: any[] = [];
             
             try {
-                // First, try with the string ID as-is
+                // Primary approach: Convert string ID to ObjectId (this is what the schema expects)
+                const objectId = new mongoose.Types.ObjectId(personalTrainerId);
                 tokens = await TokenAvulso.find({
-                    personalTrainerId,
+                    personalTrainerId: objectId,
                     ativo: true,
                     dataVencimento: { $gt: now }
                 });
-                console.log(`🔍 Tokens encontrados (busca por string): ${tokens.length}`);
+                console.log(`🔍 Tokens encontrados (busca por ObjectId): ${tokens.length}`);
             } catch (error: any) {
-                console.log(`🔍 Busca por string falhou: ${error.message}`);
-            }
-
-            // If no tokens found with string, try with ObjectId
-            if (tokens.length === 0) {
+                console.log(`🔍 Busca por ObjectId falhou: ${error.message}`);
+                
+                // Fallback: try with string ID in case some tokens were stored incorrectly
                 try {
-                    const objectId = new mongoose.Types.ObjectId(personalTrainerId);
                     tokens = await TokenAvulso.find({
-                        personalTrainerId: objectId,
+                        personalTrainerId,
                         ativo: true,
                         dataVencimento: { $gt: now }
                     });
-                    console.log(`🔍 Tokens encontrados (busca por ObjectId): ${tokens.length}`);
-                } catch (error: any) {
-                    console.log(`🔍 Busca por ObjectId falhou: ${error.message}`);
+                    console.log(`🔍 Tokens encontrados (busca por string fallback): ${tokens.length}`);
+                } catch (fallbackError: any) {
+                    console.log(`🔍 Busca por string fallback também falhou: ${fallbackError.message}`);
                 }
             }
 

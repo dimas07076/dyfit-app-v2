@@ -127,21 +127,27 @@ router.get('/debug-tokens', async (req: Request, res: Response, next: NextFuncti
     const searchResults = {
       byString: [] as any[],
       byObjectId: [] as any[],
-      allTokensInDB: [] as any[]
+      allTokensInDB: [] as any[],
+      stringSearchError: null as string | null,
+      objectIdSearchError: null as string | null
     };
     
     try {
-      // Search using string ID (as stored in token)
+      // Search using string ID (incorrect but test anyway)
       searchResults.byString = await TokenAvulso.find({ personalTrainerId }).sort({ createdAt: -1 });
+      console.log('🐛 DEBUG: Search by string succeeded');
     } catch (e: any) {
+      searchResults.stringSearchError = e.message;
       console.log('🐛 DEBUG: Search by string failed:', e.message);
     }
     
     try {
-      // Search using ObjectId
+      // Search using ObjectId (correct approach for this schema)
       const objectId = new mongoose.Types.ObjectId(personalTrainerId);
       searchResults.byObjectId = await TokenAvulso.find({ personalTrainerId: objectId }).sort({ createdAt: -1 });
+      console.log('🐛 DEBUG: Search by ObjectId succeeded');
     } catch (e: any) {
+      searchResults.objectIdSearchError = e.message;
       console.log('🐛 DEBUG: Search by ObjectId failed:', e.message);
     }
     
@@ -173,7 +179,10 @@ router.get('/debug-tokens', async (req: Request, res: Response, next: NextFuncti
       searchResults: {
         byStringCount: searchResults.byString.length,
         byObjectIdCount: searchResults.byObjectId.length,
-        allTokensInDBCount: searchResults.allTokensInDB.length
+        allTokensInDBCount: searchResults.allTokensInDB.length,
+        stringSearchError: searchResults.stringSearchError,
+        objectIdSearchError: searchResults.objectIdSearchError,
+        recommendedApproach: 'ObjectId (since schema expects ObjectId type)'
       },
       allTokensCount: allTokens.length,
       activeTokensCount: activeTokens.length,
