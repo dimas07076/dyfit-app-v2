@@ -43,7 +43,16 @@ router.get('/', async (req, res, next) => {
       .limit(lim)
       .lean();
 
-    res.json(requests);
+    // Enriquecer resposta com campos derivados para melhor exibição no admin
+    const enrichedRequests = requests.map(doc => ({
+      ...doc,
+      requestKind: doc.planIdRequested ? 'PLAN' : 'TOKEN',
+      requestLabel: (doc.planIdRequested as any)?.nome ?? 'Token avulso (30 dias)',
+      requestBadge: doc.planIdRequested ? 'Plano' : 'Token',
+      requestDescription: doc.planIdRequested ? undefined : 'Crédito de 1 token com validade de 30 dias',
+    }));
+
+    res.json(enrichedRequests);
   } catch (error) {
     console.error('[AdminRenewal] Erro ao listar solicitações:', error);
     next(error);
