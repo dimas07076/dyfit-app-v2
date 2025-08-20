@@ -68,7 +68,7 @@ export default function MeuPlano() {
       if (!trainerId) throw new Error("Trainer ID não encontrado para buscar tokens.");
       return apiRequest<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string }> }>("GET", "/api/personal/meus-tokens");
     },
-    enabled: !!trainerId && !!planStatus && (planStatus.tokensAvulsos ?? 0) > 0,
+    enabled: !!trainerId && !!planStatus,
     retry: 2,
   });
 
@@ -402,7 +402,7 @@ export default function MeuPlano() {
         )}
 
         {/* Card de Tokens Avulsos Detalhados */}
-        {tokens > 0 && tokensData && tokensData.tokens && tokensData.tokens.length > 0 && (
+        {tokensData && tokensData.tokens && tokensData.tokens.length > 0 && (
           <Card className="bg-white shadow-md border border-amber-200 mb-6">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -410,7 +410,7 @@ export default function MeuPlano() {
                 Meus Tokens Avulsos
               </CardTitle>
               <p className="text-sm text-gray-600">
-                Detalhes dos seus tokens ativos para ampliação de capacidade
+                Histórico completo dos seus tokens para ampliação de capacidade
               </p>
             </CardHeader>
             <CardContent>
@@ -421,15 +421,41 @@ export default function MeuPlano() {
                   const hoje = new Date();
                   const diasRestantes = Math.ceil((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
                   
+                  // Determinar se o token está sendo usado
+                  const tokenIndex = index;
+                  const isTokenUsado = tokenIndex < tokensUsados;
+                  const isTokenVencido = diasRestantes <= 0;
+                  
+                  let statusToken, statusColor, statusBg;
+                  if (isTokenVencido) {
+                    statusToken = "Vencido";
+                    statusColor = "text-red-600";
+                    statusBg = "bg-red-50 border-red-200";
+                  } else if (isTokenUsado) {
+                    statusToken = "Em Uso";
+                    statusColor = "text-amber-600";
+                    statusBg = "bg-amber-50 border-amber-200";
+                  } else {
+                    statusToken = "Disponível";
+                    statusColor = "text-green-600";
+                    statusBg = "bg-green-50 border-green-200";
+                  }
+                  
                   return (
                     <div 
                       key={token.id} 
-                      className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3"
+                      className={`${statusBg} border rounded-lg p-4 space-y-3`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-amber-600" />
-                          <span className="font-semibold text-amber-800">Token #{index + 1}</span>
+                          <Zap className={`w-4 h-4 ${isTokenUsado ? 'text-amber-600' : isTokenVencido ? 'text-red-600' : 'text-green-600'}`} />
+                          <span className="font-semibold text-gray-800">Token #{index + 1}</span>
+                          <Badge 
+                            variant={isTokenVencido ? "destructive" : isTokenUsado ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {statusToken}
+                          </Badge>
                         </div>
                         <Badge 
                           variant={diasRestantes <= 7 ? "destructive" : diasRestantes <= 15 ? "default" : "secondary"}
@@ -462,18 +488,28 @@ export default function MeuPlano() {
                           <p className="font-semibold text-gray-800">{dataVencimento.toLocaleDateString('pt-BR')}</p>
                         </div>
                         <div>
-                          <span className="text-gray-600">Status:</span>
-                          <p className={`font-semibold ${diasRestantes > 15 ? 'text-green-600' : diasRestantes > 7 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {diasRestantes > 15 ? 'Ativo' : diasRestantes > 7 ? 'Expira em breve' : diasRestantes > 0 ? 'Crítico' : 'Vencido'}
+                          <span className="text-gray-600">Status de Uso:</span>
+                          <p className={`font-semibold ${statusColor}`}>
+                            {statusToken}
                           </p>
                         </div>
                       </div>
                       
-                      {/* Placeholder para aluno associado - será implementado em seguida */}
-                      <div className="border-t border-amber-200 pt-3">
-                        <span className="text-xs text-gray-500">
-                          💡 Token sendo usado para ampliar sua capacidade de {limitePlano} para {capacidadeTotal} alunos
-                        </span>
+                      {/* Informação contextual sobre o uso do token */}
+                      <div className="border-t pt-3">
+                        {isTokenVencido ? (
+                          <span className="text-xs text-red-600">
+                            ⚠️ Token vencido e não pode mais ser utilizado
+                          </span>
+                        ) : isTokenUsado ? (
+                          <span className="text-xs text-amber-700">
+                            🔋 Token sendo usado para ampliar capacidade (aluno #{limitePlano + tokenIndex + 1})
+                          </span>
+                        ) : (
+                          <span className="text-xs text-green-700">
+                            💡 Token disponível para uso quando necessário
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
