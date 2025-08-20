@@ -115,7 +115,14 @@ export default function MeuPlano() {
   const tokens = tokensAvulsos ?? 0;
 
   const capacidadeTotal = Math.max(0, limitePlano) + Math.max(0, tokens);
-  const slotsRestantes = Math.max(0, (limitePlano - alunosAtivosCalc)) + Math.max(0, tokens);
+  
+  // Uso de tokens
+  const tokensUsados = Math.min(Math.max(0, alunosAtivosCalc - limitePlano), Math.max(0, tokens));
+  const tokensRestantes = Math.max(0, tokens - tokensUsados);
+  
+  // Slots restantes
+  const slotsPlanoRestantes = Math.max(0, limitePlano - alunosAtivosCalc);
+  const slotsTotaisRestantes = slotsPlanoRestantes + tokensRestantes;
 
   // Progresso: ocupação sobre a capacidade total potencial
   const progresso = capacidadeTotal > 0
@@ -125,30 +132,31 @@ export default function MeuPlano() {
   const displayPercentualUso = percentualUso ?? 0;
 
   const getStatusInfo = () => {
-    if (progresso >= 90) {
+    // Nova regra de estado conforme especificação
+    if (alunosAtivosCalc > capacidadeTotal) {
       return {
         variant: 'destructive' as const,
         icon: AlertTriangle,
-        text: 'Crítico',
+        text: 'Extrapolado',
         color: 'text-red-600',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200'
       };
     }
-    if (progresso >= 70) {
+    if (alunosAtivosCalc > limitePlano && tokens > 0) {
       return {
         variant: 'default' as const,
-        icon: Clock,
-        text: 'Atenção',
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200'
+        icon: Zap,
+        text: 'Usando Tokens',
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-amber-200'
       };
     }
     return {
       variant: 'secondary' as const,
       icon: CheckCircle,
-      text: 'Normal',
+      text: 'Dentro do Limite',
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200'
@@ -230,7 +238,7 @@ export default function MeuPlano() {
                   <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
                 <p className="text-sm text-gray-600 mb-1">Disponível</p>
-                <p className="text-2xl font-bold text-gray-800">{slotsRestantes}</p>
+                <p className="text-2xl font-bold text-gray-800">{slotsTotaisRestantes}</p>
               </div>
 
               {tokens > 0 && (
@@ -259,7 +267,7 @@ export default function MeuPlano() {
               </div>
             </div>
 
-            {/* Novas linhas conforme especificação */}
+            {/* Seção de métricas detalhadas conforme especificação */}
             <div className="bg-white/50 p-4 rounded-xl space-y-3">
               <div className="text-sm">
                 <div className="flex justify-between items-center">
@@ -285,10 +293,26 @@ export default function MeuPlano() {
                   <span className="font-semibold text-sky-600">{capacidadeTotal}</span>
                 </div>
               </div>
+              {tokensUsados > 0 && (
+                <div className="text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Usando tokens:</span>
+                    <span className="font-semibold text-amber-600">{tokensUsados}</span>
+                  </div>
+                </div>
+              )}
+              {tokens > 0 && (
+                <div className="text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Tokens restantes:</span>
+                    <span className="font-semibold text-gray-800">{tokensRestantes}</span>
+                  </div>
+                </div>
+              )}
               <div className="text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Slots restantes:</span>
-                  <span className="font-semibold text-green-600">{slotsRestantes}</span>
+                  <span className="text-gray-600">Slots restantes (total):</span>
+                  <span className="font-semibold text-green-600">{slotsTotaisRestantes}</span>
                 </div>
               </div>
               
@@ -396,13 +420,13 @@ export default function MeuPlano() {
           </Card>
         )}
 
-        {!podeAtivarMais && capacidadeTotal > 0 && (
+        {!podeAtivarMais && alunosAtivosCalc >= capacidadeTotal && (
           <Card className="bg-red-50 border-red-200 border-2">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-red-800">
                 <AlertTriangle className="w-5 h-5" />
                 <span className="font-medium">
-                  Limite de alunos atingido. Faça upgrade para adicionar mais alunos.
+                  Capacidade total atingida. Faça upgrade para adicionar mais alunos.
                 </span>
               </div>
             </CardContent>
