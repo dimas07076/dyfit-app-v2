@@ -5,6 +5,9 @@ import PersonalTrainer from '../../models/PersonalTrainer.js';
 import { authenticateToken } from '../../middlewares/authenticateToken.js';
 import { authorizeAdmin } from '../../middlewares/authorizeAdmin.js';
 import dbConnect from '../../lib/dbConnect.js';
+import Aluno from '../../models/Aluno.js'; // <<< ADICIONADO
+import PersonalPlano from '../../models/PersonalPlano.js'; // <<< ADICIONADO
+import mongoose from 'mongoose'; // <<< ADICIONADO
 
 const router = express.Router();
 
@@ -256,7 +259,7 @@ router.get('/personal-trainers', async (req, res) => {
                         percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
                         hasActivePlan: !!(status.plano && status.plano.nome && !status.isExpired),
                         isExpired: status.isExpired, // New field for expiration status
-                        dataInicio: dataInicio, // Plan start date (preserved when expired)
+                        dataInicio: dataInicio, // Plan start date (preserved even when expired)
                         dataVencimento: dataVencimento, // Plan expiration date (preserved when expired)
                         planDetails: (status.plano && status.plano.nome) ? {
                             id: status.plano._id,
@@ -307,6 +310,74 @@ router.get('/personal-trainers', async (req, res) => {
         });
     }
 });
+
+// <<< INÍCIO DA NOVA ROTA >>>
+/**
+ * DELETE /api/admin/personal/:personalId/plan - Remove/deactivate the current plan
+ */
+router.delete('/personal/:personalId/plan', async (req, res, next) => {
+    await dbConnect();
+    const { personalId } = req.params;
+    const adminId = (req as any).user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(personalId)) {
+        return res.status(400).json({ message: "ID do personal inválido." });
+    }
+
+    const session = await mongoose.startSession();
+    try {
+        await session.withTransaction(async () => {
+            const personalObjectId = new mongoose.Types.ObjectId(personalId);
+
+            // 1. Desativar o plano atual do personal
+            const activePlan = await PersonalPlano.findOneAndUpdate(
+                { personalTrainerId: personalObjectId, ativo: true },
+                { $set: { ativo: false } },
+                { session }
+            );
+
+            if (!activePlan) {
+                // Se não houver plano ativo, a operação pode ser considerada bem-sucedida.
+                console.log(`[Remove Plan] Nenhum plano ativo encontrado para o personal ${personalId}. Nenhuma ação necessária.`);
+                return; // Sai da transação
+            }
+
+            // 2. Atualizar o registro principal do PersonalTrainer
+            await PersonalTrainer.updateOne(
+                { _id: personalObjectId },
+                {
+                    $set: {
+                        statusAssinatura: 'sem_assinatura',
+                        planoId: null,
+                        limiteAlunos: 0,
+                        dataFimAssinatura: new Date(), // Marca a data de fim como agora
+                    }
+                },
+                { session }
+            );
+
+            // 3. Inativar todos os alunos ativos do personal e limpar seus slots
+            await Aluno.updateMany(
+                { trainerId: personalObjectId, status: 'active' },
+                {
+                    $set: { status: 'inactive' },
+                    $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+                },
+                { session }
+            );
+
+        });
+
+        res.status(200).json({ message: "Plano removido e todos os alunos foram inativados com sucesso." });
+
+    } catch (error) {
+        console.error(`[Remove Plan] Erro ao remover plano do personal ${personalId}:`, error);
+        next(error);
+    } finally {
+        await session.endSession();
+    }
+});
+// <<< FIM DA NOVA ROTA >>>
 
 /**
  * POST /api/admin/cleanup-expired - Cleanup expired plans and tokens
