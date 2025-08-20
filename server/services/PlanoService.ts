@@ -65,13 +65,46 @@ export class PlanoService {
                 return 0;
             }
 
-            const tokens = await TokenAvulso.find({
-                personalTrainerId,
-                ativo: true,
-                dataVencimento: { $gt: new Date() }
+            // Debug: log the search criteria
+            const now = new Date();
+            console.log(`🔍 Buscando tokens para personalTrainerId: ${personalTrainerId}`);
+            console.log(`🔍 Data atual: ${now.toISOString()}`);
+
+            // Since TokenAvulso model expects ObjectId, convert string to ObjectId
+            let tokens: any[] = [];
+            
+            try {
+                // Primary approach: Convert string ID to ObjectId (this is what the schema expects)
+                const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+                tokens = await TokenAvulso.find({
+                    personalTrainerId: objectId,
+                    ativo: true,
+                    dataVencimento: { $gt: now }
+                });
+                console.log(`🔍 Tokens encontrados (busca por ObjectId): ${tokens.length}`);
+            } catch (error: any) {
+                console.log(`🔍 Busca por ObjectId falhou: ${error.message}`);
+                
+                // Fallback: try with string ID in case some tokens were stored incorrectly
+                try {
+                    tokens = await TokenAvulso.find({
+                        personalTrainerId,
+                        ativo: true,
+                        dataVencimento: { $gt: now }
+                    });
+                    console.log(`🔍 Tokens encontrados (busca por string fallback): ${tokens.length}`);
+                } catch (fallbackError: any) {
+                    console.log(`🔍 Busca por string fallback também falhou: ${fallbackError.message}`);
+                }
+            }
+
+            console.log(`🔍 Tokens encontrados: ${tokens.length}`);
+            tokens.forEach((token, index) => {
+                console.log(`🔍 Token ${index + 1}: id=${token._id}, personalTrainerId=${token.personalTrainerId}, quantidade=${token.quantidade}, vencimento=${token.dataVencimento?.toISOString()}, ativo=${token.ativo}`);
             });
 
             const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            console.log(`🔍 Total de tokens ativos: ${total}`);
             return total;
         } catch (error) {
             console.error('❌ Erro ao buscar tokens avulsos ativos:', error);
@@ -312,31 +345,65 @@ export class PlanoService {
         totalActiveQuantity: number;
     }> {
         try {
+            console.log(`🔍 [DETAILED-TOKENS] Iniciando busca para personalTrainerId: ${personalTrainerId}`);
+            
             const now = new Date();
             const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-            const [activeTokens, expiredTokens] = await Promise.all([
-                TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $gt: now }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: 1 }),
-                TokenAvulso.find({
-                    personalTrainerId,
-                    ativo: true,
-                    dataVencimento: { $lte: now, $gte: thirtyDaysAgo }
-                }).populate('adicionadoPorAdmin', 'nome').sort({ dataVencimento: -1 })
-            ]);
+            // Converter personalTrainerId para ObjectId se necessário para busca correta
+            let searchCriteria: any;
+            try {
+                const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+                searchCriteria = { personalTrainerId: objectId };
+                console.log(`🔍 [DETAILED-TOKENS] Usando ObjectId: ${objectId}`);
+            } catch {
+                // Fallback para string se ObjectId conversion falhar
+                searchCriteria = { personalTrainerId };
+                console.log(`🔍 [DETAILED-TOKENS] Usando string: ${personalTrainerId}`);
+            }
+
+            // Buscar TODOS os tokens (incluindo consumidos/inativos) para transparência total
+            const allTokens = await TokenAvulso.find(searchCriteria)
+                .populate('adicionadoPorAdmin', 'nome')
+                .sort({ dataVencimento: -1 });
+
+            console.log(`🔍 [DETAILED-TOKENS] Found ${allTokens.length} total tokens for personal ${personalTrainerId}`);
+            
+            // Log each token found
+            allTokens.forEach((token, index) => {
+                console.log(`🔍 [DETAILED-TOKENS] Token ${index + 1}: id=${token._id}, ativo=${token.ativo}, vencimento=${token.dataVencimento?.toISOString()}, quantidade=${token.quantidade}`);
+            });
+
+            // Separar tokens por status para o frontend
+            const activeTokens = allTokens.filter(token => 
+                token.ativo === true && token.dataVencimento && token.dataVencimento > now
+            );
+
+            const expiredTokens = allTokens.filter(token => 
+                token.dataVencimento && token.dataVencimento <= now && token.dataVencimento >= thirtyDaysAgo
+            );
+
+            // Tokens consumidos/inativos (incluindo os que foram marcados como ativo: false)
+            const consumedTokens = allTokens.filter(token => 
+                token.ativo === false
+            );
+
+            console.log(`🔍 [DETAILED-TOKENS] Active: ${activeTokens.length}, Expired: ${expiredTokens.length}, Consumed: ${consumedTokens.length}`);
+
+            // Combinar expired e consumed para mostrar histórico completo
+            const historicalTokens = [...expiredTokens, ...consumedTokens];
 
             const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + token.quantidade, 0);
 
+            console.log(`🔍 [DETAILED-TOKENS] Final result - Active: ${activeTokens.length}, Historical: ${historicalTokens.length}, Total Active Quantity: ${totalActiveQuantity}`);
+
             return {
                 activeTokens,
-                expiredTokens,
+                expiredTokens: historicalTokens, // Incluir todos os tokens históricos (expirados + consumidos)
                 totalActiveQuantity
             };
         } catch (error) {
-            console.error('❌ Erro ao buscar tokens detalhados:', error);
+            console.error('❌ [DETAILED-TOKENS] Erro ao buscar tokens detalhados:', error);
             return {
                 activeTokens: [],
                 expiredTokens: [],

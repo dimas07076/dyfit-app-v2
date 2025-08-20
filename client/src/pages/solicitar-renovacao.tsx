@@ -48,6 +48,7 @@ interface RenewalRequest {
   _id: string;
   status: RenewalStatus;
   planIdRequested?: { nome?: string; } | null;
+  isTokenRequest?: boolean; // Add this field to track token requests
   createdAt?: string;
   notes?: string;
   paymentLink?: string;
@@ -407,8 +408,20 @@ export default function SolicitarRenovacaoPage() {
               <Card key={req._id} className="bg-muted/50">
                  <CardHeader>
                    <div className="flex justify-between items-center">
-                      <CardTitle className="text-base font-semibold">
-                        Plano: {req.planIdRequested?.nome || 'N/A'}
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        {req.isTokenRequest ? (
+                          <>
+                            <Zap className="w-4 h-4 text-amber-600" />
+                            Token Avulso
+                          </>
+                        ) : req.planIdRequested?.nome ? (
+                          <>Plano: {req.planIdRequested.nome}</>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4 text-amber-600" />
+                            Token Avulso
+                          </>
+                        )}
                       </CardTitle>
                       <Badge variant={req.status === RStatus.REJECTED ? 'destructive' : 'default'}>
                         {statusLabel(req.status)}

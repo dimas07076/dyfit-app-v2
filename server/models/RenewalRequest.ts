@@ -31,6 +31,7 @@ export interface IRenewalProof {
 export interface IRenewalRequest extends Document {
   personalTrainerId: Types.ObjectId;
   planIdRequested?: Types.ObjectId;
+  isTokenRequest: boolean; // Field to explicitly track token requests
   status: RenewalStatus;
   notes?: string;
   proof?: IRenewalProof;
@@ -66,6 +67,7 @@ const ProofSchema = new Schema<IRenewalProof>({
 const RenewalRequestSchema = new Schema<IRenewalRequest>({
   personalTrainerId: { type: Schema.Types.ObjectId, ref: 'PersonalTrainer', required: true, index: true },
   planIdRequested: { type: Schema.Types.ObjectId, ref: 'Plano' },
+  isTokenRequest: { type: Boolean, default: false, index: true }, // Field to track token requests
   status: { 
     type: String, 
     enum: Object.values(RStatus), 

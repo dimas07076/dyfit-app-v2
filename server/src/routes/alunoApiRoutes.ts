@@ -143,7 +143,9 @@ router.post("/gerenciar", authenticateToken, checkLimiteAlunos, async (req: Requ
                 token.quantidade -= 1;
                 await token.save({ session });
             } else {
-                await TokenAvulso.deleteOne({ _id: token._id }).session(session);
+                // Marcar token como inativo ao invés de deletar para manter histórico
+                token.ativo = false;
+                await token.save({ session });
             }
         }
         

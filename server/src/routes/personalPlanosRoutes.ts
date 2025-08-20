@@ -20,7 +20,11 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    console.log(`🔍 API /meu-plano chamada para personalTrainerId: ${personalTrainerId}`);
+    
     const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+
+    console.log(`🔍 Status retornado: limiteAtual=${status.limiteAtual}, alunosAtivos=${status.alunosAtivos}, tokensAvulsos=${status.tokensAvulsos}`);
 
     // Adiciona uma verificação para retornar 404 se não houver plano,
     // o que é esperado para novos usuários e tratado pelo frontend.
@@ -31,7 +35,7 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
       });
     }
 
-    res.json({
+    const response = {
       plano: status.plano,
       personalPlano: status.personalPlano,
       limiteAtual: status.limiteAtual,
@@ -40,7 +44,10 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
       percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
       podeAtivarMais: status.limiteAtual > status.alunosAtivos,
       vagasDisponiveis: status.limiteAtual - status.alunosAtivos
-    });
+    };
+
+    console.log(`🔍 Resposta sendo enviada:`, JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (error) {
     console.error('Erro ao consultar plano do personal:', error);
     next(error);
@@ -82,22 +89,158 @@ router.get('/tokens-ativos', async (req: Request, res: Response, next: NextFunct
 });
 
 /**
- * GET /api/personal/meus-tokens - Lista detalhes dos tokens avulsos ativos do personal
+ * GET /api/personal/meus-tokens - Lista detalhes de todos os tokens avulsos do personal (ativos, expirados, consumidos)
  */
 router.get('/meus-tokens', async (req, res, next: NextFunction) => {
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    
+    console.log(`🔍 [MEUS-TOKENS] Iniciando busca para personalTrainerId: ${personalTrainerId}`);
+    
     const detalhes = await PlanoService.getDetailedTokensForAdmin(personalTrainerId);
-    const tokens = detalhes.activeTokens.map(token => ({
+    
+    console.log(`🔍 [MEUS-TOKENS] Service retornou - activeTokens: ${detalhes.activeTokens.length}, expiredTokens: ${detalhes.expiredTokens.length}, totalActive: ${detalhes.totalActiveQuantity}`);
+    
+    // Combinar todos os tokens (ativos + expirados) para transparência total
+    const allTokens = [...detalhes.activeTokens, ...detalhes.expiredTokens];
+    
+    console.log(`🔍 [MEUS-TOKENS] Total tokens combinados: ${allTokens.length}`);
+    
+    const tokens = allTokens.map(token => ({
       id: token._id,
       quantidade: token.quantidade,
       dataAdicao: token.createdAt,
-      dataVencimento: token.dataVencimento
+      dataVencimento: token.dataVencimento,
+      ativo: token.ativo
     }));
+    
+    console.log(`🔍 [MEUS-TOKENS] Tokens mapeados:`, tokens.map(t => ({
+      id: t.id,
+      quantidade: t.quantidade,
+      ativo: t.ativo,
+      vencimento: t.dataVencimento
+    })));
+    
+    console.log(`🔍 [MEUS-TOKENS] Enviando resposta com ${tokens.length} tokens`);
+    
     res.json({ tokens });
   } catch (error) {
-    console.error('Erro ao buscar tokens do personal:', error);
+    console.error('❌ [MEUS-TOKENS] Erro ao buscar tokens do personal:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/personal/debug-tokens - Debug endpoint to check token status for troubleshooting
+ */
+router.get('/debug-tokens', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await dbConnect();
+    const personalTrainerId = (req as any).user.id;
+    
+    console.log(`🐛 DEBUG: Token debug endpoint called for ${personalTrainerId}`);
+    
+    // Get all tokens (including expired ones) for this personal trainer
+    const TokenAvulso = (await import('../../models/TokenAvulso.js')).default;
+    const mongoose = (await import('mongoose')).default;
+    
+    // Try multiple search approaches to find tokens
+    const searchResults = {
+      byString: [] as any[],
+      byObjectId: [] as any[],
+      allTokensInDB: [] as any[],
+      stringSearchError: null as string | null,
+      objectIdSearchError: null as string | null
+    };
+    
+    try {
+      // Search using string ID (incorrect but test anyway)
+      searchResults.byString = await TokenAvulso.find({ personalTrainerId }).sort({ createdAt: -1 });
+      console.log('🐛 DEBUG: Search by string succeeded');
+    } catch (e: any) {
+      searchResults.stringSearchError = e.message;
+      console.log('🐛 DEBUG: Search by string failed:', e.message);
+    }
+    
+    try {
+      // Search using ObjectId (correct approach for this schema)
+      const objectId = new mongoose.Types.ObjectId(personalTrainerId);
+      searchResults.byObjectId = await TokenAvulso.find({ personalTrainerId: objectId }).sort({ createdAt: -1 });
+      console.log('🐛 DEBUG: Search by ObjectId succeeded');
+    } catch (e: any) {
+      searchResults.objectIdSearchError = e.message;
+      console.log('🐛 DEBUG: Search by ObjectId failed:', e.message);
+    }
+    
+    try {
+      // Get all tokens in database to see what exists
+      searchResults.allTokensInDB = await TokenAvulso.find({}).limit(20).sort({ createdAt: -1 });
+    } catch (e: any) {
+      console.log('🐛 DEBUG: Get all tokens failed:', e.message);
+    }
+    
+    const now = new Date();
+    const allTokens = searchResults.byString.length > 0 ? searchResults.byString : searchResults.byObjectId;
+    
+    const activeTokens = allTokens.filter(token => 
+      token.ativo === true && 
+      token.dataVencimento && 
+      token.dataVencimento > now
+    );
+    
+    const totalActiveQuantity = activeTokens.reduce((sum, token) => sum + (token.quantidade || 0), 0);
+    
+    // Also get the official count using the service method
+    const serviceCount = await PlanoService.getTokensAvulsosAtivos(personalTrainerId);
+    
+    res.json({
+      personalTrainerId,
+      personalTrainerIdType: typeof personalTrainerId,
+      currentTime: now.toISOString(),
+      searchResults: {
+        byStringCount: searchResults.byString.length,
+        byObjectIdCount: searchResults.byObjectId.length,
+        allTokensInDBCount: searchResults.allTokensInDB.length,
+        stringSearchError: searchResults.stringSearchError,
+        objectIdSearchError: searchResults.objectIdSearchError,
+        recommendedApproach: 'ObjectId (since schema expects ObjectId type)'
+      },
+      allTokensCount: allTokens.length,
+      activeTokensCount: activeTokens.length,
+      totalActiveQuantity,
+      serviceCalculatedCount: serviceCount,
+      allTokensInDB: searchResults.allTokensInDB.map(token => ({
+        id: token._id,
+        personalTrainerId: token.personalTrainerId,
+        personalTrainerIdType: typeof token.personalTrainerId,
+        quantidade: token.quantidade,
+        ativo: token.ativo,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        isExpired: token.dataVencimento ? token.dataVencimento <= now : true,
+        createdAt: token.createdAt?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      })),
+      allTokens: allTokens.map(token => ({
+        id: token._id,
+        personalTrainerId: token.personalTrainerId,
+        personalTrainerIdType: typeof token.personalTrainerId,
+        quantidade: token.quantidade,
+        ativo: token.ativo,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        isExpired: token.dataVencimento ? token.dataVencimento <= now : true,
+        createdAt: token.createdAt?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      })),
+      activeTokens: activeTokens.map(token => ({
+        id: token._id,
+        quantidade: token.quantidade,
+        dataVencimento: token.dataVencimento?.toISOString(),
+        motivoAdicao: token.motivoAdicao
+      }))
+    });
+  } catch (error) {
+    console.error('🐛 DEBUG: Erro no endpoint de debug de tokens:', error);
     next(error);
   }
 });
