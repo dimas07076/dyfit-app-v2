@@ -65,13 +65,24 @@ export class PlanoService {
                 return 0;
             }
 
+            // Debug: log the search criteria
+            const now = new Date();
+            console.log(`🔍 Buscando tokens para personalTrainerId: ${personalTrainerId}`);
+            console.log(`🔍 Data atual: ${now.toISOString()}`);
+
             const tokens = await TokenAvulso.find({
                 personalTrainerId,
                 ativo: true,
-                dataVencimento: { $gt: new Date() }
+                dataVencimento: { $gt: now }
+            });
+
+            console.log(`🔍 Tokens encontrados: ${tokens.length}`);
+            tokens.forEach((token, index) => {
+                console.log(`🔍 Token ${index + 1}: quantidade=${token.quantidade}, vencimento=${token.dataVencimento?.toISOString()}, ativo=${token.ativo}`);
             });
 
             const total = tokens.reduce((total, token) => total + (token.quantidade || 0), 0);
+            console.log(`🔍 Total de tokens ativos: ${total}`);
             return total;
         } catch (error) {
             console.error('❌ Erro ao buscar tokens avulsos ativos:', error);

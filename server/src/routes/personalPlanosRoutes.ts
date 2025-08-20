@@ -20,7 +20,11 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
   try {
     await dbConnect();
     const personalTrainerId = (req as any).user.id;
+    console.log(`🔍 API /meu-plano chamada para personalTrainerId: ${personalTrainerId}`);
+    
     const status = await PlanoService.getPersonalCurrentPlan(personalTrainerId);
+
+    console.log(`🔍 Status retornado: limiteAtual=${status.limiteAtual}, alunosAtivos=${status.alunosAtivos}, tokensAvulsos=${status.tokensAvulsos}`);
 
     // Adiciona uma verificação para retornar 404 se não houver plano,
     // o que é esperado para novos usuários e tratado pelo frontend.
@@ -31,7 +35,7 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
       });
     }
 
-    res.json({
+    const response = {
       plano: status.plano,
       personalPlano: status.personalPlano,
       limiteAtual: status.limiteAtual,
@@ -40,7 +44,10 @@ router.get('/meu-plano', async (req: Request, res: Response, next: NextFunction)
       percentualUso: status.limiteAtual > 0 ? Math.round((status.alunosAtivos / status.limiteAtual) * 100) : 0,
       podeAtivarMais: status.limiteAtual > status.alunosAtivos,
       vagasDisponiveis: status.limiteAtual - status.alunosAtivos
-    });
+    };
+
+    console.log(`🔍 Resposta sendo enviada:`, JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (error) {
     console.error('Erro ao consultar plano do personal:', error);
     next(error);

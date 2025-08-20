@@ -97,6 +97,7 @@ router.post('/', async (req, res, next) => {
     const newRequest = new RenewalRequest({
       personalTrainerId,
       planIdRequested,
+      isTokenRequest: !!isTokenRequest, // Store the token request flag
       status: RStatus.REQUESTED,
       notes,
     });
