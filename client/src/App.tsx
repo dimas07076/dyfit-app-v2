@@ -23,6 +23,9 @@ import { fetchWithAuth } from "@/lib/apiClient";
 // Unified PWA updates manager
 import { AppUpdatesManager } from '@/components/AppUpdatesManager';
 
+// Plan gate component for route protection
+import { PlanGate } from '@/components/PlanGate';
+
 // --- Páginas ---
 const RenovarPlanoPage = React.lazy(() => import("@/pages/renovar-plano"));
 const SolicitarRenovacao = React.lazy(() => import("@/pages/solicitar-renovacao"));
@@ -343,7 +346,11 @@ function PersonalApp() {
       <Suspense fallback={<div className="flex h-full flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}> 
         <Switch> 
           <ProtectedRoute path="/" component={Dashboard} /> 
-          <ProtectedRoute path="/meu-plano" component={MeuPlanoPage} /> 
+          <Route path="/meu-plano">
+            <PlanGate requireActivePlan={true}>
+              <MeuPlanoPage />
+            </PlanGate>
+          </Route>
           <ProtectedRoute path="/renovar-plano" component={RenovarPlanoPage} />
           <ProtectedRoute path="/solicitar-renovacao" component={SolicitarRenovacao} />
           <ProtectedRoute path="/alunos" component={StudentsIndex} /> 

@@ -219,15 +219,21 @@ router.delete("/gerenciar/:id", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ erro: "ID do aluno inválido." });
     }
     try {
+        // <<< INÍCIO DA ALTERAÇÃO >>>
+        // A lógica agora apenas muda o status para 'inactive'.
+        // Os campos de slot (slotType, slotId, etc.) são intencionalmente MANTIDOS.
+        // Isso "prende" o token ao aluno, mesmo inativo, até o fim do ciclo do plano.
+        // A vaga só será liberada na próxima renovação de ciclo.
         const alunoInativado = await Aluno.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(alunoId), trainerId: new mongoose.Types.ObjectId(trainerId) }, {
-            $set: { status: 'inactive' },
-            $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" }
+            $set: { status: 'inactive' }
         }, { new: true }).select('-passwordHash');
+        // <<< FIM DA ALTERAÇÃO >>>
         if (!alunoInativado) {
             return res.status(404).json({ message: "Aluno não encontrado ou não pertence a você." });
         }
         res.status(200).json({
-            message: "Aluno marcado como inativo e vaga liberada com sucesso!",
+            // Mensagem ajustada para refletir a nova regra de negócio.
+            message: "Aluno marcado como inativo. A vaga permanecerá ocupada até o final do ciclo do plano.",
             aluno: alunoInativado
         });
     }

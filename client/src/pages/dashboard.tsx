@@ -72,7 +72,7 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
     retry: (failureCount, error: any) => {
       // Se o erro for 404 (plano não encontrado), não tenta novamente.
-      if (error.message.includes("404")) return false;
+      if (error.message.includes("404") || error.message.includes("Nenhum plano ativo ou expirado encontrado")) return false;
       return failureCount < 3;
     },
   });
@@ -102,8 +102,8 @@ export default function Dashboard() {
     return <div className="h-full"><LoadingSpinner text="Verificando seu plano..." /></div>;
   }
   
-  // Se a busca do plano der erro (exceto 404), mostra o erro.
-  if (errorPlan && !errorPlan.message.includes("404")) {
+  // Se a busca do plano der erro (exceto 404 ou plano não encontrado), mostra o erro.
+  if (errorPlan && !errorPlan.message.includes("404") && !errorPlan.message.includes("Nenhum plano ativo ou expirado encontrado")) {
     return <ErrorMessage title="Erro ao Carregar seu Plano" message={errorPlan.message} />;
   }
 
