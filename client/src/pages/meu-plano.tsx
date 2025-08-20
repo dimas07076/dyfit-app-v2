@@ -57,6 +57,21 @@ export default function MeuPlano() {
     },
   });
 
+  // Query para buscar detalhes dos tokens
+  const {
+    data: tokensData,
+    isLoading: isLoadingTokens,
+    error: errorTokens
+  } = useQuery<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string }> }, Error>({
+    queryKey: ["detailedTokens", trainerId],
+    queryFn: async () => {
+      if (!trainerId) throw new Error("Trainer ID não encontrado para buscar tokens.");
+      return apiRequest<{ tokens: Array<{ id: string; quantidade: number; dataAdicao: string; dataVencimento: string }> }>("GET", "/api/personal/meus-tokens");
+    },
+    enabled: !!trainerId && !!planStatus && (planStatus.tokensAvulsos ?? 0) > 0,
+    retry: 2,
+  });
+
   useEffect(() => {
     if (errorPlan && errorPlan.message.includes("404")) {
       toast({
@@ -384,6 +399,105 @@ export default function MeuPlano() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Card de Tokens Avulsos Detalhados */}
+        {tokens > 0 && tokensData && tokensData.tokens && tokensData.tokens.length > 0 && (
+          <Card className="bg-white shadow-md border border-amber-200 mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="w-5 h-5 text-amber-500" />
+                Meus Tokens Avulsos
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Detalhes dos seus tokens ativos para ampliação de capacidade
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {tokensData.tokens.map((token, index) => {
+                  const dataVencimento = new Date(token.dataVencimento);
+                  const dataAdicao = new Date(token.dataAdicao);
+                  const hoje = new Date();
+                  const diasRestantes = Math.ceil((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+                  
+                  return (
+                    <div 
+                      key={token.id} 
+                      className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-amber-600" />
+                          <span className="font-semibold text-amber-800">Token #{index + 1}</span>
+                        </div>
+                        <Badge 
+                          variant={diasRestantes <= 7 ? "destructive" : diasRestantes <= 15 ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {diasRestantes > 0 ? `${diasRestantes} dias restantes` : 'Vencido'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">ID do Token:</span>
+                          <p className="font-mono text-xs text-gray-800 bg-white px-2 py-1 rounded border mt-1">
+                            {token.id}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Quantidade:</span>
+                          <p className="font-semibold text-gray-800">{token.quantidade} slot{token.quantidade !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Adicionado em:</span>
+                          <p className="font-semibold text-gray-800">{dataAdicao.toLocaleDateString('pt-BR')}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Válido até:</span>
+                          <p className="font-semibold text-gray-800">{dataVencimento.toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Status:</span>
+                          <p className={`font-semibold ${diasRestantes > 15 ? 'text-green-600' : diasRestantes > 7 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {diasRestantes > 15 ? 'Ativo' : diasRestantes > 7 ? 'Expira em breve' : diasRestantes > 0 ? 'Crítico' : 'Vencido'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Placeholder para aluno associado - será implementado em seguida */}
+                      <div className="border-t border-amber-200 pt-3">
+                        <span className="text-xs text-gray-500">
+                          💡 Token sendo usado para ampliar sua capacidade de {limitePlano} para {capacidadeTotal} alunos
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {isLoadingTokens && (
+                <div className="text-center py-4">
+                  <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+                    <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                    Carregando detalhes dos tokens...
+                  </div>
+                </div>
+              )}
+              
+              {errorTokens && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-red-600">
+                    Erro ao carregar detalhes dos tokens. Tente recarregar a página.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         <div className="flex gap-4 mb-6">
