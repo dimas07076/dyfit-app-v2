@@ -244,12 +244,15 @@ router.post('/finalize-cycle', async (req, res, next) => {
   
         const personalObjectId = new mongoose.Types.ObjectId(userId);
   
-        // Inativa todos os alunos ativos do personal
+        // --- INÍCIO DA CORREÇÃO ---
+        // Inativa TODOS os alunos do personal que estavam ativos E vinculados a um plano.
+        // Alunos com `slotType: 'token'` são ignorados nesta etapa.
         await Aluno.updateMany(
-          { trainerId: personalObjectId, status: 'active' },
+          { trainerId: personalObjectId, status: 'active', slotType: 'plan' },
           { $set: { status: 'inactive' }, $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" } },
           { session }
         );
+        // --- FIM DA CORREÇÃO ---
         
         // Reativa apenas os alunos selecionados
         if (keepStudentIds.length > 0) {
@@ -332,12 +335,15 @@ router.post('/:id/finalize-cycle', async (req, res, next) => {
   
         const personalObjectId = new mongoose.Types.ObjectId(userId);
   
-        // Inativa todos os alunos ativos do personal
+        // --- INÍCIO DA CORREÇÃO ---
+        // Inativa TODOS os alunos do personal que estavam ativos E vinculados a um plano.
+        // Alunos com `slotType: 'token'` são ignorados nesta etapa.
         await Aluno.updateMany(
-          { trainerId: personalObjectId, status: 'active' },
+          { trainerId: personalObjectId, status: 'active', slotType: 'plan' },
           { $set: { status: 'inactive' }, $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" } },
           { session }
         );
+        // --- FIM DA CORREÇÃO ---
         
         // Reativa apenas os alunos selecionados
         if (keepStudentIds.length > 0) {
@@ -424,11 +430,15 @@ router.post('/renovar-plano', async (req, res, next) => {
         const personalObjectId = new mongoose.Types.ObjectId(personalTrainerId);
         const alunosSelecionadosIds = alunosSelecionados.map((id) => new mongoose.Types.ObjectId(id));
   
+        // --- INÍCIO DA CORREÇÃO ---
+        // Inativa TODOS os alunos do personal que estavam ativos E vinculados a um plano.
+        // Alunos com `slotType: 'token'` são ignorados nesta etapa.
         await Aluno.updateMany(
-          { trainerId: personalObjectId, status: 'active' },
+          { trainerId: personalObjectId, status: 'active', slotType: 'plan' },
           { $set: { status: 'inactive' }, $unset: { slotType: "", slotId: "", slotStartDate: "", slotEndDate: "" } },
           { session }
         );
+        // --- FIM DA CORREÇÃO ---
   
         if (alunosSelecionados.length > 0) {
           await Aluno.updateMany(
