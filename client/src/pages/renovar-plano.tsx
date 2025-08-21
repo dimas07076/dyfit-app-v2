@@ -42,6 +42,31 @@ export default function RenovarPlanoPage() {
     enabled: !!planStatus,
   });
 
+  // --- INÍCIO DA NOVA LÓGICA DE FILTRAGEM ---
+  const alunosParaRenovacao = useMemo(() => {
+    const agora = new Date();
+    return todosAlunos.filter(aluno => {
+      // Se o aluno não tem um tipo de slot, ele não está consumindo vaga, mas pode ser renovado
+      if (!aluno.slotType) {
+        return true;
+      }
+      // Se o slot é do tipo 'plan', o aluno está sempre elegível para renovação de ciclo.
+      if (aluno.slotType === 'plan') {
+        return true;
+      }
+      // Se o slot é 'token', só mostramos se o token já expirou.
+      if (aluno.slotType === 'token') {
+        // Se não houver data de fim, consideramos expirado por segurança
+        if (!aluno.slotEndDate) return true; 
+        // Compara a data de fim do token com a data atual
+        return new Date(aluno.slotEndDate) < agora;
+      }
+      // Caso padrão (nunca deve acontecer)
+      return false;
+    });
+  }, [todosAlunos]);
+  // --- FIM DA NOVA LÓGICA DE FILTRAGEM ---
+
   // Query para verificar se existe uma solicitação aprovada (guarda da página)
   const { data: approvedRequests, isLoading: loadingApproved } = useQuery<RenewalRequest[], Error>({
     queryKey: QK_RENEWALS_APPROVED,
@@ -73,13 +98,13 @@ export default function RenovarPlanoPage() {
     }
   }, [approvedRequests, loadingApproved, navigate, isFinalizando]);
 
-  // Efeito para pré-selecionar os alunos que já estão ativos
+  // Efeito para pré-selecionar os alunos que já estão ativos (usando a lista filtrada)
   useEffect(() => {
-    if (todosAlunos.length > 0) {
-      const activeStudentIds = todosAlunos.filter(a => a.status === "active").map(a => a._id);
+    if (alunosParaRenovacao.length > 0) {
+      const activeStudentIds = alunosParaRenovacao.filter(a => a.status === "active").map(a => a._id);
       setSelectedAlunos(new Set(activeStudentIds));
     }
-  }, [todosAlunos]);
+  }, [alunosParaRenovacao]);
 
   const toggleAluno = (alunoId: string) => {
     setSelectedAlunos(prev => {
@@ -110,7 +135,7 @@ export default function RenovarPlanoPage() {
       return;
     }
 
-    // Apenas os alunos que estavam ativos, mas não foram selecionados, precisam ser explicitamente removidos.
+    // Apenas os alunos que estavam ativos (na lista geral), mas não foram selecionados, precisam ser explicitamente removidos.
     const removeStudentIds = todosAlunos
       .filter(aluno => aluno.status === 'active' && !selectedAlunos.has(aluno._id))
       .map(aluno => aluno._id);
@@ -180,8 +205,8 @@ export default function RenovarPlanoPage() {
           <div>
             <h3 className="font-semibold mb-3">Selecione os Alunos</h3>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto p-1">
-              {todosAlunos.length > 0 ? (
-                todosAlunos.map((aluno) => (
+              {alunosParaRenovacao.length > 0 ? (
+                alunosParaRenovacao.map((aluno) => (
                   <label key={aluno._id} className={`flex items-center gap-3 p-3 border rounded-lg hover:bg-muted cursor-pointer transition-all ${selectedAlunos.has(aluno._id) ? 'border-primary bg-primary/5' : ''}`}>
                     <Checkbox
                       checked={selectedAlunos.has(aluno._id)}
@@ -195,7 +220,7 @@ export default function RenovarPlanoPage() {
                   </label>
                 ))
               ) : (
-                <p className="col-span-full text-center text-muted-foreground p-4">Você não possui alunos cadastrados.</p>
+                <p className="col-span-full text-center text-muted-foreground p-4">Nenhum aluno elegível para renovação neste momento.</p>
               )}
             </div>
           </div>
