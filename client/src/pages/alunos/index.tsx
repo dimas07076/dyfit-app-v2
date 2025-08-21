@@ -1,7 +1,7 @@
 // client/src/pages/alunos/index.tsx
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,12 @@ import AlunoViewModal from "@/components/dialogs/AlunoViewModal";
 import GerarConviteAlunoModal from "@/components/dialogs/GerarConviteAlunoModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+// Interface para a verificação da renovação
+interface RenewalRequestCheck {
+    _id: string;
+    status: string;
+}
 
 const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: Aluno) => void, onDelete: (s: Aluno) => void }) => {
     const getInitials = (nome: string) => {
@@ -130,40 +136,52 @@ const AlunoCard = ({ student, onView, onDelete }: { student: Aluno, onView: (s: 
 export default function StudentsIndex() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [, navigate] = useLocation();
     const { isOpen: isConfirmOpen, options: confirmOptions, openConfirmDialog, closeConfirmDialog, confirm: confirmAction } = useConfirmDialog();
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-    console.log("Fetching students data...");
+    // --- INÍCIO DA NOVA LÓGICA DE BLOQUEIO ---
+    const { data: pendingRenewal } = useQuery<RenewalRequestCheck[], Error>({
+        queryKey: ['pendingRenewalCheck'],
+        queryFn: () => fetchWithAuth("/api/personal/renewal-requests?status=approved,cycle_assignment_pending"),
+    });
+
+    const hasPendingRenewal = pendingRenewal && pendingRenewal.length > 0;
+
+    const handleActionClick = (action: () => void) => {
+        if (hasPendingRenewal) {
+            toast({
+                variant: "destructive",
+                title: "Ação Necessária",
+                description: "Finalize a renovação do seu plano para adicionar ou convidar novos alunos.",
+            });
+            navigate("/renovar-plano");
+        } else {
+            action();
+        }
+    };
+    // --- FIM DA NOVA LÓGICA DE BLOQUEIO ---
+
     const { data: students = [], isLoading, isError, error } = useQuery<Aluno[], Error>({
         queryKey: ['/api/aluno/gerenciar'],
         queryFn: () => {
-            console.log("Executing fetchWithAuth for /api/aluno/gerenciar");
             return fetchWithAuth<Aluno[]>("/api/aluno/gerenciar");
         },
         retry: 1,
     });
-    console.log("Students data:", students);
-    console.log("Is Loading:", isLoading);
-    console.log("Is Error:", isError);
-    if (isError) {
-        console.error("Error fetching students:", error);
-    }
 
     const deleteStudentMutation = useMutation<any, Error, string>({
         mutationFn: (alunoId: string) => {
-            console.log("Deleting student with ID:", alunoId);
             return fetchWithAuth(`/api/aluno/gerenciar/${alunoId}`, { method: 'DELETE' });
         },
         onSuccess: (data) => {
-            console.log("Student deleted successfully.");
             toast({ title: "Aluno Excluído", description: data.message || `O aluno foi removido permanentemente.` });
             queryClient.invalidateQueries({ queryKey: ['/api/aluno/gerenciar'] });
         },
         onError: (error) => {
-            console.error("Error deleting student:", error);
             toast({ variant: "destructive", title: "Erro ao Excluir", description: error.message || "Não foi possível excluir o aluno." });
         },
         onSettled: () => closeConfirmDialog(),
@@ -173,10 +191,8 @@ export default function StudentsIndex() {
         return (student.nome || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                (student.email || "").toLowerCase().includes(searchQuery.toLowerCase());
     });
-    console.log("Filtered students:", filteredStudents);
 
     const handleDeleteClick = (aluno: Aluno) => {
-        console.log("Handle delete click for student:", aluno.nome);
         openConfirmDialog({
             titulo: "Excluir Aluno",
             mensagem: `Tem certeza que deseja excluir ${aluno.nome}? Esta ação é permanente e removerá todos os dados do aluno, incluindo suas fichas de treino.`,
@@ -186,7 +202,6 @@ export default function StudentsIndex() {
     };
 
     const handleViewClick = (student: Aluno) => {
-        console.log("Handle view click for student:", student.nome);
         setSelectedStudent(student);
         setIsViewModalOpen(true);
     };
@@ -199,7 +214,6 @@ export default function StudentsIndex() {
                            bg-white/90 dark:bg-slate-800/90 backdrop-blur-md 
                            transition-all duration-500 rounded-xl">
                 
-                {/* Gradient background overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-indigo-50/20 to-purple-50/30 
                                dark:from-blue-900/10 dark:via-indigo-900/5 dark:to-purple-900/10" />
                 
@@ -235,7 +249,7 @@ export default function StudentsIndex() {
                         </div>
                         
                         <Button variant="outline" 
-                                onClick={() => setIsInviteModalOpen(true)}
+                                onClick={() => handleActionClick(() => setIsInviteModalOpen(true))}
                                 className="min-h-[44px] px-4 py-2 border-2 border-indigo-200 dark:border-indigo-700
                                          bg-gradient-to-r from-indigo-50 to-purple-50 
                                          dark:from-indigo-900/30 dark:to-purple-900/30 
@@ -249,18 +263,18 @@ export default function StudentsIndex() {
                             Convidar Aluno
                         </Button>
                         
-                        <Link href="/alunos/novo">
-                            <Button className="min-h-[44px] px-4 py-2 font-semibold
-                                             bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
-                                             hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 
-                                             text-white shadow-lg hover:shadow-xl 
-                                             transition-all duration-300 ease-out
-                                             hover:scale-105 active:scale-95 
-                                             border-0 rounded-lg">
-                                <Plus className="h-4 w-4 mr-2" /> 
-                                <span className="hidden sm:inline">Adicionar</span> Aluno
-                            </Button>
-                        </Link>
+                        <Button 
+                            onClick={() => handleActionClick(() => navigate("/alunos/novo"))}
+                            className="min-h-[44px] px-4 py-2 font-semibold
+                                        bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
+                                        hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 
+                                        text-white shadow-lg hover:shadow-xl 
+                                        transition-all duration-300 ease-out
+                                        hover:scale-105 active:scale-95 
+                                        border-0 rounded-lg">
+                            <Plus className="h-4 w-4 mr-2" /> 
+                            <span className="hidden sm:inline">Adicionar</span> Aluno
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent className="relative p-0">
@@ -470,16 +484,16 @@ export default function StudentsIndex() {
                                     }
                                 </p>
                                 {students.length === 0 && (
-                                    <Link href="/alunos/novo" className="inline-block mt-4">
-                                        <Button className="min-h-[44px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
+                                    <Button 
+                                        onClick={() => handleActionClick(() => navigate("/alunos/novo"))}
+                                        className="mt-4 min-h-[44px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 
                                                          hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 
                                                          text-white shadow-lg hover:shadow-xl 
                                                          transition-all duration-300 ease-out
                                                          hover:scale-105 active:scale-95 border-0 rounded-lg">
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Adicionar Primeiro Aluno
-                                        </Button>
-                                    </Link>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Adicionar Primeiro Aluno
+                                    </Button>
                                 )}
                             </div>
                         </div>
