@@ -340,9 +340,9 @@ const AlunoDashboardPage: React.FC = () => {
                 )}
             </CardContent>
             <CardFooter>
-                <Button variant="outline" className="w-full border-gray-300 text-gray-700" disabled>
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white rounded-xl" onClick={() => navigate('/aluno/progresso')}>
                     <TrendingUp className="w-4 h-4 mr-2" />
-                    Análise de Progresso (Em breve)
+                    Ver meu progresso
                 </Button>
             </CardFooter>
         </Card>
