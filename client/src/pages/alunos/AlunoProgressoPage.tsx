@@ -38,9 +38,13 @@ interface TreinoData {
   concluido: boolean;
 }
 
-// Mock hooks (will be replaced with actual implementations if they exist)
+// Mock hooks (will be replaced with actual implementations when available)
+// TODO: Replace these with real useAlunoSessoes and useAlunoTreinos hooks
 const useAlunoSessoes = () => {
   console.debug('[AlunoProgressoPage] Mock useAlunoSessoes hook called');
+  
+  // Return empty data for production use
+  // When real hooks are available, replace this with actual implementation
   return {
     data: [] as SessionData[],
     isLoading: false,
@@ -50,6 +54,9 @@ const useAlunoSessoes = () => {
 
 const useAlunoTreinos = () => {
   console.debug('[AlunoProgressoPage] Mock useAlunoTreinos hook called');
+  
+  // Return empty data for production use
+  // When real hooks are available, replace this with actual implementation
   return {
     data: [] as TreinoData[],
     isLoading: false,
@@ -60,6 +67,9 @@ const useAlunoTreinos = () => {
 const AlunoProgressoPage: React.FC = () => {
   const { aluno } = useAluno();
   const [, navigate] = useLocation();
+  
+  // For testing purposes, create a mock aluno if none exists
+  // const mockAluno = aluno || { id: 'test', nome: 'João Silva' };
   
   // Data fetching hooks (using mocks for now)
   const { data: sessoes = [], isLoading: isLoadingSessoes } = useAlunoSessoes();
@@ -477,10 +487,34 @@ const CalendarioHeatmap: React.FC<{ data: { [key: string]: number } }> = ({ data
 };
 
 // Helper calculation functions (placeholders for now)
-function calculateStreak(_sessoes: SessionData[]): number {
+function calculateStreak(sessoes: SessionData[]): number {
   console.debug('[AlunoProgressoPage] Calculating streak');
-  // TODO: Implement streak calculation
-  return 0;
+  
+  if (sessoes.length === 0) return 0;
+  
+  // Sort sessions by date descending
+  const sortedSessions = [...sessoes].sort((a, b) => 
+    new Date(b.data).getTime() - new Date(a.data).getTime()
+  );
+  
+  let streak = 0;
+  let currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
+  for (const session of sortedSessions) {
+    const sessionDate = new Date(session.data);
+    sessionDate.setHours(0, 0, 0, 0);
+    
+    const daysDiff = Math.floor((currentDate.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff === streak || (streak === 0 && daysDiff <= 1)) {
+      streak = daysDiff + 1;
+    } else {
+      break;
+    }
+  }
+  
+  return Math.min(streak, sessoes.length);
 }
 
 function calculateVolume(sessoes: SessionData[]): number {
@@ -507,16 +541,113 @@ function calculateIntensidadeMedia(sessoes: SessionData[]): number {
   return total / sessoes.length;
 }
 
-function calculatePRs(_sessoes: SessionData[]): number {
+function calculatePRs(sessoes: SessionData[]): number {
   console.debug('[AlunoProgressoPage] Calculating PRs');
-  // TODO: Implement PR calculation
-  return 0;
+  
+  if (sessoes.length === 0) return 0;
+  
+  const last30Days = new Date();
+  last30Days.setDate(last30Days.getDate() - 30);
+  
+  const exerciseMaxes: { [key: string]: { carga: number; data: string }[] } = {};
+  
+  // Group exercises by name and track max weights
+  sessoes.forEach(session => {
+    const sessionDate = new Date(session.data);
+    if (sessionDate >= last30Days) {
+      session.exercicios.forEach(exercicio => {
+        if (!exerciseMaxes[exercicio.nome]) {
+          exerciseMaxes[exercicio.nome] = [];
+        }
+        
+        const maxCarga = Math.max(...exercicio.series.map(s => s.carga || 0));
+        if (maxCarga > 0) {
+          exerciseMaxes[exercicio.nome].push({
+            carga: maxCarga,
+            data: session.data
+          });
+        }
+      });
+    }
+  });
+  
+  let totalPRs = 0;
+  
+  // Count PRs for each exercise
+  Object.entries(exerciseMaxes).forEach(([_, records]) => {
+    if (records.length < 2) return;
+    
+    records.sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+    
+    for (let i = 1; i < records.length; i++) {
+      if (records[i].carga > records[i-1].carga) {
+        totalPRs++;
+      }
+    }
+  });
+  
+  return totalPRs;
 }
 
-function getTopExercicios(_sessoes: SessionData[]): any[] {
+function getTopExercicios(sessoes: SessionData[]): Array<{
+  nome: string;
+  estimativa1RM: number;
+  progressoPercentual: number;
+  isPR: boolean;
+}> {
   console.debug('[AlunoProgressoPage] Getting top exercises');
-  // TODO: Implement top exercises calculation
-  return [];
+  
+  if (sessoes.length === 0) return [];
+  
+  const exerciseData: { [key: string]: { cargas: number[]; datas: string[] } } = {};
+  
+  // Collect exercise data
+  sessoes.forEach(session => {
+    session.exercicios.forEach(exercicio => {
+      if (!exerciseData[exercicio.nome]) {
+        exerciseData[exercicio.nome] = { cargas: [], datas: [] };
+      }
+      
+      const maxCarga = Math.max(...exercicio.series.map(s => s.carga || 0));
+      const maxReps = Math.max(...exercicio.series.map(s => s.reps));
+      
+      if (maxCarga > 0) {
+        // Calculate estimated 1RM using Epley formula: weight × (1 + reps / 30)
+        const estimativa1RM = maxCarga * (1 + maxReps / 30);
+        exerciseData[exercicio.nome].cargas.push(estimativa1RM);
+        exerciseData[exercicio.nome].datas.push(session.data);
+      }
+    });
+  });
+  
+  // Calculate progress for each exercise
+  const exerciseProgress = Object.entries(exerciseData)
+    .map(([nome, data]) => {
+      if (data.cargas.length < 2) return null;
+      
+      const firstMax = data.cargas[0];
+      const latestMax = data.cargas[data.cargas.length - 1];
+      const allTimeMax = Math.max(...data.cargas);
+      
+      const progressoPercentual = ((latestMax - firstMax) / firstMax) * 100;
+      const isPR = latestMax === allTimeMax;
+      
+      return {
+        nome,
+        estimativa1RM: Math.round(latestMax),
+        progressoPercentual: Math.round(progressoPercentual),
+        isPR
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b?.progressoPercentual || 0) - (a?.progressoPercentual || 0));
+  
+  return exerciseProgress.slice(0, 3) as Array<{
+    nome: string;
+    estimativa1RM: number;
+    progressoPercentual: number;
+    isPR: boolean;
+  }>;
 }
 
 function getVolumeSemanal(sessoes: SessionData[]): any[] {
