@@ -47,6 +47,7 @@ const AlunoDashboardPage = lazy(() => import('@/pages/alunos/AlunoDashboardPage'
 const AlunoFichaDetalhePage = lazy(() => import('@/pages/alunos/AlunoFichaDetalhePage'));
 const AlunoHistoricoPage = lazy(() => import('@/pages/alunos/AlunoHistoricoPage'));
 const MeusTreinosPage = lazy(() => import('@/pages/alunos/MeusTreinosPage'));
+const AlunoProgressoPage = lazy(() => import('@/pages/alunos/AlunoProgressoPage'));
 const ListarPersonaisPage = lazy(() => import('@/pages/admin/ListarPersonaisPage'));
 const CriarPersonalPage = lazy(() => import('@/pages/admin/CriarPersonalPage'));
 const EditarPersonalPage = lazy(() => import('@/pages/admin/EditarPersonalPage'));
@@ -375,6 +376,7 @@ function AlunoApp() {
           <AlunoProtectedRoute path="/aluno/ficha/:fichaId" component={AlunoFichaDetalhePage} /> 
           <AlunoProtectedRoute path="/aluno/historico" component={AlunoHistoricoPage} /> 
           <AlunoProtectedRoute path="/aluno/meus-treinos" component={MeusTreinosPage} /> 
+          <AlunoProtectedRoute path="/aluno/progresso" component={AlunoProgressoPage} />
           <Route><Redirect to="/aluno/dashboard" /></Route> 
         </Switch> 
       </Suspense> 
