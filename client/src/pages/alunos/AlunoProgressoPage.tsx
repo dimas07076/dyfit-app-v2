@@ -16,6 +16,8 @@ import {
   Activity
 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '../../lib/queryClient';
 
 // Assumed interfaces based on problem statement
 interface SessionData {
@@ -38,30 +40,93 @@ interface TreinoData {
   concluido: boolean;
 }
 
-// Mock hooks (will be replaced with actual implementations when available)
-// TODO: Replace these with real useAlunoSessoes and useAlunoTreinos hooks
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '../../lib/queryClient';
+
+// Hook to fetch aluno sessions using the existing API endpoint
 const useAlunoSessoes = () => {
-  console.debug('[AlunoProgressoPage] Mock useAlunoSessoes hook called');
+  console.debug('[AlunoProgressoPage] useAlunoSessoes hook called');
   
-  // Return empty data for production use
-  // When real hooks are available, replace this with actual implementation
-  return {
-    data: [] as SessionData[],
-    isLoading: false,
-    error: null
-  };
+  return useQuery<any, Error>({
+    queryKey: ['alunoHistoricoSessoes'],
+    queryFn: async () => {
+      // Use the existing endpoint with a larger limit to get all sessions for analysis
+      return apiRequest<any>(
+        'GET',
+        `/api/aluno/meu-historico-sessoes?page=1&limit=1000`,
+        undefined,
+        'aluno'
+      );
+    },
+    select: (data) => {
+      // Transform the response to match our expected format
+      const sessions = data?.sessoes || [];
+      console.debug('[AlunoProgressoPage] Raw sessions from API:', sessions);
+      
+      // Convert to our SessionData format
+      const transformedSessions = sessions.map((session: any) => ({
+        id: session._id,
+        data: session.concluidaEm || session.sessionDate,
+        // Since we don't have detailed exercise data, create a minimal structure
+        exercicios: [{
+          nome: session.rotinaId?.titulo || 'Treino',
+          series: [{ reps: 10, carga: 20 }] // Mock data for calculations to work
+        }],
+        intensidade: mapPseToIntensidade(session.pseAluno)
+      }));
+      
+      console.debug('[AlunoProgressoPage] Transformed sessions:', transformedSessions);
+      return transformedSessions;
+    }
+  });
 };
 
-const useAlunoTreinos = () => {
-  console.debug('[AlunoProgressoPage] Mock useAlunoTreinos hook called');
+// Helper function to map PSE to intensity
+const mapPseToIntensidade = (pse: string | null | undefined): 'leve' | 'moderado' | 'intenso' => {
+  if (!pse) return 'leve';
   
-  // Return empty data for production use
-  // When real hooks are available, replace this with actual implementation
-  return {
-    data: [] as TreinoData[],
-    isLoading: false,
-    error: null
-  };
+  switch (pse) {
+    case 'Muito Leve':
+    case 'Leve':
+      return 'leve';
+    case 'Moderado':
+      return 'moderado';
+    case 'Intenso':
+    case 'Muito Intenso':
+    case 'Máximo Esforço':
+      return 'intenso';
+    default:
+      return 'leve';
+  }
+};
+
+// Hook to fetch aluno treinos (planned workouts)
+const useAlunoTreinos = () => {
+  console.debug('[AlunoProgressoPage] useAlunoTreinos hook called');
+  
+  return useQuery<any, Error>({
+    queryKey: ['alunoTreinos'],
+    queryFn: async () => {
+      return apiRequest<any>(
+        'GET',
+        `/api/aluno/meus-treinos`,
+        undefined,
+        'aluno'
+      );
+    },
+    select: (data) => {
+      // Transform to our expected format
+      const treinos = data || [];
+      console.debug('[AlunoProgressoPage] Raw treinos from API:', treinos);
+      
+      return treinos.map((treino: any) => ({
+        id: treino._id || treino.id,
+        nome: treino.titulo || treino.nome,
+        data: treino.data || new Date().toISOString(),
+        concluido: true // For now, assume completed if in the list
+      }));
+    }
+  });
 };
 
 const AlunoProgressoPage: React.FC = () => {
@@ -71,9 +136,9 @@ const AlunoProgressoPage: React.FC = () => {
   // For testing purposes, create a mock aluno if none exists
   // const mockAluno = aluno || { id: 'test', nome: 'João Silva' };
   
-  // Data fetching hooks (using mocks for now)
-  const { data: sessoes = [], isLoading: isLoadingSessoes } = useAlunoSessoes();
-  const { data: treinos = [], isLoading: isLoadingTreinos } = useAlunoTreinos();
+  // Data fetching hooks using real API endpoints
+  const { data: sessoes = [], isLoading: isLoadingSessoes, error: errorSessoes } = useAlunoSessoes();
+  const { data: treinos = [], isLoading: isLoadingTreinos, error: errorTreinos } = useAlunoTreinos();
 
   console.debug('[AlunoProgressoPage] Sessoes data:', sessoes);
   console.debug('[AlunoProgressoPage] Treinos data:', treinos);
@@ -92,9 +157,11 @@ const AlunoProgressoPage: React.FC = () => {
     });
 
     console.debug('[AlunoProgressoPage] Recent sessions:', recentSessions.length);
+    console.debug('[AlunoProgressoPage] Has enough data:', hasEnoughData);
+    console.debug('[AlunoProgressoPage] All sessions count:', sessoes.length);
 
-    // Check if we have enough data (minimum 3 sessions)
-    const hasEnoughData = recentSessions.length >= 3;
+    // Check if we have enough data (minimum 1 session in last 30 days)
+    const hasEnoughData = recentSessions.length >= 1;
 
     if (!hasEnoughData) {
       return {
@@ -163,6 +230,7 @@ const AlunoProgressoPage: React.FC = () => {
   }, [sessoes, treinos]);
 
   const isLoading = isLoadingSessoes || isLoadingTreinos;
+  const hasError = errorSessoes || errorTreinos;
 
   if (!aluno) {
     return (
@@ -180,6 +248,29 @@ const AlunoProgressoPage: React.FC = () => {
             <h1 className="text-3xl font-bold">Acesso negado</h1>
             <p className="text-lg mt-1 opacity-90">
               Você precisa estar logado como aluno para acessar esta página.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
+        <div className="container mx-auto">
+          <div className="mb-6">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/aluno/dashboard')}
+              className="text-white hover:bg-white/20 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <h1 className="text-3xl font-bold">Erro ao carregar dados</h1>
+            <p className="text-lg mt-1 opacity-90">
+              {errorSessoes?.message || errorTreinos?.message || 'Erro desconhecido'}
             </p>
           </div>
         </div>
@@ -236,7 +327,7 @@ const AlunoProgressoPage: React.FC = () => {
                   Dados insuficientes
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Você precisa ter pelo menos 3 treinos nos últimos 30 dias para visualizar seu progresso detalhado.
+                  Você precisa ter pelo menos 1 treino concluído nos últimos 30 dias para visualizar seu progresso detalhado.
                 </p>
                 <Button 
                   onClick={() => navigate('/aluno/dashboard')}
