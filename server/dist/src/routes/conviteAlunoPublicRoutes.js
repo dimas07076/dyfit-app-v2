@@ -2,7 +2,7 @@
 import express from 'express';
 import ConviteAluno from '../../models/ConviteAluno.js';
 import Aluno from '../../models/Aluno.js';
-import PersonalTrainer from '../../models/PersonalTrainer.js'; // Importa o modelo PersonalTrainer
+import PersonalTrainer from '../../models/PersonalTrainer.js';
 import mongoose from 'mongoose';
 import dbConnect from '../../lib/dbConnect.js';
 // Imports adicionados para a lógica de negócio

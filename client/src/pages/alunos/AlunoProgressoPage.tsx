@@ -33,16 +33,6 @@ interface SessionData {
   intensidade?: 'leve' | 'moderado' | 'intenso';
 }
 
-interface TreinoData {
-  id: string;
-  nome: string;
-  data: string;
-  concluido: boolean;
-}
-
-import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '../../lib/queryClient';
-
 // Hook to fetch aluno sessions using the existing API endpoint
 const useAlunoSessoes = () => {
   console.debug('[AlunoProgressoPage] useAlunoSessoes hook called');
@@ -50,33 +40,46 @@ const useAlunoSessoes = () => {
   return useQuery<any, Error>({
     queryKey: ['alunoHistoricoSessoes'],
     queryFn: async () => {
-      // Use the existing endpoint with a larger limit to get all sessions for analysis
-      return apiRequest<any>(
-        'GET',
-        `/api/aluno/meu-historico-sessoes?page=1&limit=1000`,
-        undefined,
-        'aluno'
-      );
+      console.debug('[AlunoProgressoPage] Fetching session history...');
+      try {
+        // Use the existing endpoint with a larger limit to get all sessions for analysis
+        const result = await apiRequest<any>(
+          'GET',
+          `/api/aluno/meu-historico-sessoes?page=1&limit=1000`,
+          undefined,
+          'aluno'
+        );
+        console.debug('[AlunoProgressoPage] Raw API response:', result);
+        return result;
+      } catch (error) {
+        console.error('[AlunoProgressoPage] Error fetching sessions:', error);
+        throw error;
+      }
     },
     select: (data) => {
-      // Transform the response to match our expected format
-      const sessions = data?.sessoes || [];
-      console.debug('[AlunoProgressoPage] Raw sessions from API:', sessions);
-      
-      // Convert to our SessionData format
-      const transformedSessions = sessions.map((session: any) => ({
-        id: session._id,
-        data: session.concluidaEm || session.sessionDate,
-        // Since we don't have detailed exercise data, create a minimal structure
-        exercicios: [{
-          nome: session.rotinaId?.titulo || 'Treino',
-          series: [{ reps: 10, carga: 20 }] // Mock data for calculations to work
-        }],
-        intensidade: mapPseToIntensidade(session.pseAluno)
-      }));
-      
-      console.debug('[AlunoProgressoPage] Transformed sessions:', transformedSessions);
-      return transformedSessions;
+      try {
+        // Transform the response to match our expected format
+        const sessions = data?.sessoes || [];
+        console.debug('[AlunoProgressoPage] Raw sessions from API:', sessions);
+        
+        // Convert to our SessionData format
+        const transformedSessions = sessions.map((session: any) => ({
+          id: session._id,
+          data: session.concluidaEm || session.sessionDate,
+          // Since we don't have detailed exercise data, create a minimal structure
+          exercicios: [{
+            nome: session.rotinaId?.titulo || 'Treino',
+            series: [{ reps: 10, carga: 20 }] // Mock data for calculations to work
+          }],
+          intensidade: mapPseToIntensidade(session.pseAluno)
+        }));
+        
+        console.debug('[AlunoProgressoPage] Transformed sessions:', transformedSessions);
+        return transformedSessions;
+      } catch (error) {
+        console.error('[AlunoProgressoPage] Error transforming sessions:', error);
+        return [];
+      }
     }
   });
 };
@@ -107,24 +110,37 @@ const useAlunoTreinos = () => {
   return useQuery<any, Error>({
     queryKey: ['alunoTreinos'],
     queryFn: async () => {
-      return apiRequest<any>(
-        'GET',
-        `/api/aluno/meus-treinos`,
-        undefined,
-        'aluno'
-      );
+      console.debug('[AlunoProgressoPage] Fetching treinos...');
+      try {
+        const result = await apiRequest<any>(
+          'GET',
+          `/api/aluno/meus-treinos`,
+          undefined,
+          'aluno'
+        );
+        console.debug('[AlunoProgressoPage] Raw treinos API response:', result);
+        return result;
+      } catch (error) {
+        console.error('[AlunoProgressoPage] Error fetching treinos:', error);
+        throw error;
+      }
     },
     select: (data) => {
-      // Transform to our expected format
-      const treinos = data || [];
-      console.debug('[AlunoProgressoPage] Raw treinos from API:', treinos);
-      
-      return treinos.map((treino: any) => ({
-        id: treino._id || treino.id,
-        nome: treino.titulo || treino.nome,
-        data: treino.data || new Date().toISOString(),
-        concluido: true // For now, assume completed if in the list
-      }));
+      try {
+        // Transform to our expected format
+        const treinos = data || [];
+        console.debug('[AlunoProgressoPage] Raw treinos from API:', treinos);
+        
+        return treinos.map((treino: any) => ({
+          id: treino._id || treino.id,
+          nome: treino.titulo || treino.nome,
+          data: treino.data || new Date().toISOString(),
+          concluido: true // For now, assume completed if in the list
+        }));
+      } catch (error) {
+        console.error('[AlunoProgressoPage] Error transforming treinos:', error);
+        return [];
+      }
     }
   });
 };
@@ -133,37 +149,104 @@ const AlunoProgressoPage: React.FC = () => {
   const { aluno } = useAluno();
   const [, navigate] = useLocation();
   
-  // For testing purposes, create a mock aluno if none exists
-  // const mockAluno = aluno || { id: 'test', nome: 'João Silva' };
-  
   // Data fetching hooks using real API endpoints
   const { data: sessoes = [], isLoading: isLoadingSessoes, error: errorSessoes } = useAlunoSessoes();
   const { data: treinos = [], isLoading: isLoadingTreinos, error: errorTreinos } = useAlunoTreinos();
 
+  console.debug('[AlunoProgressoPage] Component render - aluno:', aluno);
   console.debug('[AlunoProgressoPage] Sessoes data:', sessoes);
   console.debug('[AlunoProgressoPage] Treinos data:', treinos);
+  console.debug('[AlunoProgressoPage] Loading states:', { isLoadingSessoes, isLoadingTreinos });
+  console.debug('[AlunoProgressoPage] Errors:', { errorSessoes, errorTreinos });
 
   // Calculate progress metrics
   const progressMetrics = useMemo(() => {
-    console.debug('[AlunoProgressoPage] Calculating progress metrics');
-    
-    const last30Days = new Date();
-    last30Days.setDate(last30Days.getDate() - 30);
-    
-    // Filter recent sessions
-    const recentSessions = sessoes.filter(sessao => {
-      const sessionDate = new Date(sessao.data);
-      return sessionDate >= last30Days;
-    });
+    try {
+      console.debug('[AlunoProgressoPage] Calculating progress metrics');
+      console.debug('[AlunoProgressoPage] Sessoes data:', sessoes);
+      console.debug('[AlunoProgressoPage] All sessions count:', sessoes.length);
+      
+      const last30Days = new Date();
+      last30Days.setDate(last30Days.getDate() - 30);
+      
+      // Filter recent sessions
+      const recentSessions = sessoes.filter((sessao: any) => {
+        const sessionDate = new Date(sessao.data);
+        return sessionDate >= last30Days;
+      });
 
-    console.debug('[AlunoProgressoPage] Recent sessions:', recentSessions.length);
-    console.debug('[AlunoProgressoPage] Has enough data:', hasEnoughData);
-    console.debug('[AlunoProgressoPage] All sessions count:', sessoes.length);
+      console.debug('[AlunoProgressoPage] Recent sessions:', recentSessions.length);
 
-    // Check if we have enough data (minimum 1 session in last 30 days)
-    const hasEnoughData = recentSessions.length >= 1;
+      // Check if we have enough data (minimum 1 session in last 30 days)
+      const hasEnoughData = recentSessions.length >= 1;
+      console.debug('[AlunoProgressoPage] Has enough data:', hasEnoughData);
 
-    if (!hasEnoughData) {
+      if (!hasEnoughData) {
+        return {
+          hasEnoughData: false,
+          adesao: 0,
+          streak: 0,
+          volume: 0,
+          intensidadeMedia: 0,
+          totalPRs: 0,
+          topExercicios: [],
+          volumeSemanal: [],
+          distribuicaoIntensidade: { leve: 0, moderado: 0, intenso: 0 },
+          calendarioHeatmap: {}
+        };
+      }
+
+      // Calculate metrics
+      const totalTreinos = treinos.filter((t: any) => {
+        const treinoDate = new Date(t.data);
+        return treinoDate >= last30Days;
+      }).length;
+      
+      const treinosConcluidos = treinos.filter((t: any) => {
+        const treinoDate = new Date(t.data);
+        return treinoDate >= last30Days && t.concluido;
+      }).length;
+
+      const adesao = totalTreinos > 0 ? Math.round((treinosConcluidos / totalTreinos) * 100) : 0;
+
+      // Calculate streak (consecutive training days)
+      const streak = calculateStreak(sessoes);
+
+      // Calculate volume (total load x reps)
+      const volume = calculateVolume(recentSessions);
+
+      // Calculate average intensity
+      const intensidadeMedia = calculateIntensidadeMedia(recentSessions);
+
+      // Calculate PRs (personal records)
+      const totalPRs = calculatePRs(sessoes);
+
+      // Get top 3 exercises
+      const topExercicios = getTopExercicios(recentSessions);
+
+      // Get weekly volume data
+      const volumeSemanal = getVolumeSemanal(sessoes);
+
+      // Get intensity distribution
+      const distribuicaoIntensidade = getDistribuicaoIntensidade(recentSessions);
+
+      // Get calendar heatmap data
+      const calendarioHeatmap = getCalendarioHeatmap(sessoes);
+
+      return {
+        hasEnoughData: true,
+        adesao,
+        streak,
+        volume,
+        intensidadeMedia,
+        totalPRs,
+        topExercicios,
+        volumeSemanal,
+        distribuicaoIntensidade,
+        calendarioHeatmap
+      };
+    } catch (error) {
+      console.error('[AlunoProgressoPage] Error calculating progress metrics:', error);
       return {
         hasEnoughData: false,
         adesao: 0,
@@ -177,61 +260,19 @@ const AlunoProgressoPage: React.FC = () => {
         calendarioHeatmap: {}
       };
     }
-
-    // Calculate metrics
-    const totalTreinos = treinos.filter(t => {
-      const treinoDate = new Date(t.data);
-      return treinoDate >= last30Days;
-    }).length;
-    
-    const treinosConcluidos = treinos.filter(t => {
-      const treinoDate = new Date(t.data);
-      return treinoDate >= last30Days && t.concluido;
-    }).length;
-
-    const adesao = totalTreinos > 0 ? Math.round((treinosConcluidos / totalTreinos) * 100) : 0;
-
-    // Calculate streak (consecutive training days)
-    const streak = calculateStreak(sessoes);
-
-    // Calculate volume (total load x reps)
-    const volume = calculateVolume(recentSessions);
-
-    // Calculate average intensity
-    const intensidadeMedia = calculateIntensidadeMedia(recentSessions);
-
-    // Calculate PRs (personal records)
-    const totalPRs = calculatePRs(sessoes);
-
-    // Get top 3 exercises
-    const topExercicios = getTopExercicios(recentSessions);
-
-    // Get weekly volume data
-    const volumeSemanal = getVolumeSemanal(sessoes);
-
-    // Get intensity distribution
-    const distribuicaoIntensidade = getDistribuicaoIntensidade(recentSessions);
-
-    // Get calendar heatmap data
-    const calendarioHeatmap = getCalendarioHeatmap(sessoes);
-
-    return {
-      hasEnoughData: true,
-      adesao,
-      streak,
-      volume,
-      intensidadeMedia,
-      totalPRs,
-      topExercicios,
-      volumeSemanal,
-      distribuicaoIntensidade,
-      calendarioHeatmap
-    };
   }, [sessoes, treinos]);
 
   const isLoading = isLoadingSessoes || isLoadingTreinos;
   const hasError = errorSessoes || errorTreinos;
 
+  console.debug('[AlunoProgressoPage] Final render state:', {
+    aluno: !!aluno,
+    isLoading,
+    hasError,
+    progressMetrics
+  });
+
+  // Add error boundary protection
   if (!aluno) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
@@ -444,6 +485,26 @@ const AlunoProgressoPage: React.FC = () => {
       </div>
     </div>
   );
+};
+
+// Add error boundary wrapper
+const AlunoProgressoPageWithErrorBoundary: React.FC = () => {
+  try {
+    return <AlunoProgressoPage />;
+  } catch (error) {
+    console.error('[AlunoProgressoPage] Component error:', error);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-400 p-4 text-white">
+        <div className="container mx-auto">
+          <h1 className="text-3xl font-bold mb-4">Erro na página</h1>
+          <p>Ocorreu um erro ao carregar a página de progresso. Tente recarregar a página.</p>
+          <pre className="mt-4 p-4 bg-black/20 rounded text-sm overflow-auto">
+            {error instanceof Error ? error.message : 'Erro desconhecido'}
+          </pre>
+        </div>
+      </div>
+    );
+  }
 };
 
 // Helper Components
@@ -788,4 +849,4 @@ function getCalendarioHeatmap(sessoes: SessionData[]): any {
   return heatmap;
 }
 
-export default AlunoProgressoPage;
+export default AlunoProgressoPageWithErrorBoundary;
